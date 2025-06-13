@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,28 +25,30 @@ export default function AISettingsPage() {
   const form = useForm({
     resolver: zodResolver(insertAISettingsSchema),
     defaultValues: {
-      businessName: settings?.businessName || "",
-      assistantName: settings?.assistantName || "",
-      tone: settings?.tone || "friendly",
-      responseSpeed: settings?.responseSpeed || "natural",
-      autoSuggestProducts: settings?.autoSuggestProducts ?? true,
-      collectCustomerInfo: settings?.collectCustomerInfo ?? true,
-      welcomeMessage: settings?.welcomeMessage || "",
+      businessName: "",
+      assistantName: "",
+      tone: "friendly",
+      responseSpeed: "natural",
+      autoSuggestProducts: true,
+      collectCustomerInfo: true,
+      welcomeMessage: "",
     },
   });
 
   // Update form when settings load
-  if (settings && !form.formState.isDirty) {
-    form.reset({
-      businessName: settings.businessName,
-      assistantName: settings.assistantName,
-      tone: settings.tone,
-      responseSpeed: settings.responseSpeed,
-      autoSuggestProducts: settings.autoSuggestProducts,
-      collectCustomerInfo: settings.collectCustomerInfo,
-      welcomeMessage: settings.welcomeMessage,
-    });
-  }
+  useEffect(() => {
+    if (settings) {
+      form.reset({
+        businessName: settings.businessName,
+        assistantName: settings.assistantName,
+        tone: settings.tone,
+        responseSpeed: settings.responseSpeed,
+        autoSuggestProducts: settings.autoSuggestProducts,
+        collectCustomerInfo: settings.collectCustomerInfo,
+        welcomeMessage: settings.welcomeMessage,
+      });
+    }
+  }, [settings, form]);
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiRequest("PUT", "/api/ai-settings", data),

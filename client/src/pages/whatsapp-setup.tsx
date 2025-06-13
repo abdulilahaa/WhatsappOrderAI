@@ -35,11 +35,22 @@ export default function WhatsAppSetup() {
   const form = useForm({
     resolver: zodResolver(insertWhatsAppSettingsSchema),
     defaultValues: {
-      phoneNumberId: settings?.phoneNumberId || "",
-      accessToken: settings?.accessToken || "",
-      webhookVerifyToken: settings?.webhookVerifyToken || "",
+      phoneNumberId: "",
+      accessToken: "",
+      webhookVerifyToken: "",
     },
   });
+
+  // Update form when settings load
+  useEffect(() => {
+    if (settings) {
+      form.reset({
+        phoneNumberId: settings.phoneNumberId || "",
+        accessToken: settings.accessToken || "",
+        webhookVerifyToken: settings.webhookVerifyToken || "",
+      });
+    }
+  }, [settings, form]);
 
   const testForm = useForm<TestMessageForm>({
     resolver: zodResolver(testMessageSchema),

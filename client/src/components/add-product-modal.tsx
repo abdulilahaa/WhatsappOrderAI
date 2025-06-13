@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,13 +29,34 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
       price: insertProductSchema.shape.price.transform(String),
     })),
     defaultValues: {
-      name: editingProduct?.name || "",
-      description: editingProduct?.description || "",
-      price: editingProduct?.price || "",
-      imageUrl: editingProduct?.imageUrl || "",
-      isActive: editingProduct?.isActive ?? true,
+      name: "",
+      description: "",
+      price: "",
+      imageUrl: "",
+      isActive: true,
     },
   });
+
+  // Update form when editingProduct changes
+  useEffect(() => {
+    if (editingProduct) {
+      form.reset({
+        name: editingProduct.name,
+        description: editingProduct.description,
+        price: editingProduct.price,
+        imageUrl: editingProduct.imageUrl || "",
+        isActive: editingProduct.isActive,
+      });
+    } else {
+      form.reset({
+        name: "",
+        description: "",
+        price: "",
+        imageUrl: "",
+        isActive: true,
+      });
+    }
+  }, [editingProduct, form]);
 
   const createMutation = useMutation({
     mutationFn: (data: ProductFormData) => 
