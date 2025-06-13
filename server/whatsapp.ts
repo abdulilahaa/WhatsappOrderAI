@@ -178,13 +178,17 @@ export class WhatsAppService {
 
         // Create order
         if (orderItems.length > 0) {
-          await storage.createOrder({
+          const order = await storage.createOrder({
             customerId: customer.id,
             status: "pending",
             items: orderItems,
             total: total.toFixed(2),
-            notes: null,
+            notes: "Order placed via WhatsApp AI assistant",
           });
+
+          // Send order confirmation
+          const confirmationMessage = `🎉 *Order Confirmed!*\n\nOrder #${order.id}\nTotal: $${total.toFixed(2)}\n\nThank you! We'll process your order and contact you for delivery details.`;
+          await this.sendMessage(customer.phoneNumber, confirmationMessage);
         }
       }
     } catch (error) {
