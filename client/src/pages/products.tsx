@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import ProductCard from "@/components/product-card";
 import AddProductModal from "@/components/add-product-modal";
+import { Plus, Search, Package } from "lucide-react";
 import type { Product } from "@shared/schema";
 
 export default function Products() {
@@ -72,7 +73,7 @@ export default function Products() {
             <p className="text-slate-600 mt-1">Manage your product catalog for WhatsApp ordering</p>
           </div>
           <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
-            <i className="fas fa-plus mr-2"></i>Add Product
+            <Plus className="h-4 w-4 mr-2" />Add Product
           </Button>
         </div>
       </header>
@@ -92,7 +93,7 @@ export default function Products() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 pr-4 py-2 w-64"
                   />
-                  <i className="fas fa-search absolute left-3 top-3 text-slate-400"></i>
+                  <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 </div>
                 <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
                   <i className="fas fa-plus mr-2"></i>Add Product

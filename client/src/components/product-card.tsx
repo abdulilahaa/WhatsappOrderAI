@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Edit, Trash2 } from "lucide-react";
 import type { Product } from "@shared/schema";
 
 interface ProductCardProps {
@@ -30,7 +31,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
               onClick={() => onEdit(product)}
               className="text-slate-400 hover:text-slate-600"
             >
-              <i className="fas fa-edit"></i>
+              <Edit className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
@@ -38,7 +39,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
               onClick={() => onDelete(product.id)}
               className="text-red-400 hover:text-red-600"
             >
-              <i className="fas fa-trash"></i>
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
