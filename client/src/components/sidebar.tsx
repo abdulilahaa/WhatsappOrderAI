@@ -1,0 +1,77 @@
+import { Link, useLocation } from "wouter";
+import { cn } from "@/lib/utils";
+
+interface SidebarProps {
+  className?: string;
+}
+
+const navigation = [
+  { name: "Dashboard", href: "/", icon: "fa-chart-line" },
+  { name: "Products", href: "/products", icon: "fa-box" },
+  { name: "Orders", href: "/orders", icon: "fa-shopping-cart" },
+  { name: "Conversations", href: "/conversations", icon: "fa-comments" },
+  { name: "AI Settings", href: "/ai-settings", icon: "fa-robot" },
+  { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: "fa-whatsapp" },
+];
+
+export default function Sidebar({ className }: SidebarProps) {
+  const [location] = useLocation();
+
+  return (
+    <div className={cn("w-64 bg-white shadow-lg border-r border-slate-200 flex flex-col", className)}>
+      {/* Logo Header */}
+      <div className="px-6 py-4 border-b border-slate-200">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-whatsapp rounded-xl flex items-center justify-center">
+            <i className="fab fa-whatsapp text-white text-xl"></i>
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-800">OrderBot AI</h1>
+            <p className="text-xs text-slate-500">WhatsApp Ordering</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Menu */}
+      <nav className="flex-1 px-4 py-6">
+        <ul className="space-y-2">
+          {navigation.map((item) => {
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            
+            return (
+              <li key={item.name}>
+                <Link href={item.href}>
+                  <a className={cn(
+                    "flex items-center px-4 py-3 rounded-lg font-medium transition-colors",
+                    isActive
+                      ? "text-whatsapp bg-whatsapp/10"
+                      : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  )}>
+                    <i className={cn("fas", item.icon, "w-5 mr-3")}></i>
+                    {item.name}
+                  </a>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      {/* User Profile */}
+      <div className="px-4 py-4 border-t border-slate-200">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-ai rounded-full flex items-center justify-center">
+            <span className="text-white text-sm font-medium">AD</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-800 truncate">Admin User</p>
+            <p className="text-xs text-slate-500 truncate">admin@business.com</p>
+          </div>
+          <button className="text-slate-400 hover:text-slate-600">
+            <i className="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
