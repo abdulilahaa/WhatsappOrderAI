@@ -49,13 +49,16 @@ export default function AITest() {
         customer: selectedCustomer 
       }),
     onSuccess: (response: any) => {
-      setTestMessages(prev => [
-        ...prev.slice(0, -1),
-        {
-          ...prev[prev.length - 1],
-          response: response
-        }
-      ]);
+      // Add AI response as a new message
+      const aiMessage: TestMessage = {
+        id: Date.now().toString() + "_ai",
+        content: "",
+        isFromUser: false,
+        timestamp: new Date(),
+        response: response
+      };
+      
+      setTestMessages(prev => [...prev, aiMessage]);
     },
     onError: (error: any) => {
       toast({
@@ -63,6 +66,9 @@ export default function AITest() {
         description: error.message,
         variant: "destructive",
       });
+      
+      // Remove loading message if it exists
+      setTestMessages(prev => prev.filter(msg => !msg.id.includes("_loading")));
     },
   });
 
@@ -153,57 +159,62 @@ export default function AITest() {
                   ) : (
                     testMessages.map((message) => (
                       <div key={message.id} className="space-y-2">
-                        {/* User Message */}
-                        <div className="flex justify-end">
-                          <div className="bg-blue-500 text-white rounded-lg px-4 py-2 max-w-sm">
-                            <div className="flex items-center gap-2 mb-1">
-                              <User className="h-4 w-4" />
-                              <span className="text-xs opacity-75">You</span>
-                            </div>
-                            <p>{message.content}</p>
-                          </div>
-                        </div>
-                        
-                        {/* AI Response */}
-                        {message.response ? (
-                          <div className="flex justify-start">
-                            <div className="bg-gray-100 rounded-lg px-4 py-2 max-w-lg">
+                        {message.isFromUser ? (
+                          /* User Message */
+                          <div className="flex justify-end">
+                            <div className="bg-blue-500 text-white rounded-lg px-4 py-2 max-w-sm">
                               <div className="flex items-center gap-2 mb-1">
-                                <Bot className="h-4 w-4" />
-                                <span className="text-xs text-gray-600">{aiSettings?.assistantName || "AI Assistant"}</span>
+                                <User className="h-4 w-4" />
+                                <span className="text-xs opacity-75">You</span>
                               </div>
-                              <p className="mb-2">{message.response.message}</p>
-                              
-                              {/* Suggested Products */}
-                              {message.response.suggestedProducts && message.response.suggestedProducts.length > 0 && (
-                                <div className="mt-3">
-                                  <p className="text-sm font-medium text-gray-700 mb-2">Suggested Products:</p>
-                                  <div className="space-y-2">
-                                    {message.response.suggestedProducts.map((product) => (
-                                      <div key={product.id} className="bg-white rounded p-2 border">
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-medium">{product.name}</span>
-                                          <span className="text-green-600 font-bold">${product.price}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-600">{product.description}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Order Intent */}
-                              {message.response.orderIntent && (
-                                <div className="mt-3 p-2 bg-green-50 rounded">
-                                  <p className="text-sm font-medium text-green-800">Order Intent Detected</p>
-                                  <p className="text-xs text-green-600">
-                                    {message.response.orderIntent.products?.length || 0} items detected
-                                  </p>
-                                </div>
-                              )}
+                              <p>{message.content}</p>
                             </div>
                           </div>
-                        ) : testAIMutation.isPending ? (
+                        ) : (
+                          /* AI Response */
+                          message.response ? (
+                            <div className="flex justify-start">
+                              <div className="bg-gray-100 rounded-lg px-4 py-2 max-w-lg">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Bot className="h-4 w-4" />
+                                  <span className="text-xs text-gray-600">{aiSettings?.assistantName || "AI Assistant"}</span>
+                                </div>
+                                <p className="mb-2 whitespace-pre-wrap">{message.response.message}</p>
+                                
+                                {/* Suggested Products */}
+                                {message.response.suggestedProducts && message.response.suggestedProducts.length > 0 && (
+                                  <div className="mt-3">
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Suggested Products:</p>
+                                    <div className="space-y-2">
+                                      {message.response.suggestedProducts.map((product) => (
+                                        <div key={product.id} className="bg-white rounded p-2 border">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium">{product.name}</span>
+                                            <span className="text-green-600 font-bold">${product.price}</span>
+                                          </div>
+                                          <p className="text-xs text-gray-600">{product.description}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Order Intent */}
+                                {message.response.orderIntent && (
+                                  <div className="mt-3 p-2 bg-green-50 rounded">
+                                    <p className="text-sm font-medium text-green-800">Order Intent Detected</p>
+                                    <p className="text-xs text-green-600">
+                                      {message.response.orderIntent.products?.length || 0} items detected
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : null
+                        )}
+                        
+                        {/* Loading state for AI response */}
+                        {testAIMutation.isPending && !message.isFromUser && (
                           <div className="flex justify-start">
                             <div className="bg-gray-100 rounded-lg px-4 py-2">
                               <div className="flex items-center gap-2">
@@ -212,7 +223,7 @@ export default function AITest() {
                               </div>
                             </div>
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     ))
                   )}
