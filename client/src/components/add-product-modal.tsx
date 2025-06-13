@@ -69,10 +69,10 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
         toast({
           title: "File too large",
-          description: "Please select an image smaller than 5MB",
+          description: "Please select an image smaller than 2MB",
           variant: "destructive",
         });
         return;
@@ -230,7 +230,7 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">PNG, JPG or JPEG (MAX 5MB)</p>
+                      <p className="text-xs text-gray-500">PNG, JPG or JPEG (MAX 2MB)</p>
                     </div>
                     <input
                       type="file"
@@ -280,7 +280,7 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading} className="bg-whatsapp hover:bg-whatsapp/90">
+            <Button type="submit" disabled={isLoading} className="hover:bg-whatsapp/90 bg-[#ba212a]">
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

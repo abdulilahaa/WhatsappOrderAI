@@ -72,7 +72,7 @@ export default function Products() {
             <h2 className="text-2xl font-semibold text-slate-800">Product Management</h2>
             <p className="text-slate-600 mt-1">Manage your product catalog for WhatsApp ordering</p>
           </div>
-          <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
+          <Button onClick={handleAddNew} className="hover:bg-whatsapp/90 bg-[#ba212a]">
             <Plus className="h-4 w-4 mr-2" />Add Product
           </Button>
         </div>
@@ -95,7 +95,7 @@ export default function Products() {
                   />
                   <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 </div>
-                <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
+                <Button onClick={handleAddNew} className="hover:bg-whatsapp/90 bg-[#ba212a]">
                   <Plus className="h-4 w-4 mr-2" />Add Product
                 </Button>
               </div>
@@ -148,7 +148,7 @@ export default function Products() {
                 <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">No products yet</h3>
                 <p className="mb-4">Start by adding your first product to begin taking orders.</p>
-                <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
+                <Button onClick={handleAddNew} className="hover:bg-whatsapp/90 bg-[#ba212a]">
                   <Plus className="h-4 w-4 mr-2" />Add Your First Product
                 </Button>
               </div>
