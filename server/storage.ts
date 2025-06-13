@@ -257,6 +257,8 @@ export class MemStorage implements IStorage {
     const newProduct: Product = {
       ...product,
       id,
+      imageUrl: product.imageUrl || null,
+      isActive: product.isActive ?? true,
       createdAt: new Date(),
     };
     this.products.set(id, newProduct);
@@ -294,6 +296,8 @@ export class MemStorage implements IStorage {
     const newCustomer: Customer = {
       ...customer,
       id,
+      name: customer.name || null,
+      email: customer.email || null,
       createdAt: new Date(),
     };
     this.customers.set(id, newCustomer);
@@ -338,6 +342,8 @@ export class MemStorage implements IStorage {
     const newOrder: Order = {
       ...order,
       id,
+      status: order.status || "pending",
+      notes: order.notes || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -382,6 +388,7 @@ export class MemStorage implements IStorage {
     const newConversation: Conversation = {
       ...conversation,
       id,
+      isActive: conversation.isActive ?? true,
       lastMessageAt: now,
       createdAt: now,
     };
@@ -410,6 +417,7 @@ export class MemStorage implements IStorage {
     const newMessage: Message = {
       ...message,
       id,
+      isFromAI: message.isFromAI ?? false,
       timestamp: new Date(),
     };
     this.messages.set(id, newMessage);

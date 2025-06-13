@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,14 +49,16 @@ export default function WhatsAppSetup() {
     },
   });
 
-  // Update form when settings load
-  if (settings && !form.formState.isDirty) {
-    form.reset({
-      phoneNumberId: settings.phoneNumberId || "",
-      accessToken: settings.accessToken || "",
-      webhookVerifyToken: settings.webhookVerifyToken || "",
-    });
-  }
+  // Update form when settings load using useEffect to prevent infinite re-renders
+  useEffect(() => {
+    if (settings && !form.formState.isDirty) {
+      form.reset({
+        phoneNumberId: settings.phoneNumberId || "",
+        accessToken: settings.accessToken || "",
+        webhookVerifyToken: settings.webhookVerifyToken || "",
+      });
+    }
+  }, [settings, form]);
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiRequest("PUT", "/api/whatsapp-settings", data),
