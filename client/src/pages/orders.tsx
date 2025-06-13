@@ -1,12 +1,19 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import OrderCard from "@/components/order-card";
+import { ShoppingCart, Plus, Search, Filter } from "lucide-react";
 import type { OrderWithCustomer } from "@/lib/types";
 
 export default function Orders() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -38,7 +45,19 @@ export default function Orders() {
     return orders?.filter(order => order.status === status) || [];
   };
 
-  const allOrders = orders || [];
+  // Filter orders based on search and status
+  const filteredOrders = orders?.filter(order => {
+    const matchesSearch = searchQuery === "" || 
+      order.customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.customer.phoneNumber.includes(searchQuery) ||
+      order.id.toString().includes(searchQuery);
+    
+    const matchesStatus = selectedStatus === "all" || order.status === selectedStatus;
+    
+    return matchesSearch && matchesStatus;
+  }) || [];
+
+  const allOrders = filteredOrders;
   const pendingOrders = getOrdersByStatus("pending");
   const confirmedOrders = getOrdersByStatus("confirmed");
   const processingOrders = getOrdersByStatus("processing");
@@ -56,7 +75,7 @@ export default function Orders() {
         ))
       ) : (
         <div className="text-center text-slate-500 py-12">
-          <i className="fas fa-shopping-cart text-6xl mb-4 opacity-50"></i>
+          <ShoppingCart className="h-16 w-16 mx-auto mb-4 opacity-50" />
           <h3 className="text-lg font-medium mb-2">No orders found</h3>
           <p>Orders with this status will appear here.</p>
         </div>
@@ -75,8 +94,16 @@ export default function Orders() {
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-sm text-slate-600">
-              Total Orders: <span className="font-semibold">{allOrders.length}</span>
+              Total Orders: <span className="font-semibold">{orders?.length || 0}</span>
             </div>
+            <Button 
+              onClick={() => window.location.href = "/ai-test"} 
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Search className="h-4 w-4" />
+              Test AI Agent
+            </Button>
           </div>
         </div>
       </header>
@@ -85,7 +112,25 @@ export default function Orders() {
       <main className="flex-1 overflow-y-auto p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Orders</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Orders</CardTitle>
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Search orders, customers..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 w-64"
+                  />
+                  <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                </div>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filter
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (

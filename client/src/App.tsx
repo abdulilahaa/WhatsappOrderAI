@@ -11,6 +11,7 @@ import Orders from "@/pages/orders";
 import Conversations from "@/pages/conversations";
 import AISettingsPage from "@/pages/ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";
+import AITest from "@/pages/ai-test";
 import NotFound from "@/pages/not-found";
 import AddProductModal from "@/components/add-product-modal";
 
@@ -35,6 +36,7 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/ai-settings" component={AISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
+        <Route path="/ai-test" component={AITest} />
         <Route component={NotFound} />
       </Switch>
       
