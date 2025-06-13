@@ -48,8 +48,7 @@ export default function AITest() {
         message, 
         customer: selectedCustomer 
       }),
-    onSuccess: (response) => {
-      const messageId = Date.now().toString();
+    onSuccess: (response: any) => {
       setTestMessages(prev => [
         ...prev.slice(0, -1),
         {

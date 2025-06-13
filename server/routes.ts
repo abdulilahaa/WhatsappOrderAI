@@ -143,6 +143,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk order operations
+  app.put("/api/orders/bulk/status", async (req, res) => {
+    try {
+      const { orderIds, status } = req.body;
+      
+      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({ message: "orderIds must be a non-empty array" });
+      }
+      
+      if (!["pending", "confirmed", "processing", "completed", "cancelled"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+
+      const updatedOrders = [];
+      for (const id of orderIds) {
+        const order = await storage.updateOrder(parseInt(id), { status });
+        if (order) {
+          updatedOrders.push(order);
+        }
+      }
+
+      res.json({ updatedOrders, count: updatedOrders.length });
+    } catch (error: any) {
+      res.status(500).json({ message: "Error updating orders: " + error.message });
+    }
+  });
+
+  // Order analytics
+  app.get("/api/orders/analytics", async (req, res) => {
+    try {
+      const orders = await storage.getOrders();
+      
+      const analytics = {
+        totalOrders: orders.length,
+        statusBreakdown: {
+          pending: orders.filter(o => o.status === "pending").length,
+          confirmed: orders.filter(o => o.status === "confirmed").length,
+          processing: orders.filter(o => o.status === "processing").length,
+          completed: orders.filter(o => o.status === "completed").length,
+          cancelled: orders.filter(o => o.status === "cancelled").length,
+        },
+        totalRevenue: orders
+          .filter(o => o.status === "completed")
+          .reduce((sum, order) => sum + parseFloat(order.total), 0),
+        averageOrderValue: orders.length > 0 
+          ? orders.reduce((sum, order) => sum + parseFloat(order.total), 0) / orders.length 
+          : 0,
+        ordersToday: orders.filter(o => {
+          const today = new Date();
+          const orderDate = new Date(o.createdAt);
+          return orderDate.toDateString() === today.toDateString();
+        }).length,
+      };
+
+      res.json(analytics);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error fetching order analytics: " + error.message });
+    }
+  });
+
   // Conversations API
   app.get("/api/conversations", async (req, res) => {
     try {
@@ -269,6 +329,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success, message: success ? "Message sent" : "Message failed to send" });
     } catch (error: any) {
       res.status(500).json({ message: "Error sending test message: " + error.message });
+    }
+  });
+
+  // AI Agent Testing
+  app.post("/api/ai/test", async (req, res) => {
+    try {
+      const { message, customer } = req.body;
+      
+      if (!message || !customer) {
+        return res.status(400).json({ message: "Message and customer are required" });
+      }
+
+      const response = await aiAgent.processMessage(message, customer, []);
+      res.json(response);
+    } catch (error: any) {
+      res.status(500).json({ message: "AI processing error: " + error.message });
     }
   });
 

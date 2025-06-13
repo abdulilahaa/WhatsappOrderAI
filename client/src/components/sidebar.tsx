@@ -1,17 +1,19 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { BarChart3, Package, ShoppingCart, MessageCircle, Bot, MessageSquare, TestTube } from "lucide-react";
 
 interface SidebarProps {
   className?: string;
 }
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: "fa-chart-line" },
-  { name: "Products", href: "/products", icon: "fa-box" },
-  { name: "Orders", href: "/orders", icon: "fa-shopping-cart" },
-  { name: "Conversations", href: "/conversations", icon: "fa-comments" },
-  { name: "AI Settings", href: "/ai-settings", icon: "fa-robot" },
-  { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: "fa-whatsapp" },
+  { name: "Dashboard", href: "/", icon: BarChart3 },
+  { name: "Products", href: "/products", icon: Package },
+  { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Conversations", href: "/conversations", icon: MessageCircle },
+  { name: "AI Settings", href: "/ai-settings", icon: Bot },
+  { name: "AI Testing", href: "/ai-test", icon: TestTube },
+  { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: MessageSquare },
 ];
 
 export default function Sidebar({ className }: SidebarProps) {
@@ -47,7 +49,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       ? "text-whatsapp bg-whatsapp/10"
                       : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
                   )}>
-                    <i className={cn("fas", item.icon, "w-5 mr-3")}></i>
+                    <item.icon className="w-5 h-5 mr-3" />
                     {item.name}
                   </span>
                 </Link>
