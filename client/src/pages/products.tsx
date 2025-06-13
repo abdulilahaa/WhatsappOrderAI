@@ -96,7 +96,7 @@ export default function Products() {
                   <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 </div>
                 <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
-                  <i className="fas fa-plus mr-2"></i>Add Product
+                  <Plus className="h-4 w-4 mr-2" />Add Product
                 </Button>
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function Products() {
               </div>
             ) : searchQuery ? (
               <div className="text-center text-slate-500 py-12">
-                <i className="fas fa-search text-6xl mb-4 opacity-50"></i>
+                <Search className="h-16 w-16 mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">No products found</h3>
                 <p className="mb-4">No products match your search criteria.</p>
                 <Button variant="outline" onClick={() => setSearchQuery("")}>
@@ -145,11 +145,11 @@ export default function Products() {
               </div>
             ) : (
               <div className="text-center text-slate-500 py-12">
-                <i className="fas fa-box text-6xl mb-4 opacity-50"></i>
+                <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">No products yet</h3>
                 <p className="mb-4">Start by adding your first product to begin taking orders.</p>
                 <Button onClick={handleAddNew} className="bg-whatsapp hover:bg-whatsapp/90">
-                  <i className="fas fa-plus mr-2"></i>Add Your First Product
+                  <Plus className="h-4 w-4 mr-2" />Add Your First Product
                 </Button>
               </div>
             )}
