@@ -14,6 +14,7 @@ import WhatsAppSetup from "@/pages/whatsapp-setup";
 import AITest from "@/pages/ai-test";
 import NotFound from "@/pages/not-found";
 import AddProductModal from "@/components/add-product-modal";
+import Checkout from "@/pages/checkout";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/ai-settings" component={AISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/ai-test" component={AITest} />
+        <Route path="/checkout" component={Checkout} />
         <Route component={NotFound} />
       </Switch>
       

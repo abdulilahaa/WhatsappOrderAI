@@ -5,6 +5,10 @@ import { whatsappService } from "./whatsapp";
 import { aiAgent } from "./ai";
 import { insertProductSchema, insertAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
+import Stripe from "stripe";
+
+// Initialize Stripe
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -373,6 +377,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(customers);
     } catch (error: any) {
       res.status(500).json({ message: "Error fetching customers: " + error.message });
+    }
+  });
+
+  // Stripe Payment Integration
+  app.post("/api/create-payment-intent", async (req, res) => {
+    if (!stripe) {
+      return res.status(500).json({ message: "Stripe not configured. Please add STRIPE_SECRET_KEY environment variable." });
+    }
+
+    try {
+      const { amount, currency = "usd", metadata = {} } = req.body;
+      
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Valid amount is required" });
+      }
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount * 100), // Convert to cents
+        currency,
+        metadata,
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+
+      res.json({ 
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id 
+      });
+    } catch (error: any) {
+      console.error("Stripe payment intent error:", error);
+      res.status(500).json({ message: "Error creating payment intent: " + error.message });
+    }
+  });
+
+  // Webhook for Stripe payment confirmations
+  app.post("/webhook/stripe", async (req, res) => {
+    if (!stripe) {
+      return res.status(500).json({ message: "Stripe not configured" });
+    }
+
+    try {
+      const sig = req.headers['stripe-signature'];
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+      if (!webhookSecret) {
+        console.warn("Stripe webhook secret not configured");
+        return res.status(200).send("OK");
+      }
+
+      const event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
+
+      if (event.type === 'payment_intent.succeeded') {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        
+        // Update order status to paid
+        if (paymentIntent.metadata.orderId) {
+          const orderId = parseInt(paymentIntent.metadata.orderId);
+          await storage.updateOrder(orderId, { 
+            status: "paid",
+            notes: `Payment completed via Stripe. Payment Intent: ${paymentIntent.id}`
+          });
+        }
+      }
+
+      res.status(200).send("OK");
+    } catch (error: any) {
+      console.error("Stripe webhook error:", error);
+      res.status(400).send("Webhook signature verification failed");
     }
   });
 
