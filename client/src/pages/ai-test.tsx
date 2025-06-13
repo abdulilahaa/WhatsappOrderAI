@@ -213,21 +213,23 @@ export default function AITest() {
                           ) : null
                         )}
                         
-                        {/* Loading state for AI response */}
-                        {testAIMutation.isPending && !message.isFromUser && (
-                          <div className="flex justify-start">
-                            <div className="bg-gray-100 rounded-lg px-4 py-2">
-                              <div className="flex items-center gap-2">
-                                <Bot className="h-4 w-4 animate-spin" />
-                                <span className="text-sm text-gray-600">AI is thinking...</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+
                       </div>
                     ))
                   )}
                 </div>
+                
+                {/* Loading indicator for AI response */}
+                {testAIMutation.isPending && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-100 rounded-lg px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <Bot className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-gray-600">AI is thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Message Input */}
                 <div className="flex-shrink-0">
