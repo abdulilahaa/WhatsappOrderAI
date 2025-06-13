@@ -191,7 +191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/whatsapp-settings", async (req, res) => {
     try {
       const validatedData = insertWhatsAppSettingsSchema.partial().parse(req.body);
-      await whatsappService.updateConfiguration(validatedData);
+      await whatsappService.updateConfiguration({
+        phoneNumberId: validatedData.phoneNumberId || undefined,
+        accessToken: validatedData.accessToken || undefined,
+        webhookVerifyToken: validatedData.webhookVerifyToken || undefined,
+      });
       const settings = await storage.updateWhatsAppSettings(validatedData);
       res.json(settings);
     } catch (error: any) {

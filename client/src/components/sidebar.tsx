@@ -41,15 +41,15 @@ export default function Sidebar({ className }: SidebarProps) {
             return (
               <li key={item.name}>
                 <Link href={item.href}>
-                  <a className={cn(
-                    "flex items-center px-4 py-3 rounded-lg font-medium transition-colors",
+                  <span className={cn(
+                    "flex items-center px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer",
                     isActive
                       ? "text-whatsapp bg-whatsapp/10"
                       : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
                   )}>
                     <i className={cn("fas", item.icon, "w-5 mr-3")}></i>
                     {item.name}
-                  </a>
+                  </span>
                 </Link>
               </li>
             );
