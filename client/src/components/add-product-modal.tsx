@@ -2,15 +2,17 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertProductSchema } from "@shared/schema";
+import { Upload, Link, Save, Loader2 } from "lucide-react";
 import type { Product } from "@shared/schema";
 import type { ProductFormData } from "@/lib/types";
 
@@ -23,6 +25,8 @@ interface AddProductModalProps {
 export default function AddProductModal({ isOpen, onClose, editingProduct }: AddProductModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [imageSource, setImageSource] = useState<"url" | "upload">("url");
   
   const form = useForm<ProductFormData>({
     resolver: zodResolver(insertProductSchema.extend({
@@ -47,6 +51,8 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
         imageUrl: editingProduct.imageUrl || "",
         isActive: editingProduct.isActive,
       });
+      setUploadedImage(null);
+      setImageSource(editingProduct.imageUrl ? "url" : "upload");
     } else {
       form.reset({
         name: "",
@@ -55,8 +61,32 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
         imageUrl: "",
         isActive: true,
       });
+      setUploadedImage(null);
+      setImageSource("url");
     }
   }, [editingProduct, form]);
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({
+          title: "File too large",
+          description: "Please select an image smaller than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        setUploadedImage(base64);
+        form.setValue("imageUrl", base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: ProductFormData) => 
@@ -106,11 +136,14 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {editingProduct ? "Edit Product" : "Add New Product"}
           </DialogTitle>
+          <DialogDescription>
+            Fill in the product details below. You can upload an image or provide an image URL.
+          </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -160,16 +193,77 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
           </div>
 
           <div>
-            <Label htmlFor="imageUrl">Product Image URL</Label>
-            <Input
-              id="imageUrl"
-              {...form.register("imageUrl")}
-              placeholder="https://example.com/image.jpg"
-            />
-            {form.formState.errors.imageUrl && (
-              <p className="text-sm text-red-600 mt-1">
-                {form.formState.errors.imageUrl.message}
-              </p>
+            <Label>Product Image</Label>
+            <Tabs value={imageSource} onValueChange={(value) => setImageSource(value as "url" | "upload")} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="url" className="flex items-center gap-2">
+                  <Link className="h-4 w-4" />
+                  Image URL
+                </TabsTrigger>
+                <TabsTrigger value="upload" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Upload File
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="url" className="space-y-2">
+                <Input
+                  {...form.register("imageUrl")}
+                  placeholder="https://example.com/image.jpg"
+                  onChange={(e) => {
+                    form.setValue("imageUrl", e.target.value);
+                    setUploadedImage(null);
+                  }}
+                />
+                {form.formState.errors.imageUrl && (
+                  <p className="text-sm text-red-600">
+                    {form.formState.errors.imageUrl.message}
+                  </p>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="upload" className="space-y-2">
+                <div className="flex items-center justify-center w-full">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-2 text-gray-500" />
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500">PNG, JPG or JPEG (MAX 5MB)</p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                    />
+                  </label>
+                </div>
+                {uploadedImage && (
+                  <div className="mt-2">
+                    <img 
+                      src={uploadedImage} 
+                      alt="Preview" 
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+            
+            {/* Preview for URL images */}
+            {imageSource === "url" && form.watch("imageUrl") && !uploadedImage && (
+              <div className="mt-2">
+                <img 
+                  src={form.watch("imageUrl")} 
+                  alt="Preview" 
+                  className="w-full h-32 object-cover rounded-lg"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
             )}
           </div>
 
@@ -189,12 +283,12 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
             <Button type="submit" disabled={isLoading} className="bg-whatsapp hover:bg-whatsapp/90">
               {isLoading ? (
                 <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   {editingProduct ? "Updating..." : "Creating..."}
                 </>
               ) : (
                 <>
-                  <i className="fas fa-save mr-2"></i>
+                  <Save className="h-4 w-4 mr-2" />
                   {editingProduct ? "Update Product" : "Add Product"}
                 </>
               )}
