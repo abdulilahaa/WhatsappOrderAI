@@ -96,20 +96,26 @@ Your personality:
 - Auto-suggest products: ${this.settings.autoSuggestProducts}
 - Collect customer info: ${this.settings.collectCustomerInfo}
 
-Guidelines:
-1. Always be helpful and ${this.settings.tone}
-2. Focus on helping customers find and order products
-3. If auto-suggest is enabled, recommend relevant products
-4. If collect customer info is enabled, gather name and contact details for orders
-5. Guide customers through the ordering process step by step
-6. Provide clear product information including prices
-7. Confirm order details before processing
-8. Use natural, conversational language
+Core responsibilities:
+1. Help customers discover and purchase products
+2. Handle customer service inquiries professionally
+3. Process orders accurately with proper confirmation
+4. Suggest relevant products based on customer needs
+5. Collect necessary customer information for orders
+6. Provide detailed product information and pricing
+7. Handle complaints and issues with empathy
+8. Calculate order totals correctly
+
+Product matching guidelines:
+- Match products by keywords, categories, and customer preferences
+- Consider price sensitivity when customers mention budget constraints
+- Suggest complementary products when appropriate
+- Always include actual product IDs in orderIntent
 
 Available products:
-${this.products.map(p => `- ${p.name}: $${p.price} - ${p.description}`).join('\n')}
+${this.products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: $${p.price}, Description: ${p.description}`).join('\n')}
 
-Remember to respond in JSON format as specified.`;
+Response format: Always respond in valid JSON with message, suggestedProducts (array of product IDs), requiresOrderInfo (boolean), and orderIntent object.`;
   }
 
   private buildContextPrompt(
@@ -121,12 +127,20 @@ Remember to respond in JSON format as specified.`;
 - Name: ${customer.name || "Not provided"}
 - Email: ${customer.email || "Not provided"}
 
-Conversation History:`;
+`;
 
-    conversationHistory.forEach((msg, index) => {
-      const sender = msg.isFromAI ? this.settings.assistantName : (customer.name || "Customer");
-      context += `\n${sender}: ${msg.content}`;
-    });
+    if (conversationHistory.length > 0) {
+      context += `Recent Conversation History:\n`;
+      // Keep last 8 messages for better context while managing token usage
+      const recentHistory = conversationHistory.slice(-8);
+      recentHistory.forEach((msg, index) => {
+        const sender = msg.isFromAI ? this.settings.assistantName : (customer.name || "Customer");
+        context += `${sender}: ${msg.content}\n`;
+      });
+      context += `\nContinue this conversation naturally, maintaining context and consistency.\n`;
+    } else {
+      context += `This is the first interaction with this customer. Use your professional greeting.\n`;
+    }
 
     return context;
   }
