@@ -8,16 +8,36 @@ interface ConversationThreadProps {
 }
 
 export default function ConversationThread({ conversation }: ConversationThreadProps) {
-  const { data: messages, isLoading } = useQuery<Message[]>({
-    queryKey: ["/api/conversations", conversation.id, "messages"],
+  const { data: messages, isLoading, error } = useQuery<Message[]>({
+    queryKey: [`/api/conversations/${conversation.id}/messages`],
   });
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Loading conversation...</CardTitle>
+          <CardTitle className="text-lg">Loading messages...</CardTitle>
         </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+            <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+            <div className="h-4 bg-slate-200 rounded w-2/3"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg text-red-600">Error loading conversation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-red-500">Failed to load messages for this conversation.</p>
+        </CardContent>
       </Card>
     );
   }
@@ -28,12 +48,17 @@ export default function ConversationThread({ conversation }: ConversationThreadP
         <CardTitle className="text-lg">
           {conversation.customer.name || "Unknown Customer"}
         </CardTitle>
-        <p className="text-sm text-slate-600">{conversation.customer.phoneNumber}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-slate-600">{conversation.customer.phoneNumber}</p>
+          <span className="text-xs text-slate-500">
+            {messages?.length || 0} message{messages?.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-80">
           <div className="space-y-3">
-            {messages?.map((message) => (
+            {messages && messages.length > 0 ? messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex items-start space-x-2 ${
@@ -74,9 +99,7 @@ export default function ConversationThread({ conversation }: ConversationThreadP
                   </div>
                 )}
               </div>
-            ))}
-            
-            {(!messages || messages.length === 0) && (
+            )) : (
               <div className="text-center text-slate-500 py-8">
                 No messages in this conversation yet.
               </div>
