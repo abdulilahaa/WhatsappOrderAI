@@ -3,8 +3,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Clock, User, Phone, Mail, DollarSign } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, Clock, User, Phone, Mail, DollarSign, CreditCard, Banknote, CheckCircle2, XCircle, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface AppointmentWithDetails {
   id: number;
@@ -14,6 +17,8 @@ interface AppointmentWithDetails {
   appointmentTime: string;
   duration: number;
   status: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   notes: string | null;
   totalPrice: string | null;
   createdAt: string;
@@ -35,11 +40,21 @@ interface AppointmentWithDetails {
 export default function Appointments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["/api/appointments"],
     queryFn: () => apiRequest("GET", "/api/appointments").then(res => res.json()) as Promise<AppointmentWithDetails[]>,
   });
+
+  // Group appointments by status for tabs
+  const appointmentsByStatus = {
+    all: appointments,
+    pending: appointments.filter(a => a.status === "pending"),
+    confirmed: appointments.filter(a => a.status === "confirmed"),
+    completed: appointments.filter(a => a.status === "completed"),
+    cancelled: appointments.filter(a => a.status === "cancelled"),
+  };
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
@@ -59,16 +74,43 @@ export default function Appointments() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "scheduled":
-        return "bg-blue-100 text-blue-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "confirmed":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 text-green-800 border-green-200";
       case "completed":
-        return "bg-gray-100 text-gray-800";
+        return "bg-blue-100 text-blue-800 border-blue-200";
       case "cancelled":
-        return "bg-red-100 text-red-800";
+        return "bg-red-100 text-red-800 border-red-200";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getPaymentStatusColor = (paymentStatus?: string, paymentMethod?: string) => {
+    if (paymentMethod === "cash") {
+      return "bg-green-50 text-green-700 border-green-200";
+    }
+    switch (paymentStatus) {
+      case "paid":
+        return "bg-green-50 text-green-700 border-green-200";
+      case "pending":
+        return "bg-yellow-50 text-yellow-700 border-yellow-200";
+      case "failed":
+        return "bg-red-50 text-red-700 border-red-200";
+      default:
+        return "bg-gray-50 text-gray-700 border-gray-200";
+    }
+  };
+
+  const getPaymentIcon = (paymentMethod?: string) => {
+    switch (paymentMethod) {
+      case "card":
+        return <CreditCard className="h-4 w-4" />;
+      case "cash":
+        return <Banknote className="h-4 w-4" />;
+      default:
+        return <DollarSign className="h-4 w-4" />;
     }
   };
 
@@ -104,135 +146,219 @@ export default function Appointments() {
     );
   }
 
+  const AppointmentCard = ({ appointment }: { appointment: AppointmentWithDetails }) => (
+    <Card key={appointment.id} className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl">{appointment.service.name}</CardTitle>
+          <div className="flex items-center space-x-2">
+            <Badge className={getStatusColor(appointment.status)}>
+              {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+            </Badge>
+            {appointment.paymentMethod && (
+              <Badge variant="outline" className={getPaymentStatusColor(appointment.paymentStatus, appointment.paymentMethod)}>
+                <div className="flex items-center space-x-1">
+                  {getPaymentIcon(appointment.paymentMethod)}
+                  <span>{appointment.paymentMethod === "cash" ? "Cash" : "Card"}</span>
+                </div>
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <Calendar className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">{formatDate(appointment.appointmentDate)}</p>
+                <p className="text-sm text-gray-500">Appointment Date</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <Clock className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">{formatTime(appointment.appointmentTime)} (Kuwait Time)</p>
+                <p className="text-sm text-gray-500">{appointment.duration} minutes</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <DollarSign className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">${appointment.service.price}</p>
+                <p className="text-sm text-gray-500">Service Price</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <User className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">{appointment.customer.name || "Unknown"}</p>
+                <p className="text-sm text-gray-500">Customer</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <Phone className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">{appointment.customer.phoneNumber}</p>
+                <p className="text-sm text-gray-500">Phone Number</p>
+              </div>
+            </div>
+
+            {appointment.customer.email && (
+              <div className="flex items-center space-x-3">
+                <Mail className="h-5 w-5 text-gray-400" />
+                <div>
+                  <p className="font-medium">{appointment.customer.email}</p>
+                  <p className="text-sm text-gray-500">Email</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {appointment.notes && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm font-medium text-gray-700 mb-1">Notes:</p>
+            <p className="text-sm text-gray-600">{appointment.notes}</p>
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {appointment.status === "pending" && (
+            <Button
+              size="sm"
+              onClick={() => handleStatusChange(appointment.id, "confirmed")}
+              disabled={updateStatusMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              Confirm
+            </Button>
+          )}
+          {(appointment.status === "pending" || appointment.status === "confirmed") && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleStatusChange(appointment.id, "completed")}
+              disabled={updateStatusMutation.isPending}
+            >
+              Mark Complete
+            </Button>
+          )}
+          {appointment.status !== "cancelled" && appointment.status !== "completed" && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => handleStatusChange(appointment.id, "cancelled")}
+              disabled={updateStatusMutation.isPending}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
-        <p className="text-gray-600 mt-2">Manage customer appointments and bookings</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
+            <p className="text-gray-600 mt-2">Manage customer appointments and bookings</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Payment Method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payments</SelectItem>
+                  <SelectItem value="card">Card Payment</SelectItem>
+                  <SelectItem value="cash">Cash Payment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+              Total: {appointments.length} appointments
+            </div>
+          </div>
+        </div>
       </div>
 
-      {appointments.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Calendar className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No appointments yet</h3>
-            <p className="text-gray-500 text-center">
-              When customers book appointments, they will appear here.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {appointments.map((appointment) => (
-            <Card key={appointment.id} className="border-l-4 border-l-blue-500">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl">{appointment.service.name}</CardTitle>
-                  <Badge className={getStatusColor(appointment.status)}>
-                    {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <Calendar className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{formatDate(appointment.appointmentDate)}</p>
-                        <p className="text-sm text-gray-500">Appointment Date</p>
-                      </div>
-                    </div>
+      <Tabs defaultValue="all" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="all" className="flex items-center space-x-2">
+            <span>All</span>
+            <Badge variant="secondary" className="text-xs">
+              {appointmentsByStatus.all.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="flex items-center space-x-2">
+            <span>Pending</span>
+            <Badge variant="secondary" className="text-xs">
+              {appointmentsByStatus.pending.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="confirmed" className="flex items-center space-x-2">
+            <span>Confirmed</span>
+            <Badge variant="secondary" className="text-xs">
+              {appointmentsByStatus.confirmed.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="flex items-center space-x-2">
+            <span>Completed</span>
+            <Badge variant="secondary" className="text-xs">
+              {appointmentsByStatus.completed.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="cancelled" className="flex items-center space-x-2">
+            <span>Cancelled</span>
+            <Badge variant="secondary" className="text-xs">
+              {appointmentsByStatus.cancelled.length}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
 
-                    <div className="flex items-center space-x-3">
-                      <Clock className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{formatTime(appointment.appointmentTime)}</p>
-                        <p className="text-sm text-gray-500">{appointment.duration} minutes</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <DollarSign className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">${appointment.service.price}</p>
-                        <p className="text-sm text-gray-500">Service Price</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <User className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{appointment.customer.name || "Unknown"}</p>
-                        <p className="text-sm text-gray-500">Customer</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Phone className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{appointment.customer.phoneNumber}</p>
-                        <p className="text-sm text-gray-500">Phone Number</p>
-                      </div>
-                    </div>
-
-                    {appointment.customer.email && (
-                      <div className="flex items-center space-x-3">
-                        <Mail className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium">{appointment.customer.email}</p>
-                          <p className="text-sm text-gray-500">Email</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {appointment.notes && (
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-700 mb-1">Notes:</p>
-                    <p className="text-sm text-gray-600">{appointment.notes}</p>
-                  </div>
-                )}
-
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {appointment.status === "scheduled" && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleStatusChange(appointment.id, "confirmed")}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      Confirm
-                    </Button>
-                  )}
-                  {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleStatusChange(appointment.id, "completed")}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      Mark Complete
-                    </Button>
-                  )}
-                  {appointment.status !== "cancelled" && appointment.status !== "completed" && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleStatusChange(appointment.id, "cancelled")}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        {Object.entries(appointmentsByStatus).map(([status, statusAppointments]) => (
+          <TabsContent key={status} value={status}>
+            {statusAppointments.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Calendar className="h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No {status === 'all' ? '' : status} appointments
+                  </h3>
+                  <p className="text-gray-500 text-center">
+                    When customers book appointments, they will appear here.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                {statusAppointments
+                  .filter(appointment => 
+                    paymentFilter === "all" || appointment.paymentMethod === paymentFilter
+                  )
+                  .map((appointment) => (
+                    <AppointmentCard key={appointment.id} appointment={appointment} />
+                  ))}
+              </div>
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
