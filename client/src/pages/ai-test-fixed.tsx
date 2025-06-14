@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,17 @@ export default function AITest() {
   const { toast } = useToast();
   const [testMessages, setTestMessages] = useState<TestMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedCustomer] = useState({
     name: "Test Customer",
     phoneNumber: "+1234567890",
     email: "test@example.com"
   });
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [testMessages]);
 
   const { data: aiSettings } = useQuery<AISettings>({
     queryKey: ["/api/ai-settings"],
@@ -106,7 +112,7 @@ export default function AITest() {
           {/* Chat Interface */}
           <div className="lg:col-span-2">
             <Card className="h-[600px] flex flex-col">
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 flex-shrink-0">
                 <CardTitle className="flex items-center gap-2">
                   <Bot className="h-5 w-5" />
                   AI Conversation Test
@@ -122,9 +128,9 @@ export default function AITest() {
                 </Button>
               </CardHeader>
               
-              <CardContent className="flex-1 flex flex-col">
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+              <CardContent className="flex-1 flex flex-col min-h-0">
+                {/* Messages Area - Fixed height with scroll */}
+                <div className="flex-1 overflow-y-auto space-y-4 mb-4 max-h-full">
                   {testMessages.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
@@ -192,22 +198,25 @@ export default function AITest() {
                       </div>
                     ))
                   )}
-                </div>
-                
-                {/* Loading indicator */}
-                {testAIMutation.isPending && (
-                  <div className="flex justify-start mb-4">
-                    <div className="bg-gray-100 rounded-lg px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <Bot className="h-4 w-4 animate-spin" />
-                        <span className="text-sm text-gray-600">AI is thinking...</span>
+                  
+                  {/* Loading indicator */}
+                  {testAIMutation.isPending && (
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 rounded-lg px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-4 w-4 animate-spin" />
+                          <span className="text-sm text-gray-600">AI is thinking...</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                  
+                  {/* Scroll anchor */}
+                  <div ref={messagesEndRef} />
+                </div>
                 
-                {/* Message Input */}
-                <div className="flex gap-2">
+                {/* Message Input - Fixed at bottom */}
+                <div className="flex gap-2 flex-shrink-0 pt-4 border-t">
                   <Input
                     value={currentMessage}
                     onChange={(e) => setCurrentMessage(e.target.value)}
