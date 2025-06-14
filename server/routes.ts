@@ -339,13 +339,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Agent Testing
   app.post("/api/ai/test", async (req, res) => {
     try {
-      const { message, customer } = req.body;
+      const { message, customer, conversationHistory = [] } = req.body;
       
       if (!message || !customer) {
         return res.status(400).json({ message: "Message and customer are required" });
       }
 
-      const response = await aiAgent.processMessage(message, customer, []);
+      const response = await aiAgent.processMessage(message, customer, conversationHistory);
       res.json(response);
     } catch (error: any) {
       res.status(500).json({ message: "AI processing error: " + error.message });

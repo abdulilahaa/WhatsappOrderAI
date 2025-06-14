@@ -48,9 +48,16 @@ export default function AITest() {
 
   const testAIMutation = useMutation({
     mutationFn: async (message: string) => {
+      // Convert UI messages to conversation history format
+      const conversationHistory = testMessages.map(msg => ({
+        content: msg.content,
+        isFromAI: !msg.isFromUser
+      }));
+      
       const res = await apiRequest("POST", "/api/ai/test", { 
         message, 
-        customer: selectedCustomer 
+        customer: selectedCustomer,
+        conversationHistory
       });
       return res.json();
     },
