@@ -11,7 +11,7 @@ import Orders from "@/pages/orders";
 import Conversations from "@/pages/conversations";
 import AISettingsPage from "@/pages/ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";
-import AITest from "@/pages/ai-test";
+import AITest from "@/pages/ai-test-fixed";
 import NotFound from "@/pages/not-found";
 import AddProductModal from "@/components/add-product-modal";
 import Checkout from "@/pages/checkout";
