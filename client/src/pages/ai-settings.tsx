@@ -48,11 +48,15 @@ export default function AISettingsPage() {
       form.reset({
         businessName: settings.businessName,
         assistantName: settings.assistantName,
+        businessType: settings.businessType || "ecommerce",
         tone: settings.tone,
         responseSpeed: settings.responseSpeed,
         autoSuggestProducts: settings.autoSuggestProducts,
         collectCustomerInfo: settings.collectCustomerInfo,
         welcomeMessage: settings.welcomeMessage,
+        appointmentDuration: settings.appointmentDuration || 60,
+        timeZone: settings.timeZone || "America/New_York",
+        bookingLeadTime: settings.bookingLeadTime || 24,
       });
       setHasUnsavedChanges(false);
     }
@@ -188,6 +192,25 @@ export default function AISettingsPage() {
                     </div>
 
                     <div>
+                      <Label htmlFor="businessType">Business Type</Label>
+                      <Select value={form.watch("businessType")} onValueChange={(value) => form.setValue("businessType", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ecommerce">E-commerce (Product Orders)</SelectItem>
+                          <SelectItem value="appointment_based">Appointment Based (Bookings)</SelectItem>
+                          <SelectItem value="hybrid">Hybrid (Both Orders & Appointments)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {form.watch("businessType") === "ecommerce" && "AI will focus on product sales and order processing"}
+                        {form.watch("businessType") === "appointment_based" && "AI will handle appointment scheduling and service bookings"}
+                        {form.watch("businessType") === "hybrid" && "AI will handle both product orders and appointment bookings"}
+                      </p>
+                    </div>
+
+                    <div>
                       <Label htmlFor="tone">Tone of Voice</Label>
                       <Select value={form.watch("tone")} onValueChange={(value) => form.setValue("tone", value)}>
                         <SelectTrigger>
@@ -262,6 +285,54 @@ export default function AISettingsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Appointment Settings (conditional) */}
+              {(form.watch("businessType") === "appointment_based" || form.watch("businessType") === "hybrid") && (
+                <div>
+                  <h4 className="font-medium text-slate-800 mb-4">Appointment Settings</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="appointmentDuration">Default Duration (minutes)</Label>
+                      <Input
+                        id="appointmentDuration"
+                        type="number"
+                        {...form.register("appointmentDuration", { valueAsNumber: true })}
+                        placeholder="60"
+                        min="15"
+                        step="15"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="timeZone">Time Zone</Label>
+                      <Select value={form.watch("timeZone")} onValueChange={(value) => form.setValue("timeZone", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                          <SelectItem value="America/Chicago">Central Time</SelectItem>
+                          <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                          <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                          <SelectItem value="America/Phoenix">Arizona Time</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="bookingLeadTime">Lead Time (hours)</Label>
+                      <Input
+                        id="bookingLeadTime"
+                        type="number"
+                        {...form.register("bookingLeadTime", { valueAsNumber: true })}
+                        placeholder="24"
+                        min="1"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Minimum hours in advance for bookings</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-6 border-t border-slate-200">
                 <Button 
