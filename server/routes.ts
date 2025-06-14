@@ -383,12 +383,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversation = await storage.createConversation({
           customerId: dbCustomer.id,
           isActive: true,
-          lastMessageAt: new Date(),
         });
       } else {
-        // Update last message timestamp
+        // Update conversation status
         await storage.updateConversation(conversation.id, {
-          lastMessageAt: new Date(),
           isActive: true,
         });
       }
@@ -398,7 +396,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversationId: conversation.id,
         content: message,
         isFromAI: false,
-        timestamp: new Date(),
       });
 
       // Process the message with AI
@@ -409,7 +406,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversationId: conversation.id,
         content: response.message,
         isFromAI: true,
-        timestamp: new Date(),
       });
 
       // Handle appointment booking if the AI indicates appointment intent

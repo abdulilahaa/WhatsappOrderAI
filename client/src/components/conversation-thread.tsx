@@ -50,7 +50,7 @@ export default function ConversationThread({ conversation }: ConversationThreadP
                         <p className="text-sm text-slate-800">{message.content}</p>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        {new Date(message.timestamp).toLocaleTimeString()}
+                        {new Date(message.timestamp).toLocaleString()}
                       </p>
                     </div>
                   </>
@@ -61,7 +61,7 @@ export default function ConversationThread({ conversation }: ConversationThreadP
                     </div>
                     <div className="flex items-center justify-end space-x-1 mt-1">
                       <span className="text-xs text-slate-500">
-                        {new Date(message.timestamp).toLocaleTimeString()}
+                        {new Date(message.timestamp).toLocaleString()}
                       </span>
                       <i className="fas fa-robot text-ai text-xs" title="AI Response"></i>
                     </div>
