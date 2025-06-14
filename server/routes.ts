@@ -470,18 +470,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const appointmentData = req.body;
       
-      if (!appointmentData.customerId || !appointmentData.serviceId || !appointmentData.appointmentDate || !appointmentData.appointmentTime) {
-        return res.status(400).json({ message: "Missing required appointment fields" });
+      if (!appointmentData.customerInfo || !appointmentData.customerInfo.name || !appointmentData.customerInfo.email) {
+        return res.status(400).json({ message: "Customer name and email are required" });
       }
 
-      let customer = await storage.getCustomer(appointmentData.customerId);
-      if (!customer && appointmentData.customerInfo) {
+      if (!appointmentData.serviceId || !appointmentData.appointmentDate || !appointmentData.appointmentTime) {
+        return res.status(400).json({ message: "Service, date, and time are required" });
+      }
+
+      // Create or find customer by email
+      let customer = await storage.getCustomerByEmail?.(appointmentData.customerInfo.email);
+      if (!customer) {
         customer = await storage.createCustomer({
-          phoneNumber: appointmentData.customerInfo.phoneNumber || '',
+          phoneNumber: appointmentData.customerInfo.phoneNumber || appointmentData.phoneNumber || '',
           name: appointmentData.customerInfo.name,
           email: appointmentData.customerInfo.email
         });
-        appointmentData.customerId = customer.id;
       }
 
       const service = await storage.getProduct(appointmentData.serviceId);
@@ -490,17 +494,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const appointment = await storage.createAppointment({
-        customerId: appointmentData.customerId,
+        customerId: customer.id,
         serviceId: appointmentData.serviceId,
         appointmentDate: appointmentData.appointmentDate,
         appointmentTime: appointmentData.appointmentTime,
         duration: appointmentData.duration || 60,
-        status: 'scheduled',
+        status: appointmentData.paymentMethod === 'cash' ? 'confirmed' : 'pending',
+        paymentMethod: appointmentData.paymentMethod || 'pending',
+        paymentStatus: appointmentData.paymentMethod === 'cash' ? 'cash_pending' : 'pending',
         totalPrice: service.price,
         notes: appointmentData.notes || null
       });
 
-      res.status(201).json(appointment);
+      // If card payment, create payment intent
+      let paymentLink = null;
+      if (appointmentData.paymentMethod === 'card' && stripe) {
+        try {
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(parseFloat(service.price) * 100),
+            currency: "kwd",
+            metadata: {
+              appointmentId: appointment.id.toString(),
+              customerEmail: customer.email || '',
+              serviceName: service.name
+            },
+            automatic_payment_methods: {
+              enabled: true,
+            },
+          });
+          
+          paymentLink = `${req.protocol}://${req.get('host')}/checkout?payment_intent=${paymentIntent.client_secret}`;
+        } catch (stripeError) {
+          console.warn("Stripe payment creation failed:", stripeError);
+        }
+      }
+
+      res.status(201).json({
+        ...appointment,
+        customer: {
+          name: customer.name,
+          email: customer.email,
+          phoneNumber: customer.phoneNumber
+        },
+        service: {
+          name: service.name,
+          price: service.price
+        },
+        paymentLink
+      });
     } catch (error: any) {
       console.error("Appointment creation error:", error);
       res.status(500).json({ message: "Failed to create appointment: " + error.message });

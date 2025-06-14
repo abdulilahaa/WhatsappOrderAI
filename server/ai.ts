@@ -75,7 +75,9 @@ Respond in JSON format with:
     "preferredDate": "YYYY-MM-DD" (if provided),
     "preferredTime": "HH:MM" (if provided),
     "duration": number (in minutes),
-    "customerInfo": {"name": "string", "email": "string"}
+    "customerInfo": {"name": "string", "email": "string"},
+    "paymentMethod": "pending" | "card" | "cash",
+    "readyToBook": boolean (true when all info collected and payment method chosen)
   }
 }`;
     } else if (businessType === 'hybrid') {
