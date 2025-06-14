@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb, date, time } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -52,11 +52,39 @@ export const aiSettings = pgTable("ai_settings", {
   id: serial("id").primaryKey(),
   businessName: text("business_name").notNull().default("My Business"),
   assistantName: text("assistant_name").notNull().default("AI Assistant"),
+  businessType: text("business_type").notNull().default("ecommerce"), // ecommerce, appointment_based, hybrid
   tone: text("tone").notNull().default("friendly"), // friendly, professional, enthusiastic, helpful
   responseSpeed: text("response_speed").notNull().default("natural"), // instant, quick, natural, thoughtful
   autoSuggestProducts: boolean("auto_suggest_products").notNull().default(true),
   collectCustomerInfo: boolean("collect_customer_info").notNull().default(true),
   welcomeMessage: text("welcome_message").notNull().default("Hello! How can I help you today?"),
+  // Appointment-specific settings
+  appointmentDuration: integer("appointment_duration").default(60), // in minutes
+  workingHours: jsonb("working_hours").default({
+    monday: { start: "09:00", end: "17:00", enabled: true },
+    tuesday: { start: "09:00", end: "17:00", enabled: true },
+    wednesday: { start: "09:00", end: "17:00", enabled: true },
+    thursday: { start: "09:00", end: "17:00", enabled: true },
+    friday: { start: "09:00", end: "17:00", enabled: true },
+    saturday: { start: "09:00", end: "15:00", enabled: true },
+    sunday: { start: "10:00", end: "14:00", enabled: false }
+  }),
+  timeZone: text("time_zone").notNull().default("America/New_York"),
+  bookingLeadTime: integer("booking_lead_time").default(24), // hours in advance required
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const appointments = pgTable("appointments", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
+  serviceId: integer("service_id").references(() => products.id), // Products can represent services
+  appointmentDate: text("appointment_date").notNull(), // YYYY-MM-DD format
+  appointmentTime: text("appointment_time").notNull(), // HH:MM format
+  duration: integer("duration").notNull().default(60), // in minutes
+  status: text("status").notNull().default("pending"), // pending, confirmed, completed, cancelled
+  notes: text("notes"),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -101,6 +129,12 @@ export const insertAISettingsSchema = createInsertSchema(aiSettings).omit({
   updatedAt: true,
 });
 
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertWhatsAppSettingsSchema = createInsertSchema(whatsappSettings).omit({
   id: true,
   updatedAt: true,
@@ -114,6 +148,7 @@ export const productsRelations = relations(products, ({ many }) => ({
 export const customersRelations = relations(customers, ({ many }) => ({
   orders: many(orders),
   conversations: many(conversations),
+  appointments: many(appointments),
 }));
 
 export const ordersRelations = relations(orders, ({ one }) => ({
@@ -135,6 +170,17 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, {
     fields: [messages.conversationId],
     references: [conversations.id],
+  }),
+}));
+
+export const appointmentsRelations = relations(appointments, ({ one }) => ({
+  customer: one(customers, {
+    fields: [appointments.customerId],
+    references: [customers.id],
+  }),
+  service: one(products, {
+    fields: [appointments.serviceId],
+    references: [products.id],
   }),
 }));
 

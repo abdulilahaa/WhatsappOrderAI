@@ -30,11 +30,15 @@ export default function AISettingsPage() {
     defaultValues: {
       businessName: "",
       assistantName: "",
+      businessType: "ecommerce",
       tone: "friendly",
       responseSpeed: "natural",
       autoSuggestProducts: true,
       collectCustomerInfo: true,
       welcomeMessage: "",
+      appointmentDuration: 60,
+      timeZone: "America/New_York",
+      bookingLeadTime: 24,
     },
   });
 
