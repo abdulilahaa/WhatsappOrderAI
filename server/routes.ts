@@ -465,6 +465,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Appointment booking endpoint
+  app.post("/api/appointments", async (req, res) => {
+    try {
+      const appointmentData = req.body;
+      
+      if (!appointmentData.customerId || !appointmentData.serviceId || !appointmentData.appointmentDate || !appointmentData.appointmentTime) {
+        return res.status(400).json({ message: "Missing required appointment fields" });
+      }
+
+      let customer = await storage.getCustomer(appointmentData.customerId);
+      if (!customer && appointmentData.customerInfo) {
+        customer = await storage.createCustomer({
+          phoneNumber: appointmentData.customerInfo.phoneNumber || '',
+          name: appointmentData.customerInfo.name,
+          email: appointmentData.customerInfo.email
+        });
+        appointmentData.customerId = customer.id;
+      }
+
+      const service = await storage.getProduct(appointmentData.serviceId);
+      if (!service) {
+        return res.status(404).json({ message: "Service not found" });
+      }
+
+      const appointment = await storage.createAppointment({
+        customerId: appointmentData.customerId,
+        serviceId: appointmentData.serviceId,
+        appointmentDate: appointmentData.appointmentDate,
+        appointmentTime: appointmentData.appointmentTime,
+        duration: appointmentData.duration || 60,
+        status: 'scheduled',
+        totalAmount: service.price,
+        notes: appointmentData.notes || null
+      });
+
+      res.status(201).json(appointment);
+    } catch (error: any) {
+      console.error("Appointment creation error:", error);
+      res.status(500).json({ message: "Failed to create appointment: " + error.message });
+    }
+  });
+
+  app.get("/api/appointments", async (req, res) => {
+    try {
+      const appointments = await storage.getAppointments();
+      res.json(appointments);
+    } catch (error: any) {
+      console.error("Get appointments error:", error);
+      res.status(500).json({ message: "Failed to fetch appointments: " + error.message });
+    }
+  });
+
+  app.patch("/api/appointments/:id", async (req, res) => {
+    try {
+      const appointmentId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const appointment = await storage.updateAppointment(appointmentId, updates);
+      if (!appointment) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      
+      res.json(appointment);
+    } catch (error: any) {
+      console.error("Update appointment error:", error);
+      res.status(500).json({ message: "Failed to update appointment: " + error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
