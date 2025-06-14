@@ -1,10 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import ConversationThread from "@/components/conversation-thread";
 import type { ConversationWithCustomer } from "@/lib/types";
 
 export default function Conversations() {
+  const queryClient = useQueryClient();
+  
   const { data: allConversations, isLoading } = useQuery<ConversationWithCustomer[]>({
     queryKey: ["/api/conversations"],
   });
@@ -16,6 +20,11 @@ export default function Conversations() {
   const conversations = allConversations || [];
   const active = activeConversations || [];
   const inactive = conversations.filter(c => !c.isActive);
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations/active"] });
+  };
 
   const ConversationsList = ({ conversations: convList }: { conversations: ConversationWithCustomer[] }) => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -43,6 +52,15 @@ export default function Conversations() {
             <p className="text-slate-600 mt-1">Monitor customer interactions with your AI assistant</p>
           </div>
           <div className="flex items-center space-x-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              className="flex items-center space-x-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </Button>
             <div className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium text-green-700">
