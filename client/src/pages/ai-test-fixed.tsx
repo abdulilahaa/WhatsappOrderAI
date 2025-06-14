@@ -41,11 +41,13 @@ export default function AITest() {
   });
 
   const testAIMutation = useMutation({
-    mutationFn: (message: string) => 
-      apiRequest("POST", "/api/ai/test", { 
+    mutationFn: async (message: string) => {
+      const res = await apiRequest("POST", "/api/ai/test", { 
         message, 
         customer: selectedCustomer 
-      }),
+      });
+      return res.json();
+    },
     onSuccess: (response: any) => {
       const aiMessage: TestMessage = {
         id: Date.now().toString() + "_ai",
