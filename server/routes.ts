@@ -49,6 +49,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(validatedData);
+      
+      // Reload AI agent with updated product catalog
+      await aiAgent.reloadConfiguration();
+      
       res.status(201).json(product);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -66,6 +70,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
+      
+      // Reload AI agent with updated product catalog
+      await aiAgent.reloadConfiguration();
+      
       res.json(product);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -99,6 +107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deleted) {
         return res.status(404).json({ message: "Product not found" });
       }
+      
+      // Reload AI agent with updated product catalog
+      await aiAgent.reloadConfiguration();
+      
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: "Error deleting product: " + error.message });
@@ -250,6 +262,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertAISettingsSchema.partial().parse(req.body);
       const settings = await storage.updateAISettings(validatedData);
+      
+      // Reload AI agent configuration with new settings
+      await aiAgent.reloadConfiguration();
+      
       res.json(settings);
     } catch (error: any) {
       if (error instanceof z.ZodError) {

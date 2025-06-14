@@ -35,6 +35,11 @@ export class AIAgent {
     this.products = await storage.getProducts();
   }
 
+  // Method to reload configuration when settings are updated
+  async reloadConfiguration(): Promise<void> {
+    await this.initialize();
+  }
+
   async processMessage(
     customerMessage: string,
     customer: Customer,

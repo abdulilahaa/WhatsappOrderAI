@@ -67,11 +67,14 @@ export default function AISettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ai-settings"] });
       setHasUnsavedChanges(false);
-      toast({ title: "AI settings saved successfully!" });
+      toast({ 
+        title: "Configuration saved to database",
+        description: "AI agent updated with new settings and product catalog",
+      });
     },
     onError: (error: any) => {
       toast({
-        title: "Error saving AI settings",
+        title: "Database save failed",
         description: error.message,
         variant: "destructive",
       });
@@ -259,18 +262,18 @@ export default function AISettingsPage() {
               <div className="pt-6 border-t border-slate-200">
                 <Button 
                   type="submit" 
-                  disabled={updateMutation.isPending}
-                  className="bg-ai hover:bg-ai/90"
+                  disabled={updateMutation.isPending || !hasUnsavedChanges}
+                  className={hasUnsavedChanges ? "bg-[#ba212a] hover:bg-[#ba212a]/90" : ""}
                 >
                   {updateMutation.isPending ? (
                     <>
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      <Save className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-save mr-2"></i>
-                      Save AI Configuration
+                      <Save className="h-4 w-4 mr-2" />
+                      {hasUnsavedChanges ? "Save AI Configuration" : "Configuration Saved"}
                     </>
                   )}
                 </Button>
