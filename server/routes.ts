@@ -479,7 +479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create or find customer by email
-      let customer = await storage.getCustomerByEmail?.(appointmentData.customerInfo.email);
+      let customer = await storage.getCustomerByEmail(appointmentData.customerInfo.email);
       if (!customer) {
         customer = await storage.createCustomer({
           phoneNumber: appointmentData.customerInfo.phoneNumber || appointmentData.phoneNumber || '',
