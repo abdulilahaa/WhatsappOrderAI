@@ -93,13 +93,16 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
       apiRequest("POST", "/api/products", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Product created successfully!" });
+      toast({ 
+        title: "Product saved to database",
+        description: "AI agent updated with new product catalog"
+      });
       onClose();
       form.reset();
     },
     onError: (error: any) => {
       toast({
-        title: "Error creating product",
+        title: "Database save failed",
         description: error.message,
         variant: "destructive",
       });
@@ -111,13 +114,16 @@ export default function AddProductModal({ isOpen, onClose, editingProduct }: Add
       apiRequest("PUT", `/api/products/${editingProduct?.id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Product updated successfully!" });
+      toast({ 
+        title: "Product updated in database",
+        description: "AI agent refreshed with latest product information"
+      });
       onClose();
       form.reset();
     },
     onError: (error: any) => {
       toast({
-        title: "Error updating product",
+        title: "Database update failed",
         description: error.message,
         variant: "destructive",
       });

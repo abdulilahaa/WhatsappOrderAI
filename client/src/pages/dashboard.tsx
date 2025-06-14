@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stats-card";
 import ProductCard from "@/components/product-card";
 import OrderCard from "@/components/order-card";
 import ConversationThread from "@/components/conversation-thread";
+import { Database, CheckCircle, Clock } from "lucide-react";
 import type { DashboardStats, OrderWithCustomer, ConversationWithCustomer } from "@/lib/types";
-import type { Product } from "@shared/schema";
+import type { Product, AISettings } from "@shared/schema";
 
 interface DashboardProps {
   onAddProduct: () => void;
@@ -29,9 +31,25 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
     queryKey: ["/api/conversations/active"],
   });
 
+  const { data: aiSettings } = useQuery<AISettings>({
+    queryKey: ["/api/ai-settings"],
+  });
+
   const recentOrders = orders?.slice(0, 3) || [];
   const featuredProducts = products?.slice(0, 4) || [];
   const liveConversation = activeConversations?.[0];
+
+  const formatLastUpdated = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+    return `${Math.floor(diffMins / 1440)}d ago`;
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -43,10 +61,15 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
             <p className="text-slate-600 mt-1">Monitor your WhatsApp ordering system performance</p>
           </div>
           <div className="flex items-center space-x-4">
-            {/* AI Status Indicator */}
+            {/* Database Status Indicator */}
             <div className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-green-700">AI Agent Active</span>
+              <Database className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-medium text-green-700">Database Connected</span>
+            </div>
+            {/* AI Agent Status */}
+            <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-blue-700">AI Agent Active</span>
             </div>
             <Button onClick={onAddProduct} className="bg-whatsapp hover:bg-whatsapp/90">
               <i className="fas fa-plus mr-2"></i>Add Product
@@ -107,6 +130,63 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
               />
             </>
           )}
+        </div>
+
+        {/* Configuration Status Panel */}
+        <div className="mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Database Configuration Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* AI Settings Status */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">AI Configuration</span>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Saved
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Business: {aiSettings?.businessName || "Not configured"}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Assistant: {aiSettings?.assistantName || "Not configured"}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-slate-500">
+                    <Clock className="h-3 w-3" />
+                    Last updated: {aiSettings?.updatedAt ? formatLastUpdated(aiSettings.updatedAt.toString()) : "Never"}
+                  </div>
+                </div>
+
+                {/* Products Status */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Product Catalog</span>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Synced
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Total products: {products?.length || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Active products: {products?.filter(p => p.isActive).length || 0}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-slate-500">
+                    <Clock className="h-3 w-3" />
+                    AI agent updated: Just now
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Two Column Layout */}

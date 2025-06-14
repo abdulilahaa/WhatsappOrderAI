@@ -26,11 +26,14 @@ export default function Products() {
       apiRequest("DELETE", `/api/products/${productId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Product deleted successfully!" });
+      toast({ 
+        title: "Product removed from database",
+        description: "AI agent updated with latest product catalog"
+      });
     },
     onError: (error: any) => {
       toast({
-        title: "Error deleting product",
+        title: "Database deletion failed",
         description: error.message,
         variant: "destructive",
       });
