@@ -8,6 +8,7 @@ import Sidebar from "@/components/sidebar";
 import Dashboard from "@/pages/dashboard";
 import Products from "@/pages/products";
 import Orders from "@/pages/orders";
+import Appointments from "@/pages/appointments";
 import Conversations from "@/pages/conversations";
 import AISettingsPage from "@/pages/ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";

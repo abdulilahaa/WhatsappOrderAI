@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { BarChart3, Package, ShoppingCart, MessageCircle, Bot, MessageSquare, TestTube } from "lucide-react";
+import { BarChart3, Package, ShoppingCart, MessageCircle, Bot, MessageSquare, TestTube, Calendar } from "lucide-react";
 
 interface SidebarProps {
   className?: string;
@@ -10,6 +10,7 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Products", href: "/products", icon: Package },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Conversations", href: "/conversations", icon: MessageCircle },
   { name: "AI Settings", href: "/ai-settings", icon: Bot },
   { name: "AI Testing", href: "/ai-test", icon: TestTube },

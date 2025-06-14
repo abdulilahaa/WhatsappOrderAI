@@ -496,7 +496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         appointmentTime: appointmentData.appointmentTime,
         duration: appointmentData.duration || 60,
         status: 'scheduled',
-        totalAmount: service.price,
+        totalPrice: service.price,
         notes: appointmentData.notes || null
       });
 
