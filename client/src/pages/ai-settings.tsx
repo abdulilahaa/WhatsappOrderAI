@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,14 +9,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertAISettingsSchema } from "@shared/schema";
 import type { AISettings } from "@shared/schema";
+import { Save, AlertCircle } from "lucide-react";
 
 export default function AISettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const { data: settings, isLoading } = useQuery<AISettings>({
     queryKey: ["/api/ai-settings"],
@@ -47,18 +50,28 @@ export default function AISettingsPage() {
         collectCustomerInfo: settings.collectCustomerInfo,
         welcomeMessage: settings.welcomeMessage,
       });
+      setHasUnsavedChanges(false);
     }
   }, [settings, form]);
+
+  // Track form changes
+  useEffect(() => {
+    const subscription = form.watch(() => {
+      setHasUnsavedChanges(true);
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiRequest("PUT", "/api/ai-settings", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ai-settings"] });
-      toast({ title: "AI settings updated successfully!" });
+      setHasUnsavedChanges(false);
+      toast({ title: "AI settings saved successfully!" });
     },
     onError: (error: any) => {
       toast({
-        title: "Error updating AI settings",
+        title: "Error saving AI settings",
         description: error.message,
         variant: "destructive",
       });
@@ -73,9 +86,17 @@ export default function AISettingsPage() {
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-slate-200 px-6 py-4">
-          <div>
-            <h2 className="text-2xl font-semibold text-slate-800">AI Settings</h2>
-            <p className="text-slate-600 mt-1">Configure your AI assistant's behavior and personality</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800">AI Settings</h2>
+              <p className="text-slate-600 mt-1">Configure your AI assistant's behavior and personality</p>
+            </div>
+            {hasUnsavedChanges && (
+              <Badge variant="secondary" className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Unsaved Changes
+              </Badge>
+            )}
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6">
@@ -103,9 +124,17 @@ export default function AISettingsPage() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-800">AI Settings</h2>
-          <p className="text-slate-600 mt-1">Configure your AI assistant's behavior and personality</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-800">AI Settings</h2>
+            <p className="text-slate-600 mt-1">Configure your AI assistant's behavior and personality</p>
+          </div>
+          {hasUnsavedChanges && (
+            <Badge variant="secondary" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Unsaved Changes
+            </Badge>
+          )}
         </div>
       </header>
 
