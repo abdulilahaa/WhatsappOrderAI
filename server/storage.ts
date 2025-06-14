@@ -42,6 +42,10 @@ export interface IStorage {
   // Messages
   getMessages(conversationId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  deleteMessage(id: number): Promise<boolean>;
+
+  // Conversation deletion
+  deleteConversation(id: number): Promise<boolean>;
 
   // AI Settings
   getAISettings(): Promise<AISettings>;
@@ -284,6 +288,26 @@ export class DatabaseStorage implements IStorage {
       .where(eq(conversations.id, message.conversationId));
 
     return newMessage;
+  }
+
+  async deleteMessage(id: number): Promise<boolean> {
+    const result = await db
+      .delete(messages)
+      .where(eq(messages.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async deleteConversation(id: number): Promise<boolean> {
+    // First delete all messages in the conversation
+    await db
+      .delete(messages)
+      .where(eq(messages.conversationId, id));
+    
+    // Then delete the conversation
+    const result = await db
+      .delete(conversations)
+      .where(eq(conversations.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   // AI Settings

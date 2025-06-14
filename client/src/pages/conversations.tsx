@@ -160,22 +160,39 @@ export default function Conversations() {
               </div>
             ) : (
               <Tabs defaultValue="active" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                  <TabsTrigger value="all">All ({conversations.length})</TabsTrigger>
+                  <TabsTrigger value="all">All ({realConversations.length})</TabsTrigger>
                   <TabsTrigger value="inactive">Inactive ({inactive.length})</TabsTrigger>
+                  <TabsTrigger value="test" className="flex items-center space-x-1">
+                    <TestTube className="w-4 h-4" />
+                    <span>Test ({testConversations.length})</span>
+                  </TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="active" className="mt-6">
-                  <ConversationsList conversations={active} />
+                  <ConversationsList conversations={active.filter(c => !testConversations.includes(c))} />
                 </TabsContent>
                 
                 <TabsContent value="all" className="mt-6">
-                  <ConversationsList conversations={conversations} />
+                  <ConversationsList conversations={realConversations} />
                 </TabsContent>
                 
                 <TabsContent value="inactive" className="mt-6">
-                  <ConversationsList conversations={inactive} />
+                  <ConversationsList conversations={inactive.filter(c => !testConversations.includes(c))} />
+                </TabsContent>
+                
+                <TabsContent value="test" className="mt-6">
+                  <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center space-x-2 text-orange-800">
+                      <TestTube className="w-5 h-5" />
+                      <h3 className="font-medium">Test Conversations</h3>
+                    </div>
+                    <p className="text-sm text-orange-600 mt-1">
+                      These are conversations created from AI testing. You can delete them to keep your database clean.
+                    </p>
+                  </div>
+                  <ConversationsList conversations={testConversations} showDelete={true} />
                 </TabsContent>
               </Tabs>
             )}
