@@ -57,9 +57,50 @@ export class AIAgent {
 
     const systemPrompt = this.buildSystemPrompt();
     const contextPrompt = this.buildContextPrompt(customer, conversationHistory);
-    const userPrompt = `Customer message: "${customerMessage}"
+    const businessType = this.settings.businessType || 'ecommerce';
+    let userPrompt = `Customer message: "${customerMessage}"
 
-Please analyze this message and respond appropriately. If the customer is asking about products, provide helpful information. If they want to place an order, guide them through the process.
+Please analyze this message and respond appropriately based on the business type.`;
+
+    if (businessType === 'appointment_based') {
+      userPrompt += `
+
+Respond in JSON format with:
+{
+  "message": "your response to the customer",
+  "suggestedProducts": [optional array of relevant service IDs],
+  "requiresAppointmentInfo": boolean (true if you need more info to complete booking),
+  "appointmentIntent": {
+    "serviceId": number (if service selected),
+    "preferredDate": "YYYY-MM-DD" (if provided),
+    "preferredTime": "HH:MM" (if provided),
+    "duration": number (in minutes),
+    "customerInfo": {"name": "string", "email": "string"}
+  }
+}`;
+    } else if (businessType === 'hybrid') {
+      userPrompt += `
+
+Respond in JSON format with:
+{
+  "message": "your response to the customer",
+  "suggestedProducts": [optional array of relevant IDs],
+  "requiresOrderInfo": boolean (for product orders),
+  "requiresAppointmentInfo": boolean (for service bookings),
+  "orderIntent": {
+    "products": [{"productId": number, "quantity": number}],
+    "customerInfo": {"name": "string", "email": "string"}
+  },
+  "appointmentIntent": {
+    "serviceId": number,
+    "preferredDate": "YYYY-MM-DD",
+    "preferredTime": "HH:MM",
+    "duration": number,
+    "customerInfo": {"name": "string", "email": "string"}
+  }
+}`;
+    } else {
+      userPrompt += `
 
 Respond in JSON format with:
 {
@@ -68,9 +109,10 @@ Respond in JSON format with:
   "requiresOrderInfo": boolean (true if you need more info to complete an order),
   "orderIntent": {
     "products": [{"productId": number, "quantity": number}],
-    "customerInfo": {"name": "string", "email": "string"} (only if collecting info)
+    "customerInfo": {"name": "string", "email": "string"}
   }
 }`;
+    }
 
     try {
       const response = await openai.chat.completions.create({
@@ -89,6 +131,32 @@ Respond in JSON format with:
       // Enhance with actual product data if suggested
       if (aiResponse.suggestedProducts) {
         aiResponse.suggestedProducts = await this.getProductsByIds(aiResponse.suggestedProducts);
+      }
+
+      // Ensure proper response structure based on business type
+      const businessType = this.settings.businessType || 'ecommerce';
+      if (businessType === 'appointment_based') {
+        // For appointment-based businesses, ensure we have appointment fields
+        if (!aiResponse.appointmentIntent) {
+          aiResponse.appointmentIntent = {};
+        }
+        if (!aiResponse.hasOwnProperty('requiresAppointmentInfo')) {
+          aiResponse.requiresAppointmentInfo = false;
+        }
+        // Remove order-specific fields for appointment businesses
+        delete aiResponse.orderIntent;
+        delete aiResponse.requiresOrderInfo;
+      } else if (businessType === 'ecommerce') {
+        // For e-commerce, ensure we have order fields
+        if (!aiResponse.orderIntent) {
+          aiResponse.orderIntent = { products: [] };
+        }
+        if (!aiResponse.hasOwnProperty('requiresOrderInfo')) {
+          aiResponse.requiresOrderInfo = false;
+        }
+        // Remove appointment-specific fields for e-commerce
+        delete aiResponse.appointmentIntent;
+        delete aiResponse.requiresAppointmentInfo;
       }
 
       return aiResponse;
