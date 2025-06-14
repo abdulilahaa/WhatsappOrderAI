@@ -1,13 +1,16 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2, TestTube } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import ConversationThread from "@/components/conversation-thread";
 import type { ConversationWithCustomer } from "@/lib/types";
 
 export default function Conversations() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   const { data: allConversations, isLoading } = useQuery<ConversationWithCustomer[]>({
     queryKey: ["/api/conversations"],
@@ -20,17 +23,74 @@ export default function Conversations() {
   const conversations = allConversations || [];
   const active = activeConversations || [];
   const inactive = conversations.filter(c => !c.isActive);
+  
+  // Separate test conversations (customers with Test in name or phone starting with +12345)
+  const testConversations = conversations.filter(c => 
+    c.customer.name?.includes('Test') || 
+    c.customer.name?.includes('test') ||
+    c.customer.phoneNumber.startsWith('+12345')
+  );
+  const realConversations = conversations.filter(c => 
+    !c.customer.name?.includes('Test') && 
+    !c.customer.name?.includes('test') &&
+    !c.customer.phoneNumber.startsWith('+12345')
+  );
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: (conversationId: number) => 
+      apiRequest("DELETE", `/api/conversations/${conversationId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations/active"] });
+      toast({
+        title: "Success",
+        description: "Test conversation deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete conversation: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
     queryClient.invalidateQueries({ queryKey: ["/api/conversations/active"] });
   };
 
-  const ConversationsList = ({ conversations: convList }: { conversations: ConversationWithCustomer[] }) => (
+  const handleDeleteConversation = (conversationId: number) => {
+    if (confirm("Are you sure you want to delete this test conversation?")) {
+      deleteConversationMutation.mutate(conversationId);
+    }
+  };
+
+  const ConversationsList = ({ 
+    conversations: convList, 
+    showDelete = false 
+  }: { 
+    conversations: ConversationWithCustomer[], 
+    showDelete?: boolean 
+  }) => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {convList.length > 0 ? (
         convList.map((conversation) => (
-          <ConversationThread key={conversation.id} conversation={conversation} />
+          <div key={conversation.id} className="relative">
+            <ConversationThread conversation={conversation} />
+            {showDelete && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="absolute top-2 right-2 z-10"
+                onClick={() => handleDeleteConversation(conversation.id)}
+                disabled={deleteConversationMutation.isPending}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         ))
       ) : (
         <div className="col-span-full text-center text-slate-500 py-12">

@@ -248,6 +248,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/conversations/:id", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      if (isNaN(conversationId)) {
+        return res.status(400).json({ message: "Invalid conversation ID" });
+      }
+
+      const success = await storage.deleteConversation(conversationId);
+      if (!success) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      res.json({ message: "Conversation deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Error deleting conversation: " + error.message });
+    }
+  });
+
   // AI Settings API
   app.get("/api/ai-settings", async (req, res) => {
     try {
