@@ -81,21 +81,21 @@ export default function ConversationThread({ conversation }: ConversationThreadP
                   </>
                 ) : (
                   <div className="flex-1">
-                    <div className="bg-whatsapp rounded-lg p-3 max-w-xs ml-auto">
+                    <div className="bg-green-500 rounded-lg p-3 max-w-xs ml-auto">
                       <p className="text-sm text-white">{message.content}</p>
                     </div>
                     <div className="flex items-center justify-end space-x-1 mt-1">
                       <span className="text-xs text-slate-500">
                         {new Date(message.timestamp).toLocaleString()}
                       </span>
-                      <i className="fas fa-robot text-ai text-xs" title="AI Response"></i>
+                      <span className="text-xs text-blue-600 font-medium">AI</span>
                     </div>
                   </div>
                 )}
                 
                 {message.isFromAI && (
-                  <div className="w-8 h-8 bg-whatsapp rounded-full flex items-center justify-center">
-                    <i className="fas fa-robot text-white text-xs"></i>
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">AI</span>
                   </div>
                 )}
               </div>
