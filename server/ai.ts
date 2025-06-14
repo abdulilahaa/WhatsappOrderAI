@@ -26,6 +26,12 @@ export interface AIResponse {
     customerInfo?: Partial<Customer>;
   };
   requiresAppointmentInfo?: boolean;
+  appointmentCreated?: {
+    id: number;
+    date: string;
+    time: string;
+    serviceId: number;
+  };
 }
 
 export class AIAgent {
