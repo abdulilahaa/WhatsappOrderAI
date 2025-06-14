@@ -196,5 +196,7 @@ export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type AISettings = typeof aiSettings.$inferSelect;
 export type InsertAISettings = z.infer<typeof insertAISettingsSchema>;
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type WhatsAppSettings = typeof whatsappSettings.$inferSelect;
 export type InsertWhatsAppSettings = z.infer<typeof insertWhatsAppSettingsSchema>;

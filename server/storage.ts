@@ -1,9 +1,9 @@
 import { 
-  products, customers, orders, conversations, messages, aiSettings, whatsappSettings,
+  products, customers, orders, conversations, messages, aiSettings, whatsappSettings, appointments,
   type Product, type InsertProduct, type Customer, type InsertCustomer, 
   type Order, type InsertOrder, type Conversation, type InsertConversation,
   type Message, type InsertMessage, type AISettings, type InsertAISettings,
-  type WhatsAppSettings, type InsertWhatsAppSettings
+  type WhatsAppSettings, type InsertWhatsAppSettings, type Appointment, type InsertAppointment
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -49,6 +49,13 @@ export interface IStorage {
   // WhatsApp Settings
   getWhatsAppSettings(): Promise<WhatsAppSettings>;
   updateWhatsAppSettings(settings: Partial<InsertWhatsAppSettings>): Promise<WhatsAppSettings>;
+
+  // Appointments
+  getAppointments(): Promise<(Appointment & { customer: Customer, service: Product })[]>;
+  getAppointment(id: number): Promise<(Appointment & { customer: Customer, service: Product }) | undefined>;
+  getAppointmentsByCustomer(customerId: number): Promise<Appointment[]>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: number, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined>;
 
   // Analytics
   getDashboardStats(): Promise<{
@@ -322,6 +329,64 @@ export class DatabaseStorage implements IStorage {
       .set(settings)
       .returning();
     return updatedSettings;
+  }
+
+  // Appointments
+  async getAppointments(): Promise<(Appointment & { customer: Customer, service: Product })[]> {
+    const result = await db
+      .select()
+      .from(appointments)
+      .leftJoin(customers, eq(appointments.customerId, customers.id))
+      .leftJoin(products, eq(appointments.serviceId, products.id))
+      .orderBy(desc(appointments.appointmentDate));
+
+    return result.map(row => ({
+      ...row.appointments,
+      customer: row.customers!,
+      service: row.products!
+    }));
+  }
+
+  async getAppointment(id: number): Promise<(Appointment & { customer: Customer, service: Product }) | undefined> {
+    const [result] = await db
+      .select()
+      .from(appointments)
+      .leftJoin(customers, eq(appointments.customerId, customers.id))
+      .leftJoin(products, eq(appointments.serviceId, products.id))
+      .where(eq(appointments.id, id));
+
+    if (!result) return undefined;
+
+    return {
+      ...result.appointments,
+      customer: result.customers!,
+      service: result.products!
+    };
+  }
+
+  async getAppointmentsByCustomer(customerId: number): Promise<Appointment[]> {
+    return await db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.customerId, customerId))
+      .orderBy(desc(appointments.appointmentDate));
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const [newAppointment] = await db
+      .insert(appointments)
+      .values(appointment)
+      .returning();
+    return newAppointment;
+  }
+
+  async updateAppointment(id: number, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined> {
+    const [updated] = await db
+      .update(appointments)
+      .set(appointment)
+      .where(eq(appointments.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   // Analytics
