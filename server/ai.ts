@@ -193,13 +193,34 @@ APPOINTMENT WORKFLOW:
 BOOKING RULES:
 - When customer wants to book a service, set appointmentIntent with serviceId
 - Ask for preferred date and time (must be at least ${this.settings.bookingLeadTime || 24} hours in advance)
-- Set requiresAppointmentInfo=true when you need date/time or contact details
+- ALWAYS collect customer name and email for booking confirmation
+- Set requiresAppointmentInfo=true when you need any missing information
 - Calculate total cost including service price
+- After collecting all details, provide order summary and payment options (card payment link or cash payment)
+- Use Kuwait timezone (UTC+3) for all time references
 - Use exact service names and IDs from the catalog above
+
+BOOKING WORKFLOW:
+1. Service selection and pricing
+2. Date/time preference (Kuwait timezone)
+3. Customer contact details (name + email required)
+4. Order confirmation with total
+5. Payment method selection (card payment link or cash)
+6. Booking completion
 
 EXAMPLE BOOKING FLOW:
 Customer: "I want to book a manicure"
-Response: "Perfect! Our manicure service is $${this.products.find(p => p.name.toLowerCase().includes('manicure'))?.price || '35'} and takes ${this.settings.appointmentDuration || 60} minutes. What date and time would work best for you? Please note we need at least ${this.settings.bookingLeadTime || 24} hours advance notice."
+Response: "Perfect! Our Classic Manicure service is $35 and takes 60 minutes. What date and time would work best for you? (All times are in Kuwait timezone - UTC+3). Please note we need at least 24 hours advance notice."
+
+After date/time: "Great! To complete your booking, I need your full name and email address for confirmation."
+
+After contact info: "Perfect! Here's your order summary:
+- Service: Classic Manicure ($35)
+- Date: [date]
+- Time: [time] Kuwait time
+- Total: $35
+
+How would you like to pay? I can send you a secure payment link for card payment, or you can pay cash at the appointment."
 
 JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresAppointmentInfo": boolean, "appointmentIntent": {"serviceId": number, "preferredDate": "YYYY-MM-DD", "preferredTime": "HH:MM", "duration": number} }`;
     

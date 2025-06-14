@@ -69,7 +69,7 @@ export const aiSettings = pgTable("ai_settings", {
     saturday: { start: "09:00", end: "15:00", enabled: true },
     sunday: { start: "10:00", end: "14:00", enabled: false }
   }),
-  timeZone: text("time_zone").notNull().default("America/New_York"),
+  timeZone: text("time_zone").notNull().default("Asia/Kuwait"),
   bookingLeadTime: integer("booking_lead_time").default(24), // hours in advance required
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -82,6 +82,8 @@ export const appointments = pgTable("appointments", {
   appointmentTime: text("appointment_time").notNull(), // HH:MM format
   duration: integer("duration").notNull().default(60), // in minutes
   status: text("status").notNull().default("pending"), // pending, confirmed, completed, cancelled
+  paymentMethod: text("payment_method"), // card, cash
+  paymentStatus: text("payment_status").default("pending"), // pending, paid, failed
   notes: text("notes"),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

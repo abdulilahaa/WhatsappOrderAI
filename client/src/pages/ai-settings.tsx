@@ -37,7 +37,7 @@ export default function AISettingsPage() {
       collectCustomerInfo: true,
       welcomeMessage: "",
       appointmentDuration: 60,
-      timeZone: "America/New_York",
+      timeZone: "Asia/Kuwait",
       bookingLeadTime: 24,
     },
   });
@@ -310,11 +310,12 @@ export default function AISettingsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                          <SelectItem value="America/Chicago">Central Time</SelectItem>
-                          <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                          <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                          <SelectItem value="America/Phoenix">Arizona Time</SelectItem>
+                          <SelectItem value="Asia/Kuwait">Kuwait Time (UTC+3)</SelectItem>
+                          <SelectItem value="America/New_York">Eastern Time (UTC-5)</SelectItem>
+                          <SelectItem value="America/Chicago">Central Time (UTC-6)</SelectItem>
+                          <SelectItem value="America/Denver">Mountain Time (UTC-7)</SelectItem>
+                          <SelectItem value="America/Los_Angeles">Pacific Time (UTC-8)</SelectItem>
+                          <SelectItem value="Europe/London">London Time (UTC+0)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
