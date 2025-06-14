@@ -35,6 +35,7 @@ function Router() {
         <Route path="/" component={() => <Dashboard onAddProduct={handleAddProduct} />} />
         <Route path="/products" component={Products} />
         <Route path="/orders" component={Orders} />
+        <Route path="/appointments" component={Appointments} />
         <Route path="/conversations" component={Conversations} />
         <Route path="/ai-settings" component={AISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
