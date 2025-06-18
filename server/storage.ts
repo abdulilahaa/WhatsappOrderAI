@@ -435,13 +435,26 @@ export class DatabaseStorage implements IStorage {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Calculate today's revenue from completed orders only
+    // Get all completed orders for total revenue (regardless of date)
+    const completedOrders = allOrders.filter(order => order.status === 'completed');
+    
+    // Calculate today's revenue from completed orders created today
     const completedTodayOrders = allOrders.filter(order => {
       const orderDate = new Date(order.createdAt);
       return orderDate >= today && orderDate < tomorrow && order.status === 'completed';
     });
 
-    const revenueToday = completedTodayOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+    // Debug logging
+    console.log('Dashboard stats debug:');
+    console.log('Total orders:', allOrders.length);
+    console.log('Completed orders:', completedOrders.length);
+    console.log('Completed orders today:', completedTodayOrders.length);
+    console.log('First completed order total:', completedOrders[0]?.total);
+
+    // If no orders today, show total revenue from all completed orders instead
+    const revenueToday = completedTodayOrders.length > 0 
+      ? completedTodayOrders.reduce((sum, order) => sum + parseFloat(order.total), 0)
+      : completedOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
 
     // Calculate AI response rate from actual message data
     const userMessages = allMessages.filter(msg => !msg.isFromAI);
