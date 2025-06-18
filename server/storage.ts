@@ -428,24 +428,33 @@ export class DatabaseStorage implements IStorage {
   }> {
     const allOrders = await db.select().from(orders);
     const allConversations = await db.select().from(conversations).where(eq(conversations.isActive, true));
+    const allMessages = await db.select().from(messages);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const todaysOrders = allOrders.filter(order => {
+    // Calculate today's revenue from completed orders only
+    const completedTodayOrders = allOrders.filter(order => {
       const orderDate = new Date(order.createdAt);
-      return orderDate >= today && orderDate < tomorrow;
+      return orderDate >= today && orderDate < tomorrow && order.status === 'completed';
     });
 
-    const revenueToday = todaysOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+    const revenueToday = completedTodayOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+
+    // Calculate AI response rate from actual message data
+    const userMessages = allMessages.filter(msg => !msg.isFromAI);
+    const aiResponses = allMessages.filter(msg => msg.isFromAI);
+    const aiResponseRate = userMessages.length > 0 
+      ? Math.round((aiResponses.length / userMessages.length) * 100)
+      : 0;
 
     return {
       totalOrders: allOrders.length,
       activeConversations: allConversations.length,
       revenueToday,
-      aiResponseRate: 95, // Mock response rate
+      aiResponseRate: Math.min(aiResponseRate, 100), // Cap at 100%
     };
   }
 }

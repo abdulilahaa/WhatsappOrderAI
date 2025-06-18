@@ -17,6 +17,8 @@ interface DashboardProps {
 export default function Dashboard({ onAddProduct }: DashboardProps) {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 0, // Consider data stale immediately
   });
 
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
