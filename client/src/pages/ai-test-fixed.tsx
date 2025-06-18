@@ -81,6 +81,33 @@ export default function AITest() {
     },
   });
 
+  const welcomeMessageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/welcome", { 
+        customer: selectedCustomer
+      });
+      return res.json();
+    },
+    onSuccess: (response: any) => {
+      const welcomeMessage: TestMessage = {
+        id: Date.now().toString() + "_welcome",
+        content: response.message || "No welcome message",
+        isFromUser: false,
+        timestamp: new Date(),
+        response: { message: response.message }
+      };
+      
+      setTestMessages([welcomeMessage]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Welcome Message Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSendMessage = () => {
     if (!currentMessage.trim()) return;
 
@@ -124,15 +151,26 @@ export default function AITest() {
                   <Bot className="h-5 w-5" />
                   AI Conversation Test
                 </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearChat}
-                  disabled={testMessages.length === 0}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Clear Chat
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => welcomeMessageMutation.mutate()}
+                    disabled={welcomeMessageMutation.isPending}
+                  >
+                    <Bot className="h-4 w-4 mr-1" />
+                    Test Welcome
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearChat}
+                    disabled={testMessages.length === 0}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Clear Chat
+                  </Button>
+                </div>
               </CardHeader>
               
               <CardContent className="flex-1 flex flex-col min-h-0">
@@ -294,28 +332,63 @@ export default function AITest() {
               </CardContent>
             </Card>
 
-            {/* AI Settings */}
+            {/* AI Configuration Status */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">AI Settings</CardTitle>
+                <CardTitle className="text-lg">AI Configuration Status</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm">Business:</span>
-                  <span className="text-sm font-medium">{aiSettings?.businessName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">Assistant:</span>
-                  <span className="text-sm font-medium">{aiSettings?.assistantName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">Tone:</span>
-                  <Badge variant="secondary">{aiSettings?.tone}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">Products:</span>
-                  <span className="text-sm font-medium">{products?.length || 0} items</span>
-                </div>
+              <CardContent className="space-y-3">
+                {aiSettings ? (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm">Business Name:</span>
+                        <span className="text-sm font-medium">{aiSettings.businessName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Assistant Name:</span>
+                        <span className="text-sm font-medium">{aiSettings.assistantName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Business Type:</span>
+                        <Badge variant="outline">{aiSettings.businessType || "ecommerce"}</Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Tone:</span>
+                        <Badge variant="secondary">{aiSettings.tone}</Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Response Speed:</span>
+                        <Badge variant="secondary">{aiSettings.responseSpeed}</Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Auto-suggest Products:</span>
+                        <Badge variant={aiSettings.autoSuggestProducts ? "default" : "secondary"}>
+                          {aiSettings.autoSuggestProducts ? "✓ On" : "✗ Off"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Collect Customer Info:</span>
+                        <Badge variant={aiSettings.collectCustomerInfo ? "default" : "secondary"}>
+                          {aiSettings.collectCustomerInfo ? "✓ On" : "✗ Off"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Products Available:</span>
+                        <span className="text-sm font-medium">{products?.length || 0}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t pt-2">
+                      <div className="text-xs text-gray-600 mb-1">Welcome Message:</div>
+                      <div className="bg-gray-50 p-2 rounded text-xs">
+                        {aiSettings.welcomeMessage || "No custom welcome message"}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-gray-500 text-sm">Loading...</div>
+                )}
               </CardContent>
             </Card>
           </div>
