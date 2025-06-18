@@ -115,9 +115,9 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
                 iconColor="text-green-600"
               />
               <StatsCard
-                title="Revenue Today"
+                title="Total Revenue"
                 value={`$${stats?.revenueToday?.toFixed(2) || '0.00'}`}
-                change="+18% vs yesterday"
+                change="From completed orders"
                 icon="fa-dollar-sign"
                 iconBgColor="bg-whatsapp/10"
                 iconColor="text-whatsapp"
