@@ -370,6 +370,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Welcome Message Test
+  app.post("/api/ai/welcome", async (req, res) => {
+    try {
+      const { customer } = req.body;
+      
+      if (!customer) {
+        return res.status(400).json({ message: "Customer is required" });
+      }
+
+      // Find or create the test customer in the database
+      let dbCustomer = await storage.getCustomerByPhoneNumber(customer.phoneNumber);
+      if (!dbCustomer) {
+        dbCustomer = await storage.createCustomer({
+          phoneNumber: customer.phoneNumber,
+          name: customer.name || null,
+          email: customer.email || null,
+        });
+      }
+
+      const welcomeMessage = await aiAgent.generateWelcomeMessage(dbCustomer);
+      res.json({ message: welcomeMessage });
+    } catch (error: any) {
+      console.error("AI welcome message error:", error);
+      res.status(500).json({ message: "Error generating welcome message: " + error.message });
+    }
+  });
+
   // AI Agent Testing
   app.post("/api/ai/test", async (req, res) => {
     try {
