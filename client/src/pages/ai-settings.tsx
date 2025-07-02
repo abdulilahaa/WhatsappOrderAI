@@ -264,12 +264,15 @@ export default function AISettingsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="natural">Natural & Conversational</SelectItem>
                           <SelectItem value="friendly">Friendly & Casual</SelectItem>
                           <SelectItem value="professional">Professional</SelectItem>
                           <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
-                          <SelectItem value="helpful">Helpful & Supportive</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Natural tone uses phrases like "sure," "of course," "no worries" and keeps messages 40-250 characters
+                      </p>
                     </div>
                   </div>
                 </div>

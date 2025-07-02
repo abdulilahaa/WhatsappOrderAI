@@ -109,6 +109,7 @@ Required environment variables:
 ## Changelog
 - July 02, 2025: Initial setup
 - July 02, 2025: Added comprehensive location management system with Google Maps integration
+- July 02, 2025: Implemented natural conversational AI style with 40-250 character messages and human-like phrases
 
 ## User Preferences
 

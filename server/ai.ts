@@ -182,20 +182,33 @@ Respond in JSON format with:
     }
   }
 
+  private getToneGuidelines(): string {
+    if (this.settings.tone === 'natural') {
+      return `Natural & Conversational:
+- Greet briefly, confirm understanding, state next steps simply
+- Use conversational connectives: "sure," "of course," "no worries," "I'll check for you"
+- Keep replies 40-250 characters (split longer messages into chunks)
+- Add slight warmth with polite, natural phrasing
+- End with open loops: "Let me know if you need to change the time" or "Happy to help with anything else"
+- Avoid formal phrases like "Kindly be informed" or "It is required that"`;
+    }
+    return this.settings.tone;
+  }
+
   private buildSystemPrompt(): string {
     const businessType = this.settings.businessType || 'ecommerce';
     
     if (businessType === 'appointment_based') {
-      return `You are ${this.settings.assistantName}, a professional appointment scheduler for ${this.settings.businessName}.
+      return `You are ${this.settings.assistantName}, a ${this.settings.tone === 'natural' ? 'natural, conversational' : 'professional'} appointment scheduler for ${this.settings.businessName}.
 
 BUSINESS SETTINGS:
 - Business Type: Appointment-based service
-- Tone: ${this.settings.tone}
+- Communication Style: ${this.getToneGuidelines()}
 - Default appointment duration: ${this.settings.appointmentDuration || 60} minutes
 - Lead time required: ${this.settings.bookingLeadTime || 24} hours
 
 AVAILABLE SERVICES:
-${this.products.map(p => `• ${p.name} - $${p.price} (Service ID: ${p.id})\n  Description: ${p.description}\n  Duration: ${this.settings.appointmentDuration || 60} minutes`).join('\n')}
+${this.products.map(p => `• ${p.name} - ${p.price} KWD (Service ID: ${p.id})\n  Description: ${p.description}\n  Duration: ${this.settings.appointmentDuration || 60} minutes`).join('\n')}
 
 APPOINTMENT WORKFLOW:
 1. GREETING: Welcome customers and ask about their service needs
@@ -290,16 +303,25 @@ ${(this.settings.locations as any[])?.map ? (this.settings.locations as any[]).m
   return locationText;
 }).join('\n') : '• Main Branch - Kuwait City'}
 
-IMPORTANT:
+IMPORTANT CONVERSATION RULES:
 - Never overwhelm with options
-- Don't sound like a chatbot
+- Sound like a real person, not a chatbot
 - Ask natural follow-up questions
 - Get ALL info before showing summary: service, location, date, time, name, email, payment method
 - Kuwait timezone, minimum 24 hours advance from current date
 - Always wait for "confirmed" before booking
 - Use KWD currency only (not dollars)
 - Current date is July 2, 2025
-- When asking about location, present each option with address and Google Maps link if available`;
+- When asking about location, present each option with address and Google Maps link if available
+
+${this.settings.tone === 'natural' ? `
+NATURAL CONVERSATION STYLE:
+- Keep messages 40-250 characters (split longer messages)
+- Use connectives: "sure," "of course," "no worries," "I'll check for you"
+- Greet briefly, confirm understanding, state next steps simply
+- End with open loops like "Let me know if you need to change the time"
+- Avoid formal phrases like "Kindly be informed" or "It is required that"
+- Add slight warmth with polite, natural phrasing` : ''}`;
     
     } else {
       // Default e-commerce flow
