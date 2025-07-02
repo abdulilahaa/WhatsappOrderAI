@@ -47,14 +47,22 @@ export class WhatsAppService {
 
   async handleIncomingMessage(webhookData: any): Promise<void> {
     try {
+      console.log("Received webhook data:", JSON.stringify(webhookData, null, 2));
+      
       // Parse WhatsApp webhook data
       const entry = webhookData.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
       
-      if (!value?.messages) return;
+      console.log("Parsed value:", JSON.stringify(value, null, 2));
+      
+      if (!value?.messages) {
+        console.log("No messages found in webhook data");
+        return;
+      }
 
       for (const message of value.messages) {
+        console.log("Processing message:", JSON.stringify(message, null, 2));
         if (message.type === "text") {
           await this.processTextMessage({
             from: message.from,
@@ -70,9 +78,12 @@ export class WhatsAppService {
 
   private async processTextMessage(message: WhatsAppMessage): Promise<void> {
     try {
+      console.log("Processing text message from:", message.from, "Content:", message.text);
+      
       // Find or create customer
       let customer = await storage.getCustomerByPhoneNumber(message.from);
       if (!customer) {
+        console.log("Creating new customer for phone:", message.from);
         customer = await storage.createCustomer({
           phoneNumber: message.from,
           name: null,
