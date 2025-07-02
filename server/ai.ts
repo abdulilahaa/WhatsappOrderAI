@@ -282,7 +282,13 @@ BOOKING STEPS (one at a time):
 CURRENT DATE: ${new Date().toISOString().split('T')[0]} (July 2, 2025)
 
 LOCATIONS AVAILABLE:
-${(this.settings.locations as any[])?.map ? (this.settings.locations as any[]).map((loc: any) => `• ${loc.name} - ${loc.address}`).join('\n') : '• Main Branch - Kuwait City'}
+${(this.settings.locations as any[])?.map ? (this.settings.locations as any[]).map((loc: any) => {
+  let locationText = `• ${loc.name} - ${loc.address}`;
+  if (loc.googleMapsLink) {
+    locationText += `\n  Google Maps: ${loc.googleMapsLink}`;
+  }
+  return locationText;
+}).join('\n') : '• Main Branch - Kuwait City'}
 
 IMPORTANT:
 - Never overwhelm with options
@@ -292,7 +298,8 @@ IMPORTANT:
 - Kuwait timezone, minimum 24 hours advance from current date
 - Always wait for "confirmed" before booking
 - Use KWD currency only (not dollars)
-- Current date is July 2, 2025`;
+- Current date is July 2, 2025
+- When asking about location, present each option with address and Google Maps link if available`;
     
     } else {
       // Default e-commerce flow

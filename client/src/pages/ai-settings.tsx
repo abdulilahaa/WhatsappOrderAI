@@ -14,12 +14,18 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertAISettingsSchema } from "@shared/schema";
 import type { AISettings } from "@shared/schema";
-import { Save, AlertCircle } from "lucide-react";
+import { Save, AlertCircle, MapPin, Plus, Trash2, ExternalLink } from "lucide-react";
 
 export default function AISettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [locations, setLocations] = useState<Array<{
+    id: number;
+    name: string;
+    address: string;
+    googleMapsLink?: string;
+  }>>([]);
 
   const { data: settings, isLoading } = useQuery<AISettings>({
     queryKey: ["/api/ai-settings"],
@@ -59,6 +65,18 @@ export default function AISettingsPage() {
         bookingLeadTime: settings.bookingLeadTime || 24,
       });
       setHasUnsavedChanges(false);
+      
+      // Load locations if they exist, otherwise initialize with one empty location
+      if (settings.locations && Array.isArray(settings.locations) && settings.locations.length > 0) {
+        setLocations(settings.locations);
+      } else {
+        setLocations([{
+          id: 1,
+          name: "",
+          address: "",
+          googleMapsLink: ""
+        }]);
+      }
     }
   }, [settings, form]);
 
@@ -69,6 +87,30 @@ export default function AISettingsPage() {
     });
     return () => subscription.unsubscribe();
   }, [form]);
+
+  // Location management functions
+  const addLocation = () => {
+    const newId = Math.max(0, ...locations.map(l => l.id)) + 1;
+    setLocations([...locations, {
+      id: newId,
+      name: "",
+      address: "",
+      googleMapsLink: ""
+    }]);
+    setHasUnsavedChanges(true);
+  };
+
+  const updateLocation = (id: number, field: string, value: string) => {
+    setLocations(locations.map(loc => 
+      loc.id === id ? { ...loc, [field]: value } : loc
+    ));
+    setHasUnsavedChanges(true);
+  };
+
+  const removeLocation = (id: number) => {
+    setLocations(locations.filter(loc => loc.id !== id));
+    setHasUnsavedChanges(true);
+  };
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiRequest("PUT", "/api/ai-settings", data),
@@ -90,7 +132,12 @@ export default function AISettingsPage() {
   });
 
   const onSubmit = (data: any) => {
-    updateMutation.mutate(data);
+    // Include locations in the data being saved
+    const dataWithLocations = {
+      ...data,
+      locations: locations.filter(loc => loc.name.trim() && loc.address.trim())
+    };
+    updateMutation.mutate(dataWithLocations);
   };
 
   if (isLoading) {
@@ -334,6 +381,95 @@ export default function AISettingsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Locations Management Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-[#ba212a]" />
+                  <h3 className="text-lg font-semibold">Business Locations</h3>
+                </div>
+                <p className="text-sm text-slate-600">
+                  Add your business locations with addresses and Google Maps links to help customers choose the right location for their appointments.
+                </p>
+
+                <div className="space-y-4">
+                  {locations.map((location, index) => (
+                    <div key={location.id} className="p-4 border border-slate-200 rounded-lg bg-slate-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-slate-700">Location {index + 1}</h4>
+                        {locations.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeLocation(location.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor={`location-name-${location.id}`}>Location Name</Label>
+                          <Input
+                            id={`location-name-${location.id}`}
+                            value={location.name}
+                            onChange={(e) => updateLocation(location.id, 'name', e.target.value)}
+                            placeholder="e.g., Main Branch, Downtown Location"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor={`location-address-${location.id}`}>Street Address</Label>
+                          <Input
+                            id={`location-address-${location.id}`}
+                            value={location.address}
+                            onChange={(e) => updateLocation(location.id, 'address', e.target.value)}
+                            placeholder="e.g., 123 Kuwait City Center, Block 5"
+                          />
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                          <Label htmlFor={`location-maps-${location.id}`}>Google Maps Link (Optional)</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id={`location-maps-${location.id}`}
+                              value={location.googleMapsLink || ''}
+                              onChange={(e) => updateLocation(location.id, 'googleMapsLink', e.target.value)}
+                              placeholder="https://maps.google.com/..."
+                            />
+                            {location.googleMapsLink && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(location.googleMapsLink, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Copy the Google Maps link to help customers find your location easily
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addLocation}
+                    className="w-full border-dashed border-slate-300 text-slate-600 hover:text-slate-700 hover:border-slate-400"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Location
+                  </Button>
+                </div>
+              </div>
 
               <div className="pt-6 border-t border-slate-200">
                 <Button 

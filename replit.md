@@ -107,7 +107,8 @@ Required environment variables:
 - `VITE_STRIPE_PUBLIC_KEY`: Client-side Stripe configuration
 
 ## Changelog
-- July 02, 2025. Initial setup
+- July 02, 2025: Initial setup
+- July 02, 2025: Added comprehensive location management system with Google Maps integration
 
 ## User Preferences
 
