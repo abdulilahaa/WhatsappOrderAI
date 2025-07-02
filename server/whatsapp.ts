@@ -129,6 +129,11 @@ export class WhatsAppService {
         await this.handleOrderIntent(customer, aiResponse.orderIntent);
       }
 
+      // Handle appointment intent
+      if (aiResponse.appointmentIntent) {
+        await this.handleAppointmentIntent(customer, aiResponse.appointmentIntent);
+      }
+
       // Send AI response
       await this.sendMessage(customer.phoneNumber, aiResponse.message);
 
@@ -204,6 +209,56 @@ export class WhatsAppService {
       }
     } catch (error) {
       console.error("Error handling order intent:", error);
+    }
+  }
+
+  async handleAppointmentIntent(customer: Customer, appointmentIntent: any): Promise<void> {
+    try {
+      console.log("Processing appointment intent:", JSON.stringify(appointmentIntent, null, 2));
+      
+      if (appointmentIntent.customerInfo) {
+        // Update customer information
+        await storage.updateCustomer(customer.id, appointmentIntent.customerInfo);
+      }
+
+      // Check if we have all required appointment details
+      if (appointmentIntent.serviceId && appointmentIntent.preferredDate && appointmentIntent.preferredTime) {
+        // Create appointment
+        const appointment = await storage.createAppointment({
+          customerId: customer.id,
+          serviceId: appointmentIntent.serviceId,
+          appointmentDate: appointmentIntent.preferredDate,
+          appointmentTime: appointmentIntent.preferredTime,
+          duration: appointmentIntent.duration || 60, // Default 60 minutes
+          status: "confirmed",
+          notes: "Appointment booked via WhatsApp AI assistant",
+        });
+
+        console.log("Appointment created:", appointment);
+
+        // Send confirmation message
+        const service = await storage.getProduct(appointmentIntent.serviceId);
+        const confirmationMessage = `✅ *Appointment Confirmed!*\n\n` +
+          `Service: ${service?.name || 'Service'}\n` +
+          `Date: ${appointmentIntent.preferredDate}\n` +
+          `Time: ${appointmentIntent.preferredTime}\n` +
+          `Duration: ${appointmentIntent.duration || 60} minutes\n\n` +
+          `We'll see you then! If you need to reschedule, please let us know.`;
+
+        await this.sendMessage(customer.phoneNumber, confirmationMessage);
+        
+        // Save confirmation message
+        const conversation = await storage.getConversationByCustomer(customer.id);
+        if (conversation) {
+          await storage.createMessage({
+            conversationId: conversation.id,
+            content: confirmationMessage,
+            isFromAI: true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error handling appointment intent:", error);
     }
   }
 
