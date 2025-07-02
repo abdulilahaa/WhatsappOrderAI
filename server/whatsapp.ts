@@ -203,7 +203,7 @@ export class WhatsAppService {
           });
 
           // Send order confirmation
-          const confirmationMessage = `🎉 *Order Confirmed!*\n\nOrder #${order.id}\nTotal: $${total.toFixed(2)}\n\nThank you! We'll process your order and contact you for delivery details.`;
+          const confirmationMessage = `🎉 *Order Confirmed!*\n\nOrder #${order.id}\nTotal: ${total.toFixed(2)} KWD\n\nThank you! We'll process your order and contact you for delivery details.`;
           await this.sendMessage(customer.phoneNumber, confirmationMessage);
         }
       }
@@ -225,6 +225,8 @@ export class WhatsAppService {
       if (appointmentIntent.serviceId && 
           appointmentIntent.preferredDate && 
           appointmentIntent.preferredTime && 
+          appointmentIntent.locationId &&
+          appointmentIntent.locationName &&
           appointmentIntent.customerInfo?.name && 
           appointmentIntent.customerInfo?.email &&
           appointmentIntent.paymentMethod &&
@@ -240,6 +242,8 @@ export class WhatsAppService {
           appointmentDate: appointmentIntent.preferredDate,
           appointmentTime: appointmentIntent.preferredTime,
           duration: appointmentIntent.duration || 60, // Default 60 minutes
+          locationId: appointmentIntent.locationId,
+          locationName: appointmentIntent.locationName,
           status: "confirmed",
           paymentMethod: appointmentIntent.paymentMethod,
           paymentStatus: appointmentIntent.paymentMethod === "cash" ? "pending" : "pending",
@@ -260,8 +264,8 @@ export class WhatsAppService {
           `👤 *Customer:*\n` +
           `Name: ${appointmentIntent.customerInfo.name}\n` +
           `Email: ${appointmentIntent.customerInfo.email}\n\n` +
+          `📍 *Location:* ${appointmentIntent.locationName}\n` +
           `💳 *Payment:* ${appointmentIntent.paymentMethod === 'cash' ? 'Cash at appointment' : 'Card payment'}\n\n` +
-          `📍 *Location:* NailIt Studio\n` +
           `📞 *Contact:* For any changes, reply to this chat.\n\n` +
           `Thank you for choosing NailIt! We look forward to seeing you.`;
 

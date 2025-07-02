@@ -81,6 +81,8 @@ Respond in JSON format with:
     "preferredDate": "YYYY-MM-DD" (if provided),
     "preferredTime": "HH:MM" (if provided),
     "duration": number (in minutes),
+    "locationId": number (if location selected),
+    "locationName": "string" (location name),
     "customerInfo": {"name": "string", "email": "string"},
     "paymentMethod": "pending" | "card" | "cash",
     "readyForConfirmation": boolean (true when all info collected, show order summary),
@@ -270,19 +272,27 @@ CONVERSATION EXAMPLES:
 BOOKING STEPS (one at a time):
 1. Ask what they're looking for
 2. Help them choose a service 
-3. Ask when they'd like to come
-4. Get their name and email
-5. Ask payment preference
-6. Show complete summary and ask them to confirm
-7. Only book after they say "confirmed"
+3. Ask which location they prefer
+4. Ask when they'd like to come (date and time)
+5. Get their name and email
+6. Ask payment preference (card or cash)
+7. Show complete summary and ask them to confirm
+8. Only book after they say "confirmed"
+
+CURRENT DATE: ${new Date().toISOString().split('T')[0]} (July 2, 2025)
+
+LOCATIONS AVAILABLE:
+${(this.settings.locations as any[])?.map ? (this.settings.locations as any[]).map((loc: any) => `• ${loc.name} - ${loc.address}`).join('\n') : '• Main Branch - Kuwait City'}
 
 IMPORTANT:
 - Never overwhelm with options
 - Don't sound like a chatbot
 - Ask natural follow-up questions
-- Get all info before showing summary: service, date, time, name, email, payment method
-- Kuwait timezone, minimum 24 hours advance
-- Always wait for "confirmed" before booking`;
+- Get ALL info before showing summary: service, location, date, time, name, email, payment method
+- Kuwait timezone, minimum 24 hours advance from current date
+- Always wait for "confirmed" before booking
+- Use KWD currency only (not dollars)
+- Current date is July 2, 2025`;
     
     } else {
       // Default e-commerce flow

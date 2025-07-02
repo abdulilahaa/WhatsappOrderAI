@@ -71,6 +71,18 @@ export const aiSettings = pgTable("ai_settings", {
   }),
   timeZone: text("time_zone").notNull().default("Asia/Kuwait"),
   bookingLeadTime: integer("booking_lead_time").default(24), // hours in advance required
+  // Business locations for appointments
+  locations: jsonb("locations").default([
+    { id: 1, name: "Main Branch", address: "Kuwait City" }
+  ]),
+  // Required fields for appointments
+  requiredFields: jsonb("required_fields").default({
+    name: true,
+    email: true,
+    phone: true,
+    location: true,
+    paymentMethod: true
+  }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -81,6 +93,8 @@ export const appointments = pgTable("appointments", {
   appointmentDate: text("appointment_date").notNull(), // YYYY-MM-DD format
   appointmentTime: text("appointment_time").notNull(), // HH:MM format
   duration: integer("duration").notNull().default(60), // in minutes
+  locationId: integer("location_id"), // Which branch/location
+  locationName: text("location_name"), // Location name for display
   status: text("status").notNull().default("pending"), // pending, confirmed, completed, cancelled
   paymentMethod: text("payment_method"), // card, cash
   paymentStatus: text("payment_status").default("pending"), // pending, paid, failed
