@@ -221,8 +221,18 @@ export class WhatsAppService {
         await storage.updateCustomer(customer.id, appointmentIntent.customerInfo);
       }
 
-      // Check if we have all required appointment details
-      if (appointmentIntent.serviceId && appointmentIntent.preferredDate && appointmentIntent.preferredTime) {
+      // Check if we have all required appointment details including customer info and payment method
+      if (appointmentIntent.serviceId && 
+          appointmentIntent.preferredDate && 
+          appointmentIntent.preferredTime && 
+          appointmentIntent.customerInfo?.name && 
+          appointmentIntent.customerInfo?.email &&
+          appointmentIntent.paymentMethod &&
+          appointmentIntent.readyToBook) {
+        // Get service details for pricing
+        const serviceDetails = await storage.getProduct(appointmentIntent.serviceId);
+        const totalPrice = serviceDetails ? parseFloat(serviceDetails.price) : 0;
+
         // Create appointment
         const appointment = await storage.createAppointment({
           customerId: customer.id,
@@ -231,19 +241,29 @@ export class WhatsAppService {
           appointmentTime: appointmentIntent.preferredTime,
           duration: appointmentIntent.duration || 60, // Default 60 minutes
           status: "confirmed",
-          notes: "Appointment booked via WhatsApp AI assistant",
+          paymentMethod: appointmentIntent.paymentMethod,
+          paymentStatus: appointmentIntent.paymentMethod === "cash" ? "pending" : "pending",
+          totalPrice: totalPrice.toFixed(2),
+          notes: `Appointment booked via WhatsApp AI assistant. Customer: ${appointmentIntent.customerInfo.name}, Email: ${appointmentIntent.customerInfo.email}`,
         });
 
         console.log("Appointment created:", appointment);
 
-        // Send confirmation message
-        const service = await storage.getProduct(appointmentIntent.serviceId);
+        // Send comprehensive confirmation message
         const confirmationMessage = `✅ *Appointment Confirmed!*\n\n` +
-          `Service: ${service?.name || 'Service'}\n` +
+          `📋 *Booking Details:*\n` +
+          `Service: ${serviceDetails?.name || 'Service'}\n` +
           `Date: ${appointmentIntent.preferredDate}\n` +
-          `Time: ${appointmentIntent.preferredTime}\n` +
-          `Duration: ${appointmentIntent.duration || 60} minutes\n\n` +
-          `We'll see you then! If you need to reschedule, please let us know.`;
+          `Time: ${appointmentIntent.preferredTime} (Kuwait Time)\n` +
+          `Duration: ${appointmentIntent.duration || 60} minutes\n` +
+          `Total: ${totalPrice.toFixed(2)} KWD\n\n` +
+          `👤 *Customer:*\n` +
+          `Name: ${appointmentIntent.customerInfo.name}\n` +
+          `Email: ${appointmentIntent.customerInfo.email}\n\n` +
+          `💳 *Payment:* ${appointmentIntent.paymentMethod === 'cash' ? 'Cash at appointment' : 'Card payment'}\n\n` +
+          `📍 *Location:* NailIt Studio\n` +
+          `📞 *Contact:* For any changes, reply to this chat.\n\n` +
+          `Thank you for choosing NailIt! We look forward to seeing you.`;
 
         await this.sendMessage(customer.phoneNumber, confirmationMessage);
         
