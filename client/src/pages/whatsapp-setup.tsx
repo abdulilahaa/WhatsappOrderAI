@@ -290,18 +290,12 @@ export default function WhatsAppSetup() {
                       <Button 
                         type="submit" 
                         disabled={updateMutation.isPending}
-                        className="bg-whatsapp hover:bg-whatsapp/90"
+                        className="bg-green-600 hover:bg-green-700 text-white"
                       >
                         {updateMutation.isPending ? (
-                          <>
-                            <i className="fas fa-spinner fa-spin mr-2"></i>
-                            Saving...
-                          </>
+                          "Saving..."
                         ) : (
-                          <>
-                            <i className="fas fa-save mr-2"></i>
-                            Save Configuration
-                          </>
+                          "Save Configuration"
                         )}
                       </Button>
                     </div>
@@ -361,18 +355,12 @@ export default function WhatsAppSetup() {
                       <Button 
                         type="submit" 
                         disabled={testMessageMutation.isPending}
-                        className="bg-ai hover:bg-ai/90"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         {testMessageMutation.isPending ? (
-                          <>
-                            <i className="fas fa-spinner fa-spin mr-2"></i>
-                            Sending...
-                          </>
+                          "Sending..."
                         ) : (
-                          <>
-                            <i className="fas fa-paper-plane mr-2"></i>
-                            Send Test Message
-                          </>
+                          "Send Test Message"
                         )}
                       </Button>
 
