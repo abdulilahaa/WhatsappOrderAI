@@ -168,4 +168,6 @@ if __name__ == '__main__':
     print(f"[CONFIG] OpenAI configured: {bool(OPENAI_API_KEY)}")
     print(f"[CONFIG] Verify Token: {VERIFY_TOKEN}")
     
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    # Use port 3000 for Replit public access (avoiding Node.js port 5000)
+    port = int(os.getenv('PORT', 3000))
+    app.run(host='0.0.0.0', port=port, debug=False)
