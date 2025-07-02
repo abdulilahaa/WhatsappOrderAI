@@ -221,14 +221,14 @@ export class WhatsAppService {
         await storage.updateCustomer(customer.id, appointmentIntent.customerInfo);
       }
 
-      // Check if we have all required appointment details including customer info and payment method
+      // Only create appointment if customer has explicitly confirmed after seeing complete order summary
       if (appointmentIntent.serviceId && 
           appointmentIntent.preferredDate && 
           appointmentIntent.preferredTime && 
           appointmentIntent.customerInfo?.name && 
           appointmentIntent.customerInfo?.email &&
           appointmentIntent.paymentMethod &&
-          appointmentIntent.readyToBook) {
+          appointmentIntent.confirmed === true) {
         // Get service details for pricing
         const serviceDetails = await storage.getProduct(appointmentIntent.serviceId);
         const totalPrice = serviceDetails ? parseFloat(serviceDetails.price) : 0;

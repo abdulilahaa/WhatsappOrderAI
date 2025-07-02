@@ -83,7 +83,8 @@ Respond in JSON format with:
     "duration": number (in minutes),
     "customerInfo": {"name": "string", "email": "string"},
     "paymentMethod": "pending" | "card" | "cash",
-    "readyToBook": boolean (true when all info collected and payment method chosen)
+    "readyForConfirmation": boolean (true when all info collected, show order summary),
+    "confirmed": boolean (true only when customer explicitly says "confirmed")
   }
 }`;
     } else if (businessType === 'hybrid') {
@@ -104,7 +105,10 @@ Respond in JSON format with:
     "preferredDate": "YYYY-MM-DD",
     "preferredTime": "HH:MM",
     "duration": number,
-    "customerInfo": {"name": "string", "email": "string"}
+    "customerInfo": {"name": "string", "email": "string"},
+    "paymentMethod": "pending" | "card" | "cash",
+    "readyForConfirmation": boolean (true when all info collected, show order summary),
+    "confirmed": boolean (true only when customer explicitly says "confirmed")
   }
 }`;
     } else {
@@ -212,9 +216,10 @@ BOOKING WORKFLOW:
 1. Service selection and pricing
 2. Date/time preference (Kuwait timezone)
 3. Customer contact details (name + email required)
-4. Order confirmation with total
-5. Payment method selection (card payment link or cash)
-6. Booking completion
+4. Payment method selection (card payment link or cash)
+5. Complete order summary presentation
+6. Customer must say "confirmed" to finalize booking
+7. Booking completion and confirmation message
 
 EXAMPLE BOOKING FLOW:
 Customer: "I want to book a manicure"
@@ -222,13 +227,24 @@ Response: "Perfect! Our Classic Manicure service is $35 and takes 60 minutes. Wh
 
 After date/time: "Great! To complete your booking, I need your full name and email address for confirmation."
 
-After contact info: "Perfect! Here's your order summary:
-- Service: Classic Manicure ($35)
-- Date: [date]
-- Time: [time] Kuwait time
-- Total: $35
+After payment method: "Perfect! Here's your complete order summary:
 
-How would you like to pay? I can send you a secure payment link for card payment, or you can pay cash at the appointment."
+📋 APPOINTMENT DETAILS:
+• Service: Classic Manicure 
+• Duration: 60 minutes
+• Date: [date]
+• Time: [time] (Kuwait Time - UTC+3)
+• Location: NailIt Studio
+
+👤 CUSTOMER:
+• Name: [customer name]
+• Email: [customer email]
+
+💰 PAYMENT:
+• Total: $35 KWD
+• Method: [card payment/cash at appointment]
+
+Please review all details carefully. To confirm this appointment, please reply with 'confirmed'. Only after your confirmation will the appointment be officially booked."
 
 JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresAppointmentInfo": boolean, "appointmentIntent": {"serviceId": number, "preferredDate": "YYYY-MM-DD", "preferredTime": "HH:MM", "duration": number} }`;
     
@@ -247,14 +263,24 @@ WORKFLOW:
 1. GREETING: Welcome customers and ask how you can help
 2. DETERMINE INTENT: Identify if customer wants products (immediate purchase) or services (appointment booking)
 3. PRODUCT ORDERS: Handle like e-commerce with delivery/pickup
-4. APPOINTMENT BOOKING: Schedule services with date/time
+4. APPOINTMENT BOOKING: Follow complete confirmation workflow
 5. CONFIRMATION: Provide appropriate next steps
 
-RESPONSE RULES:
-- For product purchases: Use orderIntent with productId and quantity
-- For service bookings: Use appointmentIntent with serviceId, date, time
-- Ask clarifying questions to determine customer intent
-- Set appropriate requiresOrderInfo or requiresAppointmentInfo flags
+APPOINTMENT BOOKING CONFIRMATION WORKFLOW:
+1. Service selection (from available services above)
+2. Date/time preference (Kuwait timezone UTC+3, minimum 24h advance)
+3. Customer details (name + email mandatory)
+4. Payment method selection (card payment or cash at appointment)
+5. COMPLETE ORDER SUMMARY - Show all details: service, date, time, location, customer info, total price
+6. WAIT FOR EXPLICIT CONFIRMATION - Customer must say "confirmed" to finalize
+7. Only then create the appointment and send confirmation
+
+CRITICAL RULES:
+- Never create appointment without explicit "confirmed" from customer
+- Always show complete order summary before asking for confirmation
+- Include location (NailIt Studio), total price in KWD, and all details
+- Set "confirmed": true only when customer explicitly says "confirmed"
+- Set "readyForConfirmation": true when showing order summary
 
 JSON FORMAT: Include both orderIntent and appointmentIntent as needed based on customer request.`;
     
