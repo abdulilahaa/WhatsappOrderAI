@@ -221,8 +221,12 @@ export class WhatsAppService {
         await storage.updateCustomer(customer.id, appointmentIntent.customerInfo);
       }
 
+      // Handle both old single service format and new multiple services format
+      const services = appointmentIntent.services || 
+                      (appointmentIntent.serviceId ? [{ serviceId: appointmentIntent.serviceId, quantity: 1 }] : []);
+      
       // Only create appointment if customer has explicitly confirmed after seeing complete order summary
-      if (appointmentIntent.serviceId && 
+      if (services.length > 0 &&
           appointmentIntent.preferredDate && 
           appointmentIntent.preferredTime && 
           appointmentIntent.locationId &&
@@ -231,35 +235,56 @@ export class WhatsAppService {
           appointmentIntent.customerInfo?.email &&
           appointmentIntent.paymentMethod &&
           appointmentIntent.confirmed === true) {
-        // Get service details for pricing
-        const serviceDetails = await storage.getProduct(appointmentIntent.serviceId);
-        const totalPrice = serviceDetails ? parseFloat(serviceDetails.price) : 0;
+        
+        // Calculate total price and prepare service details
+        let totalPrice = 0;
+        const serviceDetails = [];
+        let totalDuration = 0;
+        
+        for (const service of services) {
+          const serviceInfo = await storage.getProduct(service.serviceId);
+          if (serviceInfo) {
+            const servicePrice = parseFloat(serviceInfo.price) * (service.quantity || 1);
+            totalPrice += servicePrice;
+            totalDuration += (appointmentIntent.duration || 60) * (service.quantity || 1);
+            serviceDetails.push({
+              name: serviceInfo.name,
+              price: servicePrice,
+              quantity: service.quantity || 1
+            });
+          }
+        }
 
-        // Create appointment
+        // Create appointment for the first service (main appointment)
+        const mainService = services[0];
         const appointment = await storage.createAppointment({
           customerId: customer.id,
-          serviceId: appointmentIntent.serviceId,
+          serviceId: mainService.serviceId,
           appointmentDate: appointmentIntent.preferredDate,
           appointmentTime: appointmentIntent.preferredTime,
-          duration: appointmentIntent.duration || 60, // Default 60 minutes
+          duration: totalDuration,
           locationId: appointmentIntent.locationId,
           locationName: appointmentIntent.locationName,
           status: "confirmed",
           paymentMethod: appointmentIntent.paymentMethod,
           paymentStatus: appointmentIntent.paymentMethod === "cash" ? "pending" : "pending",
           totalPrice: totalPrice.toFixed(2),
-          notes: `Appointment booked via WhatsApp AI assistant. Customer: ${appointmentIntent.customerInfo.name}, Email: ${appointmentIntent.customerInfo.email}`,
+          notes: `Multiple services booked via WhatsApp AI assistant. Services: ${serviceDetails.map(s => `${s.name} (${s.quantity}x)`).join(', ')}. Customer: ${appointmentIntent.customerInfo.name}, Email: ${appointmentIntent.customerInfo.email}`,
         });
 
         console.log("Appointment created:", appointment);
 
         // Send comprehensive confirmation message
+        const servicesText = serviceDetails.map(s => 
+          s.quantity > 1 ? `${s.name} (${s.quantity}x) - ${s.price.toFixed(2)} KWD` : `${s.name} - ${s.price.toFixed(2)} KWD`
+        ).join('\n');
+
         const confirmationMessage = `✅ *Appointment Confirmed!*\n\n` +
           `📋 *Booking Details:*\n` +
-          `Service: ${serviceDetails?.name || 'Service'}\n` +
+          `${servicesText}\n` +
           `Date: ${appointmentIntent.preferredDate}\n` +
           `Time: ${appointmentIntent.preferredTime} (Kuwait Time)\n` +
-          `Duration: ${appointmentIntent.duration || 60} minutes\n` +
+          `Duration: ${totalDuration} minutes\n` +
           `Total: ${totalPrice.toFixed(2)} KWD\n\n` +
           `👤 *Customer:*\n` +
           `Name: ${appointmentIntent.customerInfo.name}\n` +

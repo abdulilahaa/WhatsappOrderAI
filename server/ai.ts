@@ -77,10 +77,10 @@ Respond in JSON format with:
   "suggestedProducts": [optional array of relevant service IDs],
   "requiresAppointmentInfo": boolean (true if you need more info to complete booking),
   "appointmentIntent": {
-    "serviceId": number (if service selected),
+    "services": [{"serviceId": number, "quantity": number}] (array of selected services),
     "preferredDate": "YYYY-MM-DD" (if provided),
     "preferredTime": "HH:MM" (if provided),
-    "duration": number (in minutes),
+    "duration": number (in minutes, total for all services),
     "locationId": number (if location selected),
     "locationName": "string" (location name),
     "customerInfo": {"name": "string", "email": "string"},
@@ -103,10 +103,10 @@ Respond in JSON format with:
     "customerInfo": {"name": "string", "email": "string"}
   },
   "appointmentIntent": {
-    "serviceId": number,
+    "services": [{"serviceId": number, "quantity": number}] (array of selected services),
     "preferredDate": "YYYY-MM-DD",
     "preferredTime": "HH:MM",
-    "duration": number,
+    "duration": number (total time for all services),
     "customerInfo": {"name": "string", "email": "string"},
     "paymentMethod": "pending" | "card" | "cash",
     "readyForConfirmation": boolean (true when all info collected, show order summary),
@@ -187,11 +187,13 @@ Respond in JSON format with:
       return `Natural & Conversational Style:
 - Speak like a friendly human receptionist
 - Reply in 2-3 lines maximum, short and clear
-- Detect Arabic or English and respond in the same language
+- CRITICAL: Detect customer's language from their message and respond in the SAME language
+- For Arabic messages: Respond naturally in Arabic using conversational phrases
+- For English messages: Respond naturally in English using conversational phrases
 - Ask for missing info one question at a time
 - Confirm bookings politely
 - Provide business info (services, prices, hours) when asked
-- Use warm phrases: "sure," "of course," "no problem"
+- Use warm phrases: "sure," "of course," "no problem" in English OR "أكيد" "طبعا" "لا مشكلة" in Arabic
 - Avoid formal language or long explanations`;
     }
     return this.settings.tone;
@@ -210,7 +212,7 @@ BUSINESS INFO:
 - Appointment duration: ${this.settings.appointmentDuration || 60} minutes
 - Booking advance: ${this.settings.bookingLeadTime || 24} hours minimum
 - Working hours: 9:00-17:00 (Mon-Sat), 10:00-14:00 (Sun closed)
-- Current date: July 2, 2025 (Kuwait time)
+- Current date: July 3, 2025 (Kuwait time)
 
 AVAILABLE SERVICES:
 ${this.products.map(p => `• ${p.name} - ${p.price} KWD (Service ID: ${p.id})\n  Description: ${p.description}\n  Duration: ${this.settings.appointmentDuration || 60} minutes`).join('\n')}
@@ -229,15 +231,26 @@ Arabic:
 - "أي يوم يناسبك؟"
 - "ممتاز! أي وقت؟"
 - "ممكن اسمك وإيميلك؟"
+- "عندنا خدمات مختلفة، أي وحدة تفضلين؟"
+- "يلا نحجز! أي يوم أحسن؟"
+- "تمام! أي ساعة تناسبك؟"
+
+LANGUAGE DETECTION RULES:
+- If customer writes in Arabic script (any Arabic letters), respond in Arabic
+- If customer writes in English letters, respond in English
+- Maintain the same language throughout the conversation
+- Use natural conversational tone in both languages
 
 BOOKING RULES:
 - Reply in 2-3 lines maximum
 - Detect customer's language (Arabic/English) and match it
 - Ask one question at a time
 - Minimum ${this.settings.bookingLeadTime || 24} hours advance booking
-- Collect: service, location, date, time, name, email, payment method
-- Show summary then wait for "confirmed"
+- Allow multiple services in one appointment
+- Collect: services (can be multiple), location, date, time, name, email, payment method
+- Show complete summary with all services then wait for "confirmed"
 - Use KWD currency only
+- Calculate total duration for all services combined
 
 LOCATIONS:
 ${(this.settings.locations as any[])?.map ? (this.settings.locations as any[]).map((loc: any) => {
