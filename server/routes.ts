@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
 import { aiAgent } from "./ai";
+import { webScraper } from "./scraper";
 import { insertProductSchema, insertAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -114,6 +115,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: "Error deleting product: " + error.message });
+    }
+  });
+
+  // Web Scraping API
+  app.post("/api/products/scrape", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ message: "URL is required" });
+      }
+
+      // Scrape the website
+      const result = await webScraper.scrapeProductsFromUrl(url);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: result.error || "Failed to scrape website",
+          url: result.url 
+        });
+      }
+
+      // If products were found, optionally create them automatically
+      // or return them for user review
+      res.json({
+        success: true,
+        url: result.url,
+        products: result.products,
+        message: `Found ${result.products.length} products`
+      });
+      
+    } catch (error: any) {
+      res.status(500).json({ message: "Error scraping website: " + error.message });
+    }
+  });
+
+  app.post("/api/products/import", async (req, res) => {
+    try {
+      const { products } = req.body;
+      
+      if (!Array.isArray(products)) {
+        return res.status(400).json({ message: "Products array is required" });
+      }
+
+      const createdProducts = [];
+      const errors = [];
+
+      for (const productData of products) {
+        try {
+          // Validate product data
+          const validatedProduct = insertProductSchema.parse({
+            name: productData.name,
+            description: productData.description,
+            price: productData.price,
+            imageUrl: productData.imageUrl || null,
+            isActive: true
+          });
+
+          const product = await storage.createProduct(validatedProduct);
+          createdProducts.push(product);
+        } catch (error: any) {
+          errors.push({
+            product: productData.name || 'Unknown',
+            error: error.message
+          });
+        }
+      }
+
+      // Reload AI agent with updated product catalog
+      await aiAgent.reloadConfiguration();
+
+      res.json({
+        success: true,
+        created: createdProducts.length,
+        errors: errors.length,
+        products: createdProducts,
+        errorDetails: errors
+      });
+      
+    } catch (error: any) {
+      res.status(500).json({ message: "Error importing products: " + error.message });
     }
   });
 

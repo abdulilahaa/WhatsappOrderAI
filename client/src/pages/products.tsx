@@ -7,12 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import ProductCard from "@/components/product-card";
 import AddProductModal from "@/components/add-product-modal";
-import { Plus, Search, Package } from "lucide-react";
+import WebScraperModal from "@/components/web-scraper-modal";
+import { Plus, Search, Package, Globe } from "lucide-react";
 import type { Product } from "@shared/schema";
 
 export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isScraperOpen, setIsScraperOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -98,6 +100,13 @@ export default function Products() {
                   />
                   <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 </div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsScraperOpen(true)}
+                  className="mr-2"
+                >
+                  <Globe className="h-4 w-4 mr-2" />Import from Website
+                </Button>
                 <Button onClick={handleAddNew} className="hover:bg-whatsapp/90 bg-[#ba212a]">
                   <Plus className="h-4 w-4 mr-2" />Add Product
                 </Button>
@@ -164,6 +173,11 @@ export default function Products() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         editingProduct={editingProduct}
+      />
+      
+      <WebScraperModal
+        isOpen={isScraperOpen}
+        onClose={() => setIsScraperOpen(false)}
       />
     </div>
   );
