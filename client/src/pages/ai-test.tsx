@@ -190,7 +190,7 @@ export default function AITest() {
                                       <div key={product.id} className="bg-white rounded p-2 border">
                                         <div className="flex items-center justify-between">
                                           <span className="font-medium">{product.name}</span>
-                                          <span className="text-green-600 font-bold">${product.price}</span>
+                                          <span className="text-green-600 font-bold">{product.price} KWD</span>
                                         </div>
                                         <p className="text-xs text-gray-600">{product.description}</p>
                                       </div>

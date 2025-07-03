@@ -290,7 +290,7 @@ export class WhatsAppService {
     let message = "Here are some products you might like:\n\n";
     
     products.forEach((product, index) => {
-      message += `${index + 1}. *${product.name}* - $${product.price}\n`;
+      message += `${index + 1}. *${product.name}* - ${product.price} KWD\n`;
       message += `   ${product.description}\n\n`;
     });
 

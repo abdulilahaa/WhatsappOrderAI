@@ -336,7 +336,7 @@ BUSINESS SETTINGS:
 - Auto-suggest products: ${this.settings.autoSuggestProducts ? 'Yes' : 'No'}
 
 PRODUCT CATALOG:
-${this.products.map(p => `• ${p.name} - $${p.price} (Product ID: ${p.id})\n  Description: ${p.description}`).join('\n')}
+${this.products.map(p => `• ${p.name} - ${p.price} KWD (Product ID: ${p.id})\n  Description: ${p.description}`).join('\n')}
 
 ORDER WORKFLOW:
 1. GREETING: Welcome customers and ask how you can help

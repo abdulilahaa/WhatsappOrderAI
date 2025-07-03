@@ -80,12 +80,12 @@ const CheckoutForm = ({ orderData }: { orderData: any }) => {
             {orderData.items?.map((item: any, index: number) => (
               <div key={index} className="flex justify-between">
                 <span>{item.quantity}x {item.productName}</span>
-                <span>${(parseFloat(item.price) * item.quantity).toFixed(2)}</span>
+                <span>{(parseFloat(item.price) * item.quantity).toFixed(2)} KWD</span>
               </div>
             ))}
             <div className="border-t pt-2 font-semibold flex justify-between">
               <span>Total</span>
-              <span>${orderData.total}</span>
+              <span>{orderData.total} KWD</span>
             </div>
           </CardContent>
         </Card>
@@ -106,7 +106,7 @@ const CheckoutForm = ({ orderData }: { orderData: any }) => {
           disabled={!stripe || isProcessing}
           className="flex-1"
         >
-          {isProcessing ? "Processing..." : `Pay $${orderData?.total || '0.00'}`}
+          {isProcessing ? "Processing..." : `Pay ${orderData?.total || '0.00'} KWD`}
         </Button>
       </div>
     </form>

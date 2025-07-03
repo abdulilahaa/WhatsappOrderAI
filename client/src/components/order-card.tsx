@@ -59,7 +59,7 @@ export default function OrderCard({ order, onStatusChange }: OrderCardProps) {
             <div className="space-y-1">
               {order.items.map((item, index) => (
                 <div key={index} className="text-sm text-slate-600">
-                  Product #{item.productId} × {item.quantity} @ ${item.price}
+                  Product #{item.productId} × {item.quantity} @ {item.price} KWD
                 </div>
               ))}
             </div>

@@ -355,7 +355,7 @@ export default function Appointments() {
                           </span>
                           <span className="flex items-center space-x-1">
                             <DollarSign className="w-4 h-4" />
-                            <span>${appointment.service.price}</span>
+                            <span>{appointment.service.price} KWD</span>
                           </span>
                         </div>
                       </div>
@@ -516,7 +516,7 @@ export default function Appointments() {
                           </div>
                           <div className="flex items-center space-x-1">
                             <DollarSign className="w-3 h-3 text-gray-400" />
-                            <span>${appointment.service.price}</span>
+                            <span>{appointment.service.price} KWD</span>
                           </div>
                         </div>
                       </CardContent>
