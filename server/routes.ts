@@ -4,12 +4,29 @@ import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
 import { aiAgent } from "./ai";
 import { webScraper } from "./scraper";
+import { processPDFServices } from "./pdf-processor";
 import { insertProductSchema, insertAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
+import multer from "multer";
 
 // Initialize Stripe
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -196,6 +213,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error: any) {
       res.status(500).json({ message: "Error importing products: " + error.message });
+    }
+  });
+
+  // PDF Processing API
+  app.post("/api/products/upload-pdf", upload.single('pdf'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "PDF file is required" });
+      }
+
+      // Process the PDF to extract services
+      const result = await processPDFServices(req.file.buffer, req.file.originalname);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: result.error || "Failed to process PDF",
+          extractedText: result.extractedText
+        });
+      }
+
+      res.json({
+        success: true,
+        filename: req.file.originalname,
+        services: result.services,
+        extractedText: result.extractedText,
+        message: `Found ${result.services.length} services in PDF`
+      });
+      
+    } catch (error: any) {
+      res.status(500).json({ message: "Error processing PDF: " + error.message });
     }
   });
 

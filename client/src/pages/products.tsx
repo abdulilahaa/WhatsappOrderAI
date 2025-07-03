@@ -8,13 +8,15 @@ import { apiRequest } from "@/lib/queryClient";
 import ProductCard from "@/components/product-card";
 import AddProductModal from "@/components/add-product-modal";
 import WebScraperModal from "@/components/web-scraper-modal";
-import { Plus, Search, Package, Globe } from "lucide-react";
+import PDFUploadModal from "@/components/pdf-upload-modal";
+import { Plus, Search, Package, Globe, FileText } from "lucide-react";
 import type { Product } from "@shared/schema";
 
 export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isScraperOpen, setIsScraperOpen] = useState(false);
+  const [isPDFUploadOpen, setIsPDFUploadOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -102,6 +104,13 @@ export default function Products() {
                 </div>
                 <Button 
                   variant="outline" 
+                  onClick={() => setIsPDFUploadOpen(true)}
+                  className="mr-2"
+                >
+                  <FileText className="h-4 w-4 mr-2" />Upload PDF
+                </Button>
+                <Button 
+                  variant="outline" 
                   onClick={() => setIsScraperOpen(true)}
                   className="mr-2"
                 >
@@ -178,6 +187,11 @@ export default function Products() {
       <WebScraperModal
         isOpen={isScraperOpen}
         onClose={() => setIsScraperOpen(false)}
+      />
+      
+      <PDFUploadModal
+        isOpen={isPDFUploadOpen}
+        onClose={() => setIsPDFUploadOpen(false)}
       />
     </div>
   );
