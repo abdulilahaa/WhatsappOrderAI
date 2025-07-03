@@ -23,7 +23,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
         <h4 className="font-semibold text-slate-800 mb-2">{product.name}</h4>
         <p className="text-sm text-slate-600 mb-3">{product.description}</p>
         <div className="flex items-center justify-between">
-          <span className="text-lg font-bold text-whatsapp">${product.price}</span>
+          <span className="text-lg font-bold text-whatsapp">{product.price} KWD</span>
           <div className="flex items-center space-x-2">
             <Button
               variant="ghost"
