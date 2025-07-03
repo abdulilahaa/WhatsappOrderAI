@@ -111,6 +111,7 @@ Required environment variables:
 - July 02, 2025: Added comprehensive location management system with Google Maps integration
 - July 02, 2025: Implemented natural conversational AI style with 40-250 character messages and human-like phrases
 - July 02, 2025: Reconfigured AI for bilingual support (Arabic/English), 2-3 line responses, and business info assistance
+- July 03, 2025: Complete currency conversion from USD ($) to Kuwait Dinar (KWD) across all components
 
 ## User Preferences
 
