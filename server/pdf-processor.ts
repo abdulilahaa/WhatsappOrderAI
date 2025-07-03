@@ -1,4 +1,6 @@
+import PDFParser from 'pdf2json';
 import OpenAI from 'openai';
+import { Buffer } from 'buffer';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -17,41 +19,69 @@ export interface PDFProcessResult {
 }
 
 export async function processPDFServices(fileBuffer: Buffer, filename: string): Promise<PDFProcessResult> {
-  try {
-    console.log(`Processing PDF: ${filename}, Size: ${fileBuffer.length} bytes`);
-    
-    // Dynamic import for pdf-parse to avoid module loading issues
-    const pdfParse = (await import('pdf-parse')).default;
-    const pdfData = await pdfParse(fileBuffer);
-    const extractedText = pdfData.text;
-    
-    if (!extractedText || extractedText.trim().length < 50) {
-      return {
+  return new Promise((resolve) => {
+    try {
+      console.log(`Processing PDF: ${filename}, Size: ${fileBuffer.length} bytes`);
+      
+      const pdfParser = new PDFParser();
+      
+      pdfParser.on("pdfParser_dataError", (errData: any) => {
+        console.error('PDF parsing error:', errData.parserError);
+        resolve({
+          success: false,
+          services: [],
+          error: 'Failed to parse PDF. The file might be corrupted or unsupported.'
+        });
+      });
+      
+      pdfParser.on("pdfParser_dataReady", async (pdfData: any) => {
+        try {
+          // Extract text from PDF
+          const extractedText = pdfParser.getRawTextContent();
+          
+          if (!extractedText || extractedText.trim().length < 50) {
+            resolve({
+              success: false,
+              services: [],
+              error: 'No readable text found in PDF.',
+              extractedText: extractedText
+            });
+            return;
+          }
+          
+          console.log(`Extracted ${extractedText.length} characters from PDF`);
+          
+          // Use AI to extract services
+          const services = await extractServicesWithAI(extractedText, filename);
+          
+          resolve({
+            success: true,
+            services,
+            extractedText: extractedText.substring(0, 1000)
+          });
+          
+        } catch (error: any) {
+          console.error('Service extraction error:', error);
+          resolve({
+            success: false,
+            services: [],
+            error: 'Failed to extract services from PDF content'
+          });
+        }
+      });
+      
+      // Parse the PDF buffer
+      pdfParser.parseBuffer(fileBuffer);
+      
+    } catch (error: any) {
+      console.error('PDF processing error:', error);
+      resolve({
         success: false,
         services: [],
-        error: 'No readable text found in PDF. The PDF might be image-based or corrupted.',
-        extractedText: extractedText
-      };
+        error: error.message || 'Unknown error occurred during PDF processing'
+      });
     }
-
-    console.log(`Extracted ${extractedText.length} characters from ${pdfData.numpages} pages`);
-    
-    const services = await extractServicesWithAI(extractedText, filename);
-    
-    return {
-      success: true,
-      services,
-      extractedText: extractedText.substring(0, 1000)
-    };
-    
-  } catch (error: any) {
-    console.error('PDF processing error:', error);
-    return {
-      success: false,
-      services: [],
-      error: error.message || 'Unknown error occurred during PDF processing'
-    };
-  }
+  });
 }
 
 async function extractServicesWithAI(text: string, filename: string): Promise<ExtractedService[]> {
@@ -140,7 +170,7 @@ If no services are found, return {"services": []}.
         service.name.length > 2 && 
         service.name.length < 100
       )
-      .slice(0, 30); // Limit to 30 services
+      .slice(0, 30);
       
   } catch (error: any) {
     console.error('AI extraction failed:', error);
@@ -152,9 +182,9 @@ function cleanServiceName(name: string): string {
   if (typeof name !== 'string') return 'Service';
   
   return name
-    .replace(/^[\d\.\-\*\+\s]+/, '') // Remove leading numbers/bullets
-    .replace(/[^\w\s\-\&\(\)]/g, ' ') // Remove special chars
-    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/^[\d\.\-\*\+\s]+/, '')
+    .replace(/[^\w\s\-\&\(\)]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .substring(0, 80);
 }
@@ -181,7 +211,6 @@ function cleanPrice(price: string): string {
     return '0.00';
   }
   
-  // Convert if price seems to be in USD
   if (cleanedPrice > 100) {
     return (cleanedPrice * 0.31).toFixed(2);
   }
