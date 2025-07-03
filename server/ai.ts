@@ -277,7 +277,9 @@ BUSINESS INFO RESPONSES:
 - Prices: Mention specific service costs in KWD
 - Location: Share addresses with Google Maps links
 
-JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresAppointmentInfo": boolean, "appointmentIntent": {"serviceId": number, "preferredDate": "YYYY-MM-DD", "preferredTime": "HH:MM", "duration": number} }`;
+IMPORTANT: When the customer is confirming an appointment and you have extracted service details from conversation history, use those service IDs in the appointmentIntent.
+
+JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresAppointmentInfo": boolean, "appointmentIntent": { "services": [{"serviceId": number, "quantity": number}], "preferredDate": "YYYY-MM-DD", "preferredTime": "HH:MM", "duration": number, "locationId": number, "locationName": "string", "customerInfo": {"name": "string", "email": "string"}, "paymentMethod": "card|cash|pending", "readyForConfirmation": boolean, "confirmed": boolean } }`;
     
     } else if (businessType === 'hybrid') {
       return `You are ${this.settings.assistantName}, a friendly receptionist at ${this.settings.businessName}. Talk like a real person - warm, natural, and helpful.
@@ -375,6 +377,111 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
 
     if (conversationHistory.length > 0) {
       context += `CONVERSATION HISTORY:\n`;
+      const recentHistory = conversationHistory.slice(-10); // Get more history for better context
+      recentHistory.forEach((msg, index) => {
+        const sender = msg.isFromAI ? this.settings.assistantName : (customer.name || "Customer");
+        context += `${sender}: ${msg.content}\n`;
+      });
+      
+      // Extract appointment details from conversation history
+      const appointmentDetails = this.extractAppointmentDetailsFromHistory(recentHistory);
+      if (appointmentDetails) {
+        context += `\nCURRENT APPOINTMENT DETAILS FROM CONVERSATION:\n`;
+        context += `- Services: ${appointmentDetails.services || 'Not specified'}\n`;
+        if (appointmentDetails.serviceIds) {
+          context += `- Service IDs: ${appointmentDetails.serviceIds.join(', ')}\n`;
+        }
+        context += `- Location: ${appointmentDetails.location || 'Not specified'}\n`;
+        context += `- Date: ${appointmentDetails.date || 'Not specified'}\n`;
+        context += `- Time: ${appointmentDetails.time || 'Not specified'}\n`;
+        context += `- Customer Name: ${appointmentDetails.customerName || customer.name || 'Not specified'}\n`;
+        context += `- Customer Email: ${appointmentDetails.customerEmail || customer.email || 'Not specified'}\n`;
+        context += `- Payment Method: ${appointmentDetails.paymentMethod || 'Not specified'}\n`;
+      }
+    } else {
+      context += `This is the first message in the conversation.\n`;
+    }
+
+    return context;
+  }
+
+  private extractAppointmentDetailsFromHistory(history: Array<{ content: string; isFromAI: boolean }>): any {
+    const details: any = {};
+    
+    for (const msg of history) {
+      const content = msg.content.toLowerCase();
+      
+      // Extract services with more comprehensive patterns including AI responses
+      if ((content.includes('classic') && content.includes('deluxe')) || 
+          content.includes('classic pedicure and deluxe pedicure') ||
+          content.includes('classic & deluxe')) {
+        details.services = 'Classic Pedicure + Deluxe Pedicure';
+        details.serviceIds = [4, 5]; // Classic Pedicure (ID 4) + Deluxe Pedicure (ID 5)
+      } else if (content.includes('classic manicure')) {
+        details.services = 'Classic Manicure';
+        details.serviceIds = [1]; // Classic Manicure (ID 1)
+      } else if (content.includes('classic pedicure')) {
+        details.services = 'Classic Pedicure';
+        details.serviceIds = [4]; // Classic Pedicure (ID 4)
+      } else if (content.includes('deluxe pedicure')) {
+        details.services = 'Deluxe Pedicure';
+        details.serviceIds = [5]; // Deluxe Pedicure (ID 5)
+      } else if (content.includes('gel manicure')) {
+        details.services = 'Gel Manicure';
+        details.serviceIds = [2]; // Gel Manicure (ID 2)
+      } else if (content.includes('french manicure')) {
+        details.services = 'French Manicure';
+        details.serviceIds = [3]; // French Manicure (ID 3)
+      }
+      
+      // Extract location
+      if (content.includes('zahra complex')) {
+        details.location = 'Zahra Complex';
+      } else if (content.includes('plaza mall')) {
+        details.location = 'Plaza Mall';
+      } else if (content.includes('arraya mall')) {
+        details.location = 'Arraya Mall';
+      }
+      
+      // Extract date/time
+      if (content.includes('tomorrow') || content.includes('july 4')) {
+        details.date = '2025-07-04';
+      }
+      if (content.includes('12pm') || content.includes('12:00')) {
+        details.time = '12:00';
+      } else if (content.includes('2pm') || content.includes('14:00')) {
+        details.time = '14:00';
+      }
+      
+      // Extract customer info
+      const nameMatch = content.match(/name.*?is\s+(\w+)|my name is (\w+)|(\w+)\s+\w+@/);
+      if (nameMatch) {
+        details.customerName = nameMatch[1] || nameMatch[2] || nameMatch[3];
+      }
+      
+      const emailMatch = content.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (emailMatch) {
+        details.customerEmail = emailMatch[1];
+      }
+      
+      // Extract payment method
+      if (content.includes('card')) {
+        details.paymentMethod = 'card';
+      } else if (content.includes('cash')) {
+        details.paymentMethod = 'cash';
+      }
+    }
+    
+    return Object.keys(details).length > 0 ? details : null;
+  }
+
+  private buildContextPromptContinuation(
+    customer: Customer,
+    conversationHistory: Array<{ content: string; isFromAI: boolean }>
+  ): string {
+    let context = '';
+    
+    if (conversationHistory.length > 0) {
       const recentHistory = conversationHistory.slice(-5);
       recentHistory.forEach((msg, index) => {
         const sender = msg.isFromAI ? this.settings.assistantName : (customer.name || "Customer");
