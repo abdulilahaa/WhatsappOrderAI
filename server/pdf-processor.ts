@@ -1,4 +1,4 @@
-import PDFParser from 'pdf2json';
+import pdf from 'pdf-parse-new';
 import OpenAI from 'openai';
 import { Buffer } from 'buffer';
 
@@ -19,69 +19,40 @@ export interface PDFProcessResult {
 }
 
 export async function processPDFServices(fileBuffer: Buffer, filename: string): Promise<PDFProcessResult> {
-  return new Promise((resolve) => {
-    try {
-      console.log(`Processing PDF: ${filename}, Size: ${fileBuffer.length} bytes`);
-      
-      const pdfParser = new PDFParser();
-      
-      pdfParser.on("pdfParser_dataError", (errData: any) => {
-        console.error('PDF parsing error:', errData.parserError);
-        resolve({
-          success: false,
-          services: [],
-          error: 'Failed to parse PDF. The file might be corrupted or unsupported.'
-        });
-      });
-      
-      pdfParser.on("pdfParser_dataReady", async (pdfData: any) => {
-        try {
-          // Extract text from PDF
-          const extractedText = pdfParser.getRawTextContent();
-          
-          if (!extractedText || extractedText.trim().length < 50) {
-            resolve({
-              success: false,
-              services: [],
-              error: 'No readable text found in PDF.',
-              extractedText: extractedText
-            });
-            return;
-          }
-          
-          console.log(`Extracted ${extractedText.length} characters from PDF`);
-          
-          // Use AI to extract services
-          const services = await extractServicesWithAI(extractedText, filename);
-          
-          resolve({
-            success: true,
-            services,
-            extractedText: extractedText.substring(0, 1000)
-          });
-          
-        } catch (error: any) {
-          console.error('Service extraction error:', error);
-          resolve({
-            success: false,
-            services: [],
-            error: 'Failed to extract services from PDF content'
-          });
-        }
-      });
-      
-      // Parse the PDF buffer
-      pdfParser.parseBuffer(fileBuffer);
-      
-    } catch (error: any) {
-      console.error('PDF processing error:', error);
-      resolve({
+  try {
+    console.log(`Processing PDF: ${filename}, Size: ${fileBuffer.length} bytes`);
+    
+    // Parse PDF
+    const data = await pdf(fileBuffer);
+    
+    if (!data.text || data.text.trim().length < 50) {
+      return {
         success: false,
         services: [],
-        error: error.message || 'Unknown error occurred during PDF processing'
-      });
+        error: 'No readable text found in PDF. The PDF might be image-based or contain non-extractable content.',
+        extractedText: data.text
+      };
     }
-  });
+    
+    console.log(`Extracted ${data.text.length} characters from ${data.numpages} pages`);
+    
+    // Use AI to extract services
+    const services = await extractServicesWithAI(data.text, filename);
+    
+    return {
+      success: true,
+      services,
+      extractedText: data.text.substring(0, 1000)
+    };
+    
+  } catch (error: any) {
+    console.error('PDF processing error:', error);
+    return {
+      success: false,
+      services: [],
+      error: error.message || 'Unknown error occurred during PDF processing'
+    };
+  }
 }
 
 async function extractServicesWithAI(text: string, filename: string): Promise<ExtractedService[]> {
@@ -91,7 +62,7 @@ You are a service menu extraction expert for nail salons and beauty services. An
 
 Filename: ${filename}
 Text Content:
-${text.substring(0, 6000)}
+${text.substring(0, 8000)}
 
 Extract all nail salon services, beauty treatments, or related services you can find. For each service, provide:
 
@@ -102,9 +73,11 @@ Extract all nail salon services, beauty treatments, or related services you can 
 
 Important guidelines:
 - Only extract legitimate beauty/nail salon services
+- Look for patterns like service names followed by prices
 - Clean up service names (remove bullet points, numbers, special characters)
 - Convert all prices to KWD format (e.g., "25.00")
 - Make descriptions concise but informative
+- If a price range is given, use the starting price
 - Skip any non-service items (headers, contact info, policies, etc.)
 
 Respond with a JSON object containing a "services" array. Example format:
@@ -133,7 +106,7 @@ If no services are found, return {"services": []}.
       messages: [
         {
           role: "system",
-          content: "You are an expert at extracting service information from beauty salon menus. Always respond with valid JSON format. Focus only on actual services with pricing."
+          content: "You are an expert at extracting service information from beauty salon menus. Always respond with valid JSON format. Focus only on actual services with pricing. Be thorough in finding all services even if the text formatting is messy."
         },
         {
           role: "user",
@@ -164,13 +137,13 @@ If no services are found, return {"services": []}.
         name: cleanServiceName(service.name),
         description: cleanDescription(service.description),
         price: cleanPrice(service.price),
-        category: service.category || 'Service'
+        category: cleanCategory(service.category)
       }))
       .filter((service: ExtractedService) => 
         service.name.length > 2 && 
         service.name.length < 100
       )
-      .slice(0, 30);
+      .slice(0, 50); // Allow up to 50 services
       
   } catch (error: any) {
     console.error('AI extraction failed:', error);
@@ -204,6 +177,7 @@ function cleanPrice(price: string): string {
     price = String(price);
   }
   
+  // Remove currency symbols and extract numbers
   const numericPrice = price.replace(/[^\d.,]/g, '');
   const cleanedPrice = parseFloat(numericPrice.replace(',', '.'));
   
@@ -211,9 +185,30 @@ function cleanPrice(price: string): string {
     return '0.00';
   }
   
+  // Assume prices over 100 are likely in a different currency (not KWD)
   if (cleanedPrice > 100) {
     return (cleanedPrice * 0.31).toFixed(2);
   }
   
   return cleanedPrice.toFixed(2);
+}
+
+function cleanCategory(category: any): string {
+  if (typeof category !== 'string') return 'Service';
+  
+  const standardCategories = [
+    'Manicure', 'Pedicure', 'Nail Art', 'Extensions', 
+    'Facial', 'Massage', 'Waxing', 'Eyebrows', 'Eyelashes'
+  ];
+  
+  const categoryStr = String(category).trim();
+  const normalized = categoryStr.toLowerCase();
+  
+  for (const cat of standardCategories) {
+    if (normalized.includes(cat.toLowerCase())) {
+      return cat;
+    }
+  }
+  
+  return categoryStr.substring(0, 30) || 'Service';
 }
