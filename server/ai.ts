@@ -277,7 +277,9 @@ BUSINESS INFO RESPONSES:
 - Prices: Mention specific service costs in KWD
 - Location: Share addresses with Google Maps links
 
-IMPORTANT: When the customer is confirming an appointment and you have extracted service details from conversation history, use those service IDs in the appointmentIntent.
+IMPORTANT: 
+1. When the customer is confirming an appointment and you have extracted service details from conversation history, use those service IDs in the appointmentIntent.
+2. Set "confirmed": true when customer says any of these: "confirm", "confirmed", "yes confirm", "book it", "yes book", "yes please", "okay", "ok", "that's fine", "go ahead", "yes"
 
 JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresAppointmentInfo": boolean, "appointmentIntent": { "services": [{"serviceId": number, "quantity": number}], "preferredDate": "YYYY-MM-DD", "preferredTime": "HH:MM", "duration": number, "locationId": number, "locationName": "string", "customerInfo": {"name": "string", "email": "string"}, "paymentMethod": "card|cash|pending", "readyForConfirmation": boolean, "confirmed": boolean } }`;
     

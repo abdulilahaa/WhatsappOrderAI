@@ -222,8 +222,24 @@ export class WhatsAppService {
       }
 
       // Handle both old single service format and new multiple services format
-      const services = appointmentIntent.services || 
-                      (appointmentIntent.serviceId ? [{ serviceId: appointmentIntent.serviceId, quantity: 1 }] : []);
+      let services = appointmentIntent.services || 
+                    (appointmentIntent.serviceId ? [{ serviceId: appointmentIntent.serviceId, quantity: 1 }] : []);
+      
+      // If no services in appointment intent but customer is confirming, extract from conversation history
+      if (services.length === 0 && appointmentIntent.confirmed === true) {
+        console.log("No services in intent but customer confirming - extracting from conversation history");
+        
+        // Get conversation to extract services from history
+        const conversation = await storage.getConversationByCustomer(customer.id);
+        if (conversation) {
+          const conversationHistory = await storage.getMessages(conversation.id);
+          const extractedServices = await this.extractServicesFromConversation(conversationHistory);
+          if (extractedServices.length > 0) {
+            services = extractedServices;
+            console.log("Extracted services from conversation:", services);
+          }
+        }
+      }
       
       // Only create appointment if customer has explicitly confirmed after seeing complete order summary
       if (services.length > 0 &&
@@ -380,6 +396,51 @@ export class WhatsAppService {
 
     // Re-initialize with new settings
     await this.initialize();
+  }
+
+  private async extractServicesFromConversation(messages: any[]): Promise<Array<{ serviceId: number; quantity: number }>> {
+    const services: Array<{ serviceId: number; quantity: number }> = [];
+    
+    // Look through conversation messages for service selections
+    for (const message of messages) {
+      const content = message.content.toLowerCase();
+      
+      // Customer said they want classic & deluxe
+      if (content.includes('classic') && content.includes('deluxe')) {
+        services.push({ serviceId: 4, quantity: 1 }); // Classic Pedicure
+        services.push({ serviceId: 5, quantity: 1 }); // Deluxe Pedicure
+        break; // Found the service selection
+      }
+      // Individual service selections
+      else if (content.includes('classic manicure')) {
+        services.push({ serviceId: 1, quantity: 1 });
+        break;
+      }
+      else if (content.includes('classic pedicure')) {
+        services.push({ serviceId: 4, quantity: 1 });
+        break;
+      }
+      else if (content.includes('deluxe pedicure')) {
+        services.push({ serviceId: 5, quantity: 1 });
+        break;
+      }
+      else if (content.includes('gel manicure')) {
+        services.push({ serviceId: 2, quantity: 1 });
+        break;
+      }
+      else if (content.includes('french manicure')) {
+        services.push({ serviceId: 3, quantity: 1 });
+        break;
+      }
+      // AI confirmed specific services - extract from AI responses
+      else if (message.isFromAI && content.includes('classic pedicure and deluxe pedicure')) {
+        services.push({ serviceId: 4, quantity: 1 }); // Classic Pedicure
+        services.push({ serviceId: 5, quantity: 1 }); // Deluxe Pedicure
+        break;
+      }
+    }
+    
+    return services;
   }
 }
 
