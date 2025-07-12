@@ -72,58 +72,58 @@ export default function Integrations() {
       priority: 'critical'
     },
     {
-      name: "Get Groups",
-      endpoint: "/GetGroups/2",
-      method: "GET",
+      name: "Sync Services",
+      endpoint: "/api/nailit/sync-services",
+      method: "POST",
       status: 'unknown',
-      description: "Gets service categories (currently returning 404)",
+      description: "Syncs services from NailIt API (Groups endpoint proxy)",
       icon: Package,
       priority: 'important'
     },
     {
-      name: "Get Items by Date",
-      endpoint: "/GetItemsByDate",
-      method: "POST",
+      name: "Search Services",
+      endpoint: "/api/nailit/services/search",
+      method: "GET",
       status: 'unknown',
-      description: "Retrieves services available on specific dates",
+      description: "Search NailIt services by query",
       icon: Clock,
       priority: 'important'
     },
     {
-      name: "Get Service Staff",
-      endpoint: "/GetServiceStaff1",
+      name: "Service Availability",
+      endpoint: "/api/nailit/service/1/availability",
       method: "GET",
       status: 'unknown',
-      description: "Gets available staff for specific services",
+      description: "Gets service availability and staff",
       icon: Users,
       priority: 'important'
     },
     {
-      name: "Get Available Slots",
-      endpoint: "/GetAvailableSlots",
-      method: "GET",
-      status: 'unknown',
-      description: "Retrieves available appointment time slots",
-      icon: Clock,
-      priority: 'important'
-    },
-    {
-      name: "Get Payment Types",
-      endpoint: "/GetPaymentTypesByDevice",
-      method: "GET",
-      status: 'unknown',
-      description: "Gets available payment methods",
-      icon: CreditCard,
-      priority: 'optional'
-    },
-    {
-      name: "Save Order",
-      endpoint: "/SaveOrder",
+      name: "Create Order",
+      endpoint: "/api/nailit/create-order",
       method: "POST",
       status: 'unknown',
       description: "Creates orders in NailIt POS system",
       icon: Database,
       priority: 'critical'
+    },
+    {
+      name: "Products API",
+      endpoint: "/api/products",
+      method: "GET",
+      status: 'unknown',
+      description: "Local products/services database",
+      icon: Package,
+      priority: 'critical'
+    },
+    {
+      name: "AI Settings",
+      endpoint: "/api/ai-settings",
+      method: "GET",
+      status: 'unknown',
+      description: "AI configuration and business settings",
+      icon: Settings,
+      priority: 'important'
     }
   ]);
 
@@ -167,13 +167,31 @@ export default function Integrations() {
       const startTime = Date.now();
       let response;
       
+      // Special handling for different endpoints
       if (endpoint.method === 'GET') {
-        response = await fetch(endpoint.endpoint.startsWith('/api') ? endpoint.endpoint : `http://localhost:5000${endpoint.endpoint}`);
+        if (endpoint.endpoint.includes('/services/search')) {
+          // Add query parameter for search endpoint
+          response = await fetch(`${endpoint.endpoint}?q=manicure`);
+        } else {
+          response = await fetch(endpoint.endpoint);
+        }
       } else {
-        response = await fetch(endpoint.endpoint.startsWith('/api') ? endpoint.endpoint : `http://localhost:5000${endpoint.endpoint}`, {
+        // For POST endpoints, provide minimal required data
+        let body = {};
+        if (endpoint.endpoint.includes('create-order')) {
+          body = { 
+            customerId: 1, 
+            services: [{ serviceId: 1, quantity: 1 }], 
+            locationId: 1,
+            appointmentDate: new Date().toISOString().split('T')[0],
+            test: true 
+          };
+        }
+        
+        response = await fetch(endpoint.endpoint, {
           method: endpoint.method,
           headers: { 'Content-Type': 'application/json' },
-          body: endpoint.method !== 'GET' ? JSON.stringify({}) : undefined
+          body: JSON.stringify(body)
         });
       }
       
@@ -226,6 +244,14 @@ export default function Integrations() {
         newSyncStatuses[0].status = 'error';
       }
       
+      // Update service categories status
+      const syncEndpoint = results.find(r => r.name === "Sync Services");
+      newSyncStatuses[1] = {
+        ...newSyncStatuses[1],
+        status: syncEndpoint?.status === 'working' ? 'synced' : 'error',
+        lastSync: syncEndpoint?.status === 'working' ? new Date() : undefined
+      };
+      
       // Update products status
       try {
         const productsResponse = await fetch('/api/products');
@@ -239,6 +265,23 @@ export default function Integrations() {
       } catch {
         newSyncStatuses[2].status = 'error';
       }
+      
+      // Update staff status (read-only from NailIt)
+      const availabilityEndpoint = results.find(r => r.name === "Service Availability");
+      newSyncStatuses[3] = {
+        ...newSyncStatuses[3],
+        status: availabilityEndpoint?.status === 'working' ? 'synced' : 'error',
+        lastSync: availabilityEndpoint?.status === 'working' ? new Date() : undefined
+      };
+      
+      // Update payment methods (always available through Create Order endpoint)
+      const orderEndpoint = results.find(r => r.name === "Create Order");
+      newSyncStatuses[4] = {
+        ...newSyncStatuses[4],
+        status: orderEndpoint?.status === 'working' ? 'synced' : 'error',
+        lastSync: orderEndpoint?.status === 'working' ? new Date() : undefined,
+        itemCount: 3 // Cash, KNet, Apple Pay
+      };
       
       setSyncStatuses(newSyncStatuses);
       
