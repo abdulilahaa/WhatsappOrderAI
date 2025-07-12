@@ -9,7 +9,8 @@ import ProductCard from "@/components/product-card";
 import AddProductModal from "@/components/add-product-modal";
 import WebScraperModal from "@/components/web-scraper-modal";
 import PDFUploadModal from "@/components/pdf-upload-modal";
-import { Plus, Search, Package, Globe, FileText } from "lucide-react";
+import NailItSyncControls from "@/components/nailit-sync-controls";
+import { Plus, Search, Package, Globe, FileText, Settings } from "lucide-react";
 import type { Product } from "@shared/schema";
 
 export default function Products() {
@@ -17,6 +18,7 @@ export default function Products() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isScraperOpen, setIsScraperOpen] = useState(false);
   const [isPDFUploadOpen, setIsPDFUploadOpen] = useState(false);
+  const [isNailItSyncOpen, setIsNailItSyncOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -116,6 +118,13 @@ export default function Products() {
                 >
                   <Globe className="h-4 w-4 mr-2" />Import from Website
                 </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsNailItSyncOpen(true)}
+                  className="mr-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Settings className="h-4 w-4 mr-2" />NailIt Sync
+                </Button>
                 <Button onClick={handleAddNew} className="hover:bg-whatsapp/90 bg-[#ba212a]">
                   <Plus className="h-4 w-4 mr-2" />Add Product
                 </Button>
@@ -193,6 +202,19 @@ export default function Products() {
         isOpen={isPDFUploadOpen}
         onClose={() => setIsPDFUploadOpen(false)}
       />
+
+      {/* NailIt Sync Modal */}
+      {isNailItSyncOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto p-6 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold">NailIt POS Integration</h2>
+              <Button variant="ghost" onClick={() => setIsNailItSyncOpen(false)}>×</Button>
+            </div>
+            <NailItSyncControls />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
