@@ -10,6 +10,7 @@ import Products from "@/pages/products";
 import Orders from "@/pages/orders";
 import Appointments from "@/pages/appointments";
 import Conversations from "@/pages/conversations";
+import Integrations from "@/pages/integrations";
 import AISettingsPage from "@/pages/ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";
 import AITest from "@/pages/ai-test-fixed";
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/orders" component={Orders} />
         <Route path="/appointments" component={Appointments} />
         <Route path="/conversations" component={Conversations} />
+        <Route path="/integrations" component={Integrations} />
         <Route path="/ai-settings" component={AISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/ai-test" component={AITest} />
