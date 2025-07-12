@@ -950,6 +950,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive NailIt API Testing Endpoints
+  app.get("/api/nailit/test-groups", async (req, res) => {
+    try {
+      const groups = await nailItAPI.getGroups(2);
+      res.json({ success: true, groups, count: groups.length });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        groups: [],
+        note: "GetGroups endpoint returns 404 on NailIt server" 
+      });
+    }
+  });
+
+  app.get("/api/nailit/test-subgroups/:parentId", async (req, res) => {
+    try {
+      const parentId = parseInt(req.params.parentId);
+      const subGroups = await nailItAPI.getSubGroups('E', parentId);
+      res.json({ success: true, subGroups, count: subGroups.length });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        subGroups: [],
+        note: "GetSubGroups endpoint likely has same issue as GetGroups"
+      });
+    }
+  });
+
+  app.get("/api/nailit/test-payment-types", async (req, res) => {
+    try {
+      const paymentTypes = await nailItAPI.getPaymentTypes('E');
+      res.json({ success: true, paymentTypes, count: paymentTypes.length });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        paymentTypes: [],
+        note: "PaymentTypes endpoint test"
+      });
+    }
+  });
+
+  app.get("/api/nailit/test-items/:groupId", async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId);
+      const locations = await nailItAPI.getLocations('E');
+      const locationIds = locations.map(loc => loc.Location_Id);
+      
+      const result = await nailItAPI.getItemsByDate({
+        groupId,
+        locationIds,
+        selectedDate: nailItAPI.formatDateForAPI(new Date()),
+        itemTypeId: 2
+      });
+      
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        items: [],
+        note: "GetItemsByDate requires working Groups endpoint"
+      });
+    }
+  });
+
+  app.get("/api/nailit/test-staff/:serviceId/:locationId", async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.serviceId);
+      const locationId = parseInt(req.params.locationId);
+      
+      const staff = await nailItAPI.getServiceStaff(
+        serviceId,
+        locationId,
+        nailItAPI.formatDateForAPI(new Date())
+      );
+      
+      res.json({ success: true, staff, count: staff.length });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        staff: [],
+        note: "ServiceStaff endpoint test"
+      });
+    }
+  });
+
+  app.get("/api/nailit/test-slots/:staffId/:serviceId", async (req, res) => {
+    try {
+      const staffId = parseInt(req.params.staffId);
+      const serviceId = parseInt(req.params.serviceId);
+      
+      const slots = await nailItAPI.getAvailableSlots(
+        staffId,
+        serviceId,
+        nailItAPI.formatDateForAPI(new Date())
+      );
+      
+      res.json({ success: true, slots, count: slots.length });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        slots: [],
+        note: "AvailableSlots endpoint test"
+      });
+    }
+  });
+
+  app.post("/api/nailit/test-order", async (req, res) => {
+    try {
+      const { orderData } = req.body;
+      
+      // This is a test endpoint - don't actually create orders
+      res.json({ 
+        success: true, 
+        note: "Test endpoint - would create order with provided data",
+        providedData: orderData,
+        message: "Use actual create-order endpoint for real orders"
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        note: "SaveOrder endpoint test"
+      });
+    }
+  });
+
+  // Comprehensive API status endpoint
+  app.get("/api/nailit/test-all-endpoints", async (req, res) => {
+    const results = {
+      registerDevice: { status: 'unknown', data: null, error: null },
+      getLocations: { status: 'unknown', data: null, error: null },
+      getGroups: { status: 'unknown', data: null, error: null },
+      getPaymentTypes: { status: 'unknown', data: null, error: null }
+    };
+
+    // Test device registration
+    try {
+      const deviceSuccess = await nailItAPI.registerDevice();
+      results.registerDevice = {
+        status: deviceSuccess ? 'working' : 'error',
+        data: { success: deviceSuccess },
+        error: deviceSuccess ? null : 'Registration failed'
+      };
+    } catch (error: any) {
+      results.registerDevice = { status: 'error', data: null, error: error.message };
+    }
+
+    // Test locations
+    try {
+      const locations = await nailItAPI.getLocations('E');
+      results.getLocations = {
+        status: locations.length > 0 ? 'working' : 'error',
+        data: { locations, count: locations.length },
+        error: locations.length === 0 ? 'No locations returned' : null
+      };
+    } catch (error: any) {
+      results.getLocations = { status: 'error', data: null, error: error.message };
+    }
+
+    // Test groups (known to fail)
+    try {
+      const groups = await nailItAPI.getGroups(2);
+      results.getGroups = {
+        status: groups.length > 0 ? 'working' : 'error',
+        data: { groups, count: groups.length },
+        error: groups.length === 0 ? 'No groups returned (404 on server)' : null
+      };
+    } catch (error: any) {
+      results.getGroups = { status: 'error', data: null, error: 'Groups endpoint returns 404' };
+    }
+
+    // Test payment types
+    try {
+      const paymentTypes = await nailItAPI.getPaymentTypes('E');
+      results.getPaymentTypes = {
+        status: paymentTypes.length > 0 ? 'working' : 'error',
+        data: { paymentTypes, count: paymentTypes.length },
+        error: paymentTypes.length === 0 ? 'No payment types returned' : null
+      };
+    } catch (error: any) {
+      results.getPaymentTypes = { status: 'error', data: null, error: error.message };
+    }
+
+    const workingCount = Object.values(results).filter(r => r.status === 'working').length;
+    const totalCount = Object.keys(results).length;
+
+    res.json({
+      summary: {
+        working: workingCount,
+        total: totalCount,
+        percentage: Math.round((workingCount / totalCount) * 100)
+      },
+      endpoints: results,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Initialize NailIt device registration on server startup
   (async () => {
     try {

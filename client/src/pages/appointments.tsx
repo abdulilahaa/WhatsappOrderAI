@@ -230,8 +230,8 @@ export default function Appointments() {
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <p className="font-medium text-gray-900">{appointment.service.name}</p>
-                      <p className="text-sm text-gray-500">${appointment.service.price} • {appointment.duration}min</p>
+                      <p className="font-medium text-gray-900">{appointment.service?.name || "Service Removed"}</p>
+                      <p className="text-sm text-gray-500">{appointment.service?.price ? `${appointment.service.price} KWD` : "No pricing"} • {appointment.duration}min</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">

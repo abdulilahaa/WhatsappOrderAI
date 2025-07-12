@@ -11,6 +11,7 @@ import Orders from "@/pages/orders";
 import Appointments from "@/pages/appointments";
 import Conversations from "@/pages/conversations";
 import Integrations from "@/pages/integrations";
+import APIDataDashboard from "@/pages/api-data-dashboard";
 import AISettingsPage from "@/pages/ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";
 import AITest from "@/pages/ai-test-fixed";
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/orders" component={Orders} />
         <Route path="/appointments" component={Appointments} />
         <Route path="/conversations" component={Conversations} />
+        <Route path="/api-data" component={APIDataDashboard} />
         <Route path="/integrations" component={Integrations} />
         <Route path="/ai-settings" component={AISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
