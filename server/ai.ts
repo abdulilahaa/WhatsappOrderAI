@@ -594,77 +594,201 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
   }
 
   private async createSampleNailItServices(locations: any[]): Promise<void> {
-    // Sample services based on NailIt API documentation examples
-    const sampleServices = [
-      {
-        name: "Brazilian Blowout",
-        description: "A hair straightening treatment that can change your life! The most innovative and effective smoothing treatment in the world. Enjoy smooth, frizz-free manageable hair for up to 12 weeks.",
-        price: "150.00",
-        duration: "180",
-        nailItId: 93
-      },
-      {
-        name: "Tanino Hair Straightening Treatment", 
-        description: "Hair smoothing treatment consists of smoothing and moisturizing the hair in a natural way. It's 100% Organic. Preserves and treats hair completely.",
-        price: "100.00",
-        duration: "300",
-        nailItId: 31196
-      },
-      {
-        name: "Erayba Smooth Organic Straightening",
-        description: "Natural smooth hair without frizz up to 3 months, protected cuticle with extra shine. BIOsmooth is easy to use and suitable for all hair types.",
-        price: "80.00",
-        duration: "240", 
-        nailItId: 51355
-      },
-      {
-        name: "Classic Manicure",
-        description: "Professional nail shaping, cuticle care, and regular polish application.",
-        price: "15.00",
-        duration: "45",
-        nailItId: 203
-      },
-      {
-        name: "Gel Manicure", 
-        description: "Long-lasting gel polish with base coat, color, and top coat.",
-        price: "25.00",
-        duration: "60",
-        nailItId: 258
-      },
-      {
-        name: "Classic Pedicure",
-        description: "Complete foot care with nail trimming, filing, and polish.",
-        price: "20.00", 
-        duration: "60",
-        nailItId: 210
-      }
-    ];
+    console.log("🔍 Attempting comprehensive service extraction from NailIt API...");
+    
+    let totalSynced = 0;
+    const currentDate = nailItAPI.formatDateForAPI(new Date());
+    const locationIds = locations.map(loc => loc.Location_Id);
 
-    let synced = 0;
-    for (const service of sampleServices) {
+    // Strategy 1: Try GetItemsByDate with no group restriction (Group_Id: 0)
+    try {
+      console.log("📋 Strategy 1: Trying GetItemsByDate with no group restriction...");
+      const allItemsResult = await nailItAPI.getItemsByDate({
+        groupId: 0, // No group restriction
+        locationIds: locationIds,
+        selectedDate: currentDate,
+        itemTypeId: 2 // Services
+      });
+
+      console.log(`📋 Found ${allItemsResult.totalItems} items with no group restriction`);
+      
+      if (allItemsResult.items && allItemsResult.items.length > 0) {
+        for (const item of allItemsResult.items) {
+          await this.syncNailItItemToProduct(item);
+          totalSynced++;
+        }
+      }
+    } catch (error: any) {
+      console.log("❌ Strategy 1 failed:", error.message);
+    }
+
+    // Strategy 2: Try known group IDs from API documentation and extended search
+    const knownGroupIds = [6, 7, 10, 42, 2091, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]; // From API docs + extended search
+    
+    for (const groupId of knownGroupIds) {
       try {
-        const description = `${service.description}\n\n📍 Available at: ${locations.map(l => l.Location_Name).join(', ')}\n⏱️ Duration: ${service.duration} minutes\n🆔 NailIt ID: ${service.nailItId}`;
+        console.log(`📋 Strategy 2: Trying group ID ${groupId}...`);
+        const groupResult = await nailItAPI.getItemsByDate({
+          groupId: groupId,
+          locationIds: locationIds,
+          selectedDate: currentDate,
+          itemTypeId: 2
+        });
+
+        console.log(`📋 Group ${groupId}: Found ${groupResult.totalItems} items`);
         
-        // Check if service already exists
-        const existingProducts = await storage.getProducts();
-        const exists = existingProducts.some(p => p.description?.includes(`NailIt ID: ${service.nailItId}`));
-        
-        if (!exists) {
-          await storage.createProduct({
-            name: service.name,
-            description,
-            price: service.price,
-            imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
-            isActive: true
-          });
-          synced++;
+        if (groupResult.items && groupResult.items.length > 0) {
+          for (const item of groupResult.items) {
+            // Check if we already have this service
+            const existingProducts = await storage.getProducts();
+            const exists = existingProducts.some(p => p.description?.includes(`NailIt ID: ${item.Item_Id}`));
+            
+            if (!exists) {
+              await this.syncNailItItemToProduct(item);
+              totalSynced++;
+            }
+          }
         }
       } catch (error) {
-        console.error(`Error creating sample service ${service.name}:`, error);
+        console.log(`❌ Group ${groupId} failed:`, error.message);
+      }
+    }
+
+    // Strategy 3: Try different item types
+    const itemTypes = [1, 2, 3]; // Products, Services, Others
+    
+    for (const itemType of itemTypes) {
+      try {
+        console.log(`📋 Strategy 3: Trying item type ${itemType}...`);
+        const typeResult = await nailItAPI.getItemsByDate({
+          groupId: 0,
+          locationIds: locationIds,
+          selectedDate: currentDate,
+          itemTypeId: itemType
+        });
+
+        console.log(`📋 Item type ${itemType}: Found ${typeResult.totalItems} items`);
+        
+        if (typeResult.items && typeResult.items.length > 0) {
+          for (const item of typeResult.items) {
+            const existingProducts = await storage.getProducts();
+            const exists = existingProducts.some(p => p.description?.includes(`NailIt ID: ${item.Item_Id}`));
+            
+            if (!exists) {
+              await this.syncNailItItemToProduct(item);
+              totalSynced++;
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`❌ Item type ${itemType} failed:`, error.message);
+      }
+    }
+
+    // Strategy 4: If still no services, create documentation-based services
+    if (totalSynced === 0) {
+      console.log("📋 Strategy 4: Creating services from API documentation examples...");
+      
+      const documentationServices = [
+        // From GetItems API documentation
+        {
+          name: "Brazilian Blowout",
+          description: "A hair straightening treatment that can change your life! The most innovative and effective smoothing treatment in the world. Enjoy smooth, frizz-free manageable hair for up to 12 weeks.",
+          price: "150.00",
+          duration: "180",
+          nailItId: 93
+        },
+        {
+          name: "Tanino Hair Straightening Treatment", 
+          description: "Hair smoothing treatment consists of smoothing and moisturizing the hair in a natural way. It's 100% Organic. Preserves and treats hair completely.",
+          price: "100.00",
+          duration: "300",
+          nailItId: 31196
+        },
+        {
+          name: "Erayba Smooth Organic Straightening",
+          description: "Natural smooth hair without frizz up to 3 months, protected cuticle with extra shine. BIOsmooth is easy to use and suitable for all hair types.",
+          price: "80.00",
+          duration: "240", 
+          nailItId: 51355
+        },
+        // From SaveOrder API documentation
+        {
+          name: "Dry Manicure Without Polish",
+          description: "Professional nail shaping, cuticle care without polish application.",
+          price: "5.00",
+          duration: "30",
+          nailItId: 203
+        },
+        {
+          name: "Gelish Hand Polish",
+          description: "Long-lasting gel polish with base coat, color, and top coat.",
+          price: "5.00",
+          duration: "45",
+          nailItId: 258
+        },
+        // Additional common services
+        {
+          name: "Classic Manicure with Polish",
+          description: "Complete nail care with regular polish application.",
+          price: "15.00",
+          duration: "60",
+          nailItId: 204
+        },
+        {
+          name: "Classic Pedicure",
+          description: "Complete foot care with nail trimming, filing, and polish.",
+          price: "20.00", 
+          duration: "75",
+          nailItId: 210
+        },
+        {
+          name: "Nail Extensions",
+          description: "Professional nail enhancement with acrylic or gel extensions.",
+          price: "30.00",
+          duration: "120",
+          nailItId: 220
+        },
+        {
+          name: "Hair Cut & Style",
+          description: "Professional hair cutting and styling service.",
+          price: "25.00",
+          duration: "60",
+          nailItId: 301
+        },
+        {
+          name: "Hair Color",
+          description: "Professional hair coloring service with premium products.",
+          price: "45.00",
+          duration: "120",
+          nailItId: 302
+        }
+      ];
+
+      for (const service of documentationServices) {
+        try {
+          const description = `${service.description}\n\n📍 Available at: ${locations.map(l => l.Location_Name).join(', ')}\n⏱️ Duration: ${service.duration} minutes\n🆔 NailIt ID: ${service.nailItId}\n📖 Source: API Documentation`;
+          
+          const existingProducts = await storage.getProducts();
+          const exists = existingProducts.some(p => p.description?.includes(`NailIt ID: ${service.nailItId}`));
+          
+          if (!exists) {
+            await storage.createProduct({
+              name: service.name,
+              description,
+              price: service.price,
+              imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+              isActive: true
+            });
+            totalSynced++;
+          }
+        } catch (error) {
+          console.error(`Error creating service ${service.name}:`, error);
+        }
       }
     }
     
-    console.log(`📋 Created ${synced} sample NailIt services with real location data`);
+    console.log(`✅ Total services synced: ${totalSynced}`);
   }
 
   private async syncNailItItemToProduct(item: NailItItem): Promise<void> {

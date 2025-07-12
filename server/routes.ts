@@ -1013,9 +1013,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         error: error.message, 
         items: [],
-        note: "GetItemsByDate requires working Groups endpoint"
+        note: "GetItemsByDate test for group " + groupId
       });
     }
+  });
+
+  // Test GetItemsByDate without group restriction
+  app.get("/api/nailit/test-all-items", async (req, res) => {
+    try {
+      const locations = await nailItAPI.getLocations('E');
+      const locationIds = locations.map(loc => loc.Location_Id);
+      
+      const result = await nailItAPI.getItemsByDate({
+        groupId: 0, // No group restriction
+        locationIds,
+        selectedDate: nailItAPI.formatDateForAPI(new Date()),
+        itemTypeId: 2 // Services
+      });
+      
+      res.json({ 
+        success: true, 
+        strategy: "No group restriction (Group_Id: 0)",
+        ...result 
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message, 
+        items: [],
+        strategy: "No group restriction failed"
+      });
+    }
+  });
+
+  // Test multiple group IDs from documentation
+  app.get("/api/nailit/test-known-groups", async (req, res) => {
+    const locations = await nailItAPI.getLocations('E');
+    const locationIds = locations.map(loc => loc.Location_Id);
+    const currentDate = nailItAPI.formatDateForAPI(new Date());
+    
+    const knownGroups = [6, 7, 10, 42, 2091]; // From API documentation
+    const results = {};
+
+    for (const groupId of knownGroups) {
+      try {
+        const result = await nailItAPI.getItemsByDate({
+          groupId,
+          locationIds,
+          selectedDate: currentDate,
+          itemTypeId: 2
+        });
+        
+        results[`group_${groupId}`] = {
+          success: true,
+          groupId,
+          totalItems: result.totalItems,
+          items: result.items
+        };
+      } catch (error: any) {
+        results[`group_${groupId}`] = {
+          success: false,
+          groupId,
+          error: error.message
+        };
+      }
+    }
+
+    res.json({
+      strategy: "Known group IDs from API documentation",
+      testedGroups: knownGroups,
+      results
+    });
   });
 
   app.get("/api/nailit/test-staff/:serviceId/:locationId", async (req, res) => {
