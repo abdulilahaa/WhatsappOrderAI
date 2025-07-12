@@ -216,7 +216,8 @@ BUSINESS INFO:
 - Current date: July 3, 2025 (Kuwait time)
 
 AVAILABLE SERVICES:
-${this.products.map(p => `• ${p.name} - ${p.price} KWD (Service ID: ${p.id})\n  Description: ${p.description}\n  Duration: ${this.settings.appointmentDuration || 60} minutes`).join('\n')}
+${this.products.slice(0, 5).map(p => `• ${p.name} - ${p.price} KWD (ID: ${p.id})`).join('\n')}
+... and ${this.products.length - 5} more services available
 
 CONVERSATION EXAMPLES:
 English:
@@ -371,6 +372,8 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
     customer: Customer,
     conversationHistory: Array<{ content: string; isFromAI: boolean }>
   ): string {
+    // Limit products to prevent token overflow
+    const limitedProducts = this.products.slice(0, 15);
     let context = `CUSTOMER CONTEXT:
 - Name: ${customer.name || "Customer"}
 - Phone: ${customer.phoneNumber}

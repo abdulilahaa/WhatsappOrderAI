@@ -905,6 +905,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save Order to NailIt POS
+  app.post("/api/nailit/save-order", async (req, res) => {
+    try {
+      console.log("🛒 Creating order in NailIt POS:", JSON.stringify(req.body, null, 2));
+      const result = await nailItAPI.saveOrder(req.body);
+      if (result) {
+        console.log("✅ Order created successfully:", result);
+        res.json(result);
+      } else {
+        console.log("❌ Order creation failed");
+        res.status(400).json({ message: "Failed to create order in NailIt POS" });
+      }
+    } catch (error: any) {
+      console.error("Order creation error:", error);
+      res.status(500).json({ message: "Error creating order: " + error.message });
+    }
+  });
+
   app.get("/api/nailit/services/search", async (req, res) => {
     try {
       const { query, date } = req.query;
