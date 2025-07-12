@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { storage } from "./storage";
 import type { Product, Customer, AISettings } from "@shared/schema";
+import { nailItAPI, NailItItem, NailItLocation } from "./nailit-api";
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY environment variable is required");
@@ -532,6 +533,221 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
     });
 
     return relevantProducts.slice(0, 3); // Return top 3 matches
+  }
+
+  // NailIt API Integration Methods
+  async syncServicesFromNailItAPI(): Promise<void> {
+    try {
+      console.log('Syncing services from NailIt API...');
+      
+      // Get current date for service availability
+      const today = new Date();
+      const formattedDate = nailItAPI.formatDateForAPI(today);
+      
+      // Get all service groups
+      const groups = await nailItAPI.getGroups(2); // Type 2 for services
+      
+      // Get locations
+      const locations = await nailItAPI.getLocations('E');
+      const locationIds = locations.map(loc => loc.Location_Id);
+      
+      // Get services for each group
+      for (const group of groups) {
+        const { items } = await nailItAPI.getItemsByDate({
+          groupId: group.Id,
+          locationIds: locationIds,
+          selectedDate: formattedDate
+        });
+        
+        // Update or create products in our database from NailIt items
+        for (const item of items) {
+          await this.syncNailItItemToProduct(item);
+        }
+      }
+      
+      console.log('Service sync completed successfully');
+    } catch (error) {
+      console.error('Failed to sync services from NailIt API:', error);
+    }
+  }
+
+  private async syncNailItItemToProduct(item: NailItItem): Promise<void> {
+    try {
+      // Check if product already exists with NailIt ID
+      const existingProduct = await storage.getProducts();
+      const existingNailItProduct = existingProduct.find(p => 
+        p.description?.includes(`[NailIt ID: ${item.Item_Id}]`)
+      );
+
+      const productData = {
+        name: item.Item_Name,
+        description: `${item.Item_Desc.replace(/<[^>]*>/g, '')} [NailIt ID: ${item.Item_Id}] [Duration: ${item.Duration}min]`,
+        price: item.Special_Price,
+        image: item.Image_Url ? `http://nailit.innovasolution.net/${item.Image_Url}` : null,
+        category: 'Services',
+        isActive: true
+      };
+
+      if (existingNailItProduct) {
+        // Update existing product
+        await storage.updateProduct(existingNailItProduct.id, productData);
+      } else {
+        // Create new product
+        await storage.createProduct(productData);
+      }
+    } catch (error) {
+      console.error(`Failed to sync NailIt item ${item.Item_Id}:`, error);
+    }
+  }
+
+  async searchNailItServices(query: string, date?: string): Promise<NailItItem[]> {
+    try {
+      const searchDate = date || nailItAPI.formatDateForAPI(new Date());
+      const locations = await nailItAPI.getLocations('E');
+      const locationIds = locations.map(loc => loc.Location_Id);
+      
+      return await nailItAPI.searchServices(query, searchDate, locationIds);
+    } catch (error) {
+      console.error('Failed to search NailIt services:', error);
+      return [];
+    }
+  }
+
+  async getNailItServiceAvailability(
+    serviceId: number, 
+    locationId: number, 
+    date: string
+  ): Promise<{
+    staff: Array<{ id: number; name: string; image: string }>;
+    timeSlots: Array<{ id: number; time: string }>;
+  }> {
+    try {
+      // Get available staff for the service
+      const staff = await nailItAPI.getServiceStaff(serviceId, locationId, 'E', date);
+      
+      // Get available time slots for the first available staff member
+      let timeSlots: Array<{ id: number; time: string }> = [];
+      if (staff.length > 0) {
+        const availableSlots = await nailItAPI.getAvailableSlots('E', staff[0].Id, date);
+        timeSlots = availableSlots.map(slot => ({
+          id: slot.TimeFrame_Id,
+          time: slot.TimeFrame_Name
+        }));
+      }
+
+      return {
+        staff: staff.map(s => ({
+          id: s.Id,
+          name: s.Name,
+          image: s.Image_URL ? `http://nailit.innovasolution.net/${s.Image_URL}` : ''
+        })),
+        timeSlots
+      };
+    } catch (error) {
+      console.error('Failed to get service availability:', error);
+      return { staff: [], timeSlots: [] };
+    }
+  }
+
+  async createNailItOrder(orderData: {
+    customerId: number;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    services: Array<{
+      serviceId: number;
+      serviceName: string;
+      quantity: number;
+      price: number;
+      staffId: number;
+      timeSlotIds: number[];
+      appointmentDate: string;
+    }>;
+    locationId: number;
+    paymentTypeId: number;
+  }): Promise<{ success: boolean; orderId?: number; error?: string }> {
+    try {
+      // Calculate totals
+      const grossAmount = orderData.services.reduce((total, service) => 
+        total + (service.price * service.quantity), 0);
+      
+      // Format order details for NailIt API
+      const orderDetails = orderData.services.map(service => ({
+        Prod_Id: service.serviceId,
+        Prod_Name: service.serviceName,
+        Qty: service.quantity,
+        Rate: service.price,
+        Amount: service.price * service.quantity,
+        Size_Id: null,
+        Size_Name: "",
+        Promotion_Id: 0,
+        Promo_Code: "",
+        Discount_Amount: 0.0,
+        Net_Amount: service.price * service.quantity,
+        Staff_Id: service.staffId,
+        TimeFrame_Ids: service.timeSlotIds,
+        Appointment_Date: service.appointmentDate
+      }));
+
+      // Create order through NailIt API
+      const nailItOrderRequest = {
+        Gross_Amount: grossAmount,
+        Payment_Type_Id: orderData.paymentTypeId,
+        Order_Type: 2, // Service order type
+        UserId: orderData.customerId,
+        FirstName: orderData.customerName,
+        Mobile: orderData.customerPhone,
+        Email: orderData.customerEmail,
+        Discount_Amount: 0.0,
+        Net_Amount: grossAmount,
+        POS_Location_Id: orderData.locationId,
+        OrderDetails: orderDetails
+      };
+
+      const response = await nailItAPI.saveOrder(nailItOrderRequest);
+      
+      if (response) {
+        return {
+          success: true,
+          orderId: response.OrderId
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Failed to create order in NailIt system'
+        };
+      }
+    } catch (error) {
+      console.error('Failed to create NailIt order:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  async getNailItLocations(): Promise<NailItLocation[]> {
+    try {
+      return await nailItAPI.getLocations('E');
+    } catch (error) {
+      console.error('Failed to get NailIt locations:', error);
+      return [];
+    }
+  }
+
+  async getNailItPaymentTypes(): Promise<Array<{ id: number; name: string; code: string; enabled: boolean }>> {
+    try {
+      const paymentTypes = await nailItAPI.getPaymentTypes('E', 2, 2);
+      return paymentTypes.map(pt => ({
+        id: pt.Type_Id,
+        name: pt.Type_Name,
+        code: pt.Type_Code,
+        enabled: pt.Is_Enabled
+      }));
+    } catch (error) {
+      console.error('Failed to get payment types:', error);
+      return [];
+    }
   }
 }
 

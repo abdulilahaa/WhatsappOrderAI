@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { aiAgent } from "./ai";
 import type { Customer, Message } from "@shared/schema";
+import { nailItAPI } from "./nailit-api";
 
 export interface WhatsAppMessage {
   from: string;
@@ -252,7 +253,10 @@ export class WhatsAppService {
           appointmentIntent.paymentMethod &&
           appointmentIntent.confirmed === true) {
         
-        // Calculate total price and prepare service details
+        console.log("Creating appointment through NailIt API...");
+        
+        // Get NailIt service IDs from our product descriptions
+        const nailItServices = [];
         let totalPrice = 0;
         const serviceDetails = [];
         let totalDuration = 0;
@@ -260,70 +264,166 @@ export class WhatsAppService {
         for (const service of services) {
           const serviceInfo = await storage.getProduct(service.serviceId);
           if (serviceInfo) {
-            const servicePrice = parseFloat(serviceInfo.price) * (service.quantity || 1);
-            totalPrice += servicePrice;
-            totalDuration += (appointmentIntent.duration || 60) * (service.quantity || 1);
-            serviceDetails.push({
-              name: serviceInfo.name,
-              price: servicePrice,
-              quantity: service.quantity || 1
-            });
+            // Extract NailIt ID from product description
+            const nailItIdMatch = serviceInfo.description?.match(/\[NailIt ID: (\d+)\]/);
+            const durationMatch = serviceInfo.description?.match(/\[Duration: (\d+)min\]/);
+            
+            if (nailItIdMatch) {
+              const nailItServiceId = parseInt(nailItIdMatch[1]);
+              const duration = durationMatch ? parseInt(durationMatch[1]) : 60;
+              
+              nailItServices.push({
+                serviceId: nailItServiceId,
+                serviceName: serviceInfo.name,
+                quantity: service.quantity || 1,
+                price: parseFloat(serviceInfo.price),
+                duration: duration
+              });
+              
+              const servicePrice = parseFloat(serviceInfo.price) * (service.quantity || 1);
+              totalPrice += servicePrice;
+              totalDuration += duration * (service.quantity || 1);
+              serviceDetails.push({
+                name: serviceInfo.name,
+                price: servicePrice,
+                quantity: service.quantity || 1
+              });
+            }
           }
         }
-
-        // Create appointment for the first service (main appointment)
-        const mainService = services[0];
-        const appointment = await storage.createAppointment({
-          customerId: customer.id,
-          serviceId: mainService.serviceId,
-          appointmentDate: appointmentIntent.preferredDate,
-          appointmentTime: appointmentIntent.preferredTime,
-          duration: totalDuration,
-          locationId: appointmentIntent.locationId,
-          locationName: appointmentIntent.locationName,
-          status: "confirmed",
-          paymentMethod: appointmentIntent.paymentMethod,
-          paymentStatus: appointmentIntent.paymentMethod === "cash" ? "pending" : "pending",
-          totalPrice: totalPrice.toFixed(2),
-          notes: `Multiple services booked via WhatsApp AI assistant. Services: ${serviceDetails.map(s => `${s.name} (${s.quantity}x)`).join(', ')}. Customer: ${appointmentIntent.customerInfo.name}, Email: ${appointmentIntent.customerInfo.email}`,
-        });
-
-        console.log("Appointment created:", appointment);
-
-        // Send comprehensive confirmation message
-        const servicesText = serviceDetails.map(s => 
-          s.quantity > 1 ? `${s.name} (${s.quantity}x) - ${s.price.toFixed(2)} KWD` : `${s.name} - ${s.price.toFixed(2)} KWD`
-        ).join('\n');
-
-        const confirmationMessage = `✅ *Appointment Confirmed!*\n\n` +
-          `📋 *Booking Details:*\n` +
-          `${servicesText}\n` +
-          `Date: ${appointmentIntent.preferredDate}\n` +
-          `Time: ${appointmentIntent.preferredTime} (Kuwait Time)\n` +
-          `Duration: ${totalDuration} minutes\n` +
-          `Total: ${totalPrice.toFixed(2)} KWD\n\n` +
-          `👤 *Customer:*\n` +
-          `Name: ${appointmentIntent.customerInfo.name}\n` +
-          `Email: ${appointmentIntent.customerInfo.email}\n\n` +
-          `📍 *Location:* ${appointmentIntent.locationName}\n` +
-          `💳 *Payment:* ${appointmentIntent.paymentMethod === 'cash' ? 'Cash at appointment' : 'Card payment'}\n\n` +
-          `📞 *Contact:* For any changes, reply to this chat.\n\n` +
-          `Thank you for choosing NailIt! We look forward to seeing you.`;
-
-        await this.sendMessage(customer.phoneNumber, confirmationMessage);
         
-        // Save confirmation message
-        const conversation = await storage.getConversationByCustomer(customer.id);
-        if (conversation) {
-          await storage.createMessage({
-            conversationId: conversation.id,
-            content: confirmationMessage,
-            isFromAI: true,
-          });
+        if (nailItServices.length === 0) {
+          console.error("No NailIt services found for booking");
+          await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue processing your booking. Please try again or contact us directly.");
+          return;
+        }
+
+        // Get service availability and book through NailIt API
+        try {
+          const appointmentDate = nailItAPI.formatDateForAPI(new Date(appointmentIntent.preferredDate));
+          
+          // Get availability for the first service (main service)
+          const availability = await aiAgent.getNailItServiceAvailability(
+            nailItServices[0].serviceId,
+            appointmentIntent.locationId,
+            appointmentDate
+          );
+          
+          if (availability.staff.length === 0 || availability.timeSlots.length === 0) {
+            await this.sendMessage(customer.phoneNumber, "Sorry, no availability found for your requested date and time. Please choose a different time or date.");
+            return;
+          }
+          
+          // Find the requested time slot
+          const requestedTime = appointmentIntent.preferredTime;
+          const timeSlot = availability.timeSlots.find(slot => 
+            slot.time.includes(requestedTime.replace(':', ':')) || 
+            slot.time === requestedTime
+          );
+          
+          if (!timeSlot) {
+            const availableTimes = availability.timeSlots.map(slot => slot.time).join(', ');
+            await this.sendMessage(customer.phoneNumber, `Sorry, ${requestedTime} is not available. Available times: ${availableTimes}`);
+            return;
+          }
+
+          // Get payment types and select default (cash on arrival)
+          const paymentTypes = await aiAgent.getNailItPaymentTypes();
+          const cashPayment = paymentTypes.find(pt => pt.code === 'COD') || paymentTypes[0];
+          
+          if (!cashPayment) {
+            console.error("No payment types available");
+            await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue with payment processing. Please try again.");
+            return;
+          }
+
+          // Create order through NailIt API
+          const orderData = {
+            customerId: customer.id,
+            customerName: appointmentIntent.customerInfo.name,
+            customerEmail: appointmentIntent.customerInfo.email,
+            customerPhone: customer.phoneNumber,
+            services: nailItServices.map(service => ({
+              serviceId: service.serviceId,
+              serviceName: service.serviceName,
+              quantity: service.quantity,
+              price: service.price,
+              staffId: availability.staff[0].id, // Use first available staff
+              timeSlotIds: [timeSlot.id],
+              appointmentDate: appointmentDate
+            })),
+            locationId: appointmentIntent.locationId,
+            paymentTypeId: cashPayment.id
+          };
+
+          const orderResult = await aiAgent.createNailItOrder(orderData);
+          
+          if (orderResult.success) {
+            console.log(`NailIt order created successfully: ${orderResult.orderId}`);
+            
+            // Also create local appointment for dashboard tracking
+            const localAppointment = await storage.createAppointment({
+              customerId: customer.id,
+              serviceId: services[0].serviceId,
+              appointmentDate: appointmentIntent.preferredDate,
+              appointmentTime: appointmentIntent.preferredTime,
+              duration: totalDuration,
+              locationId: appointmentIntent.locationId,
+              locationName: appointmentIntent.locationName,
+              status: "confirmed",
+              paymentMethod: appointmentIntent.paymentMethod,
+              paymentStatus: "pending",
+              totalPrice: totalPrice.toFixed(2),
+              notes: `NailIt Order ID: ${orderResult.orderId}. Services: ${serviceDetails.map(s => `${s.name} (${s.quantity}x)`).join(', ')}. Staff: ${availability.staff[0].name}`,
+            });
+
+            // Send comprehensive confirmation message
+            const servicesText = serviceDetails.map(s => 
+              s.quantity > 1 ? `${s.name} (${s.quantity}x) - ${s.price.toFixed(2)} KWD` : `${s.name} - ${s.price.toFixed(2)} KWD`
+            ).join('\n');
+
+            const confirmationMessage = `✅ *Appointment Confirmed!*\n\n` +
+              `📋 *Booking Details:*\n` +
+              `${servicesText}\n` +
+              `Date: ${appointmentIntent.preferredDate}\n` +
+              `Time: ${appointmentIntent.preferredTime} (Kuwait Time)\n` +
+              `Duration: ${totalDuration} minutes\n` +
+              `Total: ${totalPrice.toFixed(2)} KWD\n\n` +
+              `👤 *Customer:*\n` +
+              `Name: ${appointmentIntent.customerInfo.name}\n` +
+              `Email: ${appointmentIntent.customerInfo.email}\n\n` +
+              `📍 *Location:* ${appointmentIntent.locationName}\n` +
+              `👩‍💼 *Staff:* ${availability.staff[0].name}\n` +
+              `💳 *Payment:* Cash at appointment\n` +
+              `🎫 *NailIt Order #${orderResult.orderId}*\n\n` +
+              `📞 *Contact:* For any changes, reply to this chat.\n\n` +
+              `Thank you for choosing NailIt! We look forward to seeing you.`;
+
+            await this.sendMessage(customer.phoneNumber, confirmationMessage);
+            
+            // Save confirmation message
+            const conversation = await storage.getConversationByCustomer(customer.id);
+            if (conversation) {
+              await storage.createMessage({
+                conversationId: conversation.id,
+                content: confirmationMessage,
+                isFromAI: true,
+              });
+            }
+            
+          } else {
+            console.error("Failed to create NailIt order:", orderResult.error);
+            await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue confirming your appointment. Please try again or contact us directly.");
+          }
+          
+        } catch (nailItError) {
+          console.error("NailIt API error:", nailItError);
+          await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue connecting to our booking system. Please try again or contact us directly.");
         }
       }
     } catch (error) {
       console.error("Error handling appointment intent:", error);
+      await this.sendMessage(customer.phoneNumber, "Sorry, there was an unexpected error. Please try again or contact us directly.");
     }
   }
 

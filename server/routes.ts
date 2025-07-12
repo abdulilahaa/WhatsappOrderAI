@@ -5,6 +5,7 @@ import { whatsappService } from "./whatsapp";
 import { aiAgent } from "./ai";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
+import { nailItAPI } from "./nailit-api";
 import { insertProductSchema, insertAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -840,6 +841,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to update appointment: " + error.message });
     }
   });
+
+  // NailIt API Integration Routes
+  app.post("/api/nailit/sync-services", async (req, res) => {
+    try {
+      await aiAgent.syncServicesFromNailItAPI();
+      res.json({ message: "Services synced successfully from NailIt API" });
+    } catch (error: any) {
+      console.error("Error syncing NailIt services:", error);
+      res.status(500).json({ message: "Error syncing services: " + error.message });
+    }
+  });
+
+  app.get("/api/nailit/locations", async (req, res) => {
+    try {
+      const locations = await aiAgent.getNailItLocations();
+      res.json(locations);
+    } catch (error: any) {
+      console.error("Error fetching NailIt locations:", error);
+      res.status(500).json({ message: "Error fetching locations: " + error.message });
+    }
+  });
+
+  app.get("/api/nailit/services/search", async (req, res) => {
+    try {
+      const { query, date } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ message: "Search query is required" });
+      }
+
+      const services = await aiAgent.searchNailItServices(query, date as string);
+      res.json(services);
+    } catch (error: any) {
+      console.error("Error searching NailIt services:", error);
+      res.status(500).json({ message: "Error searching services: " + error.message });
+    }
+  });
+
+  app.get("/api/nailit/service/:serviceId/availability", async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      const { locationId, date } = req.query;
+
+      if (!locationId || !date) {
+        return res.status(400).json({ message: "Location ID and date are required" });
+      }
+
+      const availability = await aiAgent.getNailItServiceAvailability(
+        parseInt(serviceId),
+        parseInt(locationId as string),
+        date as string
+      );
+
+      res.json(availability);
+    } catch (error: any) {
+      console.error("Error fetching service availability:", error);
+      res.status(500).json({ message: "Error fetching availability: " + error.message });
+    }
+  });
+
+  app.get("/api/nailit/payment-types", async (req, res) => {
+    try {
+      const paymentTypes = await aiAgent.getNailItPaymentTypes();
+      res.json(paymentTypes);
+    } catch (error: any) {
+      console.error("Error fetching payment types:", error);
+      res.status(500).json({ message: "Error fetching payment types: " + error.message });
+    }
+  });
+
+  app.post("/api/nailit/create-order", async (req, res) => {
+    try {
+      const orderData = req.body;
+      
+      // Validate required fields
+      if (!orderData.customerId || !orderData.services || !orderData.locationId) {
+        return res.status(400).json({ 
+          message: "Customer ID, services, and location ID are required" 
+        });
+      }
+
+      const result = await aiAgent.createNailItOrder(orderData);
+      
+      if (result.success) {
+        res.status(201).json(result);
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error creating NailIt order:", error);
+      res.status(500).json({ message: "Error creating order: " + error.message });
+    }
+  });
+
+  app.post("/api/nailit/register-device", async (req, res) => {
+    try {
+      const success = await nailItAPI.registerDevice();
+      
+      if (success) {
+        res.json({ message: "Device registered successfully with NailIt API" });
+      } else {
+        res.status(500).json({ message: "Failed to register device with NailIt API" });
+      }
+    } catch (error: any) {
+      console.error("Error registering device:", error);
+      res.status(500).json({ message: "Error registering device: " + error.message });
+    }
+  });
+
+  // Initialize NailIt device registration on server startup
+  (async () => {
+    try {
+      console.log("Initializing NailIt API integration...");
+      const deviceRegistered = await nailItAPI.registerDevice();
+      
+      if (deviceRegistered) {
+        console.log("✅ NailIt device registered successfully");
+        
+        // Sync services from NailIt API on startup
+        console.log("Syncing services from NailIt API...");
+        await aiAgent.syncServicesFromNailItAPI();
+        console.log("✅ NailIt services synced successfully");
+      } else {
+        console.warn("⚠️  Failed to register device with NailIt API");
+      }
+    } catch (error) {
+      console.error("❌ Error initializing NailIt integration:", error);
+    }
+  })();
 
   const httpServer = createServer(app);
   return httpServer;
