@@ -600,23 +600,70 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
     const currentDate = nailItAPI.formatDateForAPI(new Date());
     const locationIds = locations.map(loc => loc.Location_Id);
 
-    // Strategy 1: Try GetItemsByDate with no group restriction (Group_Id: 0)
+    // Strategy 1: Try GetItemsByDate with no group restriction (Group_Id: 0) - WITH PAGINATION
     try {
       console.log("📋 Strategy 1: Trying GetItemsByDate with no group restriction...");
-      const allItemsResult = await nailItAPI.getItemsByDate({
+      
+      // First call to get total count
+      const firstPageResult = await nailItAPI.getItemsByDate({
         groupId: 0, // No group restriction
         locationIds: locationIds,
         selectedDate: currentDate,
-        itemTypeId: 2 // Services
+        itemTypeId: 2, // Services
+        pageNo: 1
       });
 
-      console.log(`📋 Found ${allItemsResult.totalItems} items with no group restriction`);
+      console.log(`📋 Found ${firstPageResult.totalItems} items with no group restriction`);
       
-      if (allItemsResult.items && allItemsResult.items.length > 0) {
-        for (const item of allItemsResult.items) {
-          await this.syncNailItItemToProduct(item);
-          totalSynced++;
+      if (firstPageResult.totalItems > 0) {
+        const itemsPerPage = firstPageResult.items.length;
+        const totalPages = Math.ceil(firstPageResult.totalItems / itemsPerPage);
+        
+        console.log(`📋 Strategy 1: Processing ${firstPageResult.totalItems} items across ${totalPages} pages (${itemsPerPage} items per page)...`);
+        
+        // Process first page
+        if (firstPageResult.items && firstPageResult.items.length > 0) {
+          for (const item of firstPageResult.items) {
+            try {
+              await this.syncNailItItemToProduct(item);
+              totalSynced++;
+              if (totalSynced % 50 === 0) {
+                console.log(`📋 Progress: ${totalSynced} services synced so far...`);
+              }
+            } catch (error) {
+              console.error(`❌ Error syncing item ${item.Item_Id}:`, error);
+            }
+          }
         }
+        
+        // Process remaining pages
+        for (let page = 2; page <= totalPages; page++) {
+          console.log(`📋 Processing page ${page}/${totalPages}...`);
+          
+          const pageResult = await nailItAPI.getItemsByDate({
+            groupId: 0,
+            locationIds: locationIds,
+            selectedDate: currentDate,
+            itemTypeId: 2,
+            pageNo: page
+          });
+          
+          if (pageResult.items && pageResult.items.length > 0) {
+            for (const item of pageResult.items) {
+              try {
+                await this.syncNailItItemToProduct(item);
+                totalSynced++;
+                if (totalSynced % 50 === 0) {
+                  console.log(`📋 Progress: ${totalSynced} services synced so far...`);
+                }
+              } catch (error) {
+                console.error(`❌ Error syncing item ${item.Item_Id}:`, error);
+              }
+            }
+          }
+        }
+        
+        console.log(`📋 Strategy 1 completed: ${totalSynced} services synced from ${totalPages} pages`);
       }
     } catch (error: any) {
       console.log("❌ Strategy 1 failed:", error.message);
@@ -654,29 +701,59 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
       }
     }
 
-    // Strategy 3: Try different item types
+    // Strategy 3: Try different item types - WITH PAGINATION
     const itemTypes = [1, 2, 3]; // Products, Services, Others
     
     for (const itemType of itemTypes) {
       try {
         console.log(`📋 Strategy 3: Trying item type ${itemType}...`);
-        const typeResult = await nailItAPI.getItemsByDate({
+        
+        // First call to get total count
+        const firstPageResult = await nailItAPI.getItemsByDate({
           groupId: 0,
           locationIds: locationIds,
           selectedDate: currentDate,
-          itemTypeId: itemType
+          itemTypeId: itemType,
+          pageNo: 1
         });
 
-        console.log(`📋 Item type ${itemType}: Found ${typeResult.totalItems} items`);
+        console.log(`📋 Item type ${itemType}: Found ${firstPageResult.totalItems} items`);
         
-        if (typeResult.items && typeResult.items.length > 0) {
-          for (const item of typeResult.items) {
-            const existingProducts = await storage.getProducts();
-            const exists = existingProducts.some(p => p.description?.includes(`NailIt ID: ${item.Item_Id}`));
+        if (firstPageResult.totalItems > 0) {
+          const itemsPerPage = firstPageResult.items.length;
+          const totalPages = Math.ceil(firstPageResult.totalItems / itemsPerPage);
+          
+          console.log(`📋 Strategy 3: Processing ${firstPageResult.totalItems} items across ${totalPages} pages for item type ${itemType}...`);
+          
+          // Process all pages
+          for (let page = 1; page <= totalPages; page++) {
+            console.log(`📋 Processing item type ${itemType}, page ${page}/${totalPages}...`);
             
-            if (!exists) {
-              await this.syncNailItItemToProduct(item);
-              totalSynced++;
+            const pageResult = page === 1 ? firstPageResult : await nailItAPI.getItemsByDate({
+              groupId: 0,
+              locationIds: locationIds,
+              selectedDate: currentDate,
+              itemTypeId: itemType,
+              pageNo: page
+            });
+            
+            if (pageResult.items && pageResult.items.length > 0) {
+              for (const item of pageResult.items) {
+                try {
+                  const existingProducts = await storage.getProducts();
+                  const exists = existingProducts.some(p => p.description?.includes(`NailIt ID: ${item.Item_Id}`));
+                  
+                  if (!exists) {
+                    await this.syncNailItItemToProduct(item);
+                    totalSynced++;
+                    if (totalSynced % 50 === 0) {
+                      console.log(`📋 Progress: ${totalSynced} services synced so far...`);
+                    }
+                  }
+                } catch (error) {
+                  console.error(`❌ Error syncing item ${item.Item_Id}:`, error);
+                }
+              }
             }
           }
         }
@@ -788,7 +865,14 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
       }
     }
     
-    console.log(`✅ Total services synced: ${totalSynced}`);
+    console.log(`✅ COMPREHENSIVE SYNC COMPLETE: ${totalSynced} services synced from NailIt API`);
+    console.log(`📊 Expected: 394 services, Got: ${totalSynced} services`);
+    
+    // Log final count
+    const finalProducts = await storage.getProducts();
+    console.log(`📋 Final database count: ${finalProducts.length} products/services`);
+    
+    return totalSynced;
   }
 
   private async syncNailItItemToProduct(item: NailItItem): Promise<void> {
