@@ -923,6 +923,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Save Order with sample data
+  app.post("/api/nailit/test-save-order", async (req, res) => {
+    try {
+      console.log("🧪 Testing NailIt Save Order with sample data...");
+      const testOrder = nailItAPI.createTestOrder();
+      
+      const result = await nailItAPI.saveOrder(testOrder);
+      
+      if (result) {
+        res.json({
+          success: true,
+          message: "Order successfully created in NailIt POS",
+          orderId: result.OrderId,
+          customerId: result.CustomerId,
+          nailItResponse: result,
+          testOrderData: testOrder
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "Failed to create order in NailIt POS",
+          testOrderData: testOrder
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false,
+        message: "Error testing save order: " + error.message 
+      });
+    }
+  });
+
   app.get("/api/nailit/services/search", async (req, res) => {
     try {
       const { query, date } = req.query;

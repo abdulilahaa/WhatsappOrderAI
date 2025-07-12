@@ -431,24 +431,67 @@ export class NailItAPIService {
 
   async saveOrder(orderData: NailItSaveOrderRequest): Promise<NailItSaveOrderResponse | null> {
     try {
+      console.log('📋 Sending order to NailIt POS:', JSON.stringify(orderData, null, 2));
       const response = await this.client.post('/SaveOrder', orderData);
+      console.log('✅ NailIt Save Order Response:', response.data);
       
       if (response.data.Status === 0) {
         return response.data;
+      } else {
+        console.error('❌ Order rejected by NailIt:', response.data);
+        return null;
       }
-      return null;
-    } catch (error) {
-      console.error('Failed to save order:', error);
+    } catch (error: any) {
+      console.error('❌ Save Order failed:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
       return null;
     }
   }
 
-  // Helper method to format date for API calls
+  // Helper method to format date for API calls (NailIt expects MM/dd/yyyy format)
   formatDateForAPI(date: Date): string {
-    const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
     const year = date.getFullYear();
-    return `${day}-${month}-${year}`;
+    return `${month}/${day}/${year}`;
+  }
+
+  // Helper method to create a test order for API validation
+  createTestOrder(): NailItSaveOrderRequest {
+    return {
+      Gross_Amount: 10.0,
+      Payment_Type_Id: 1,
+      Order_Type: 2,
+      UserId: 128,
+      FirstName: "Test Customer",
+      Mobile: "+96588888889",
+      Email: "test@example.com",
+      Discount_Amount: 0.0,
+      Net_Amount: 10.0,
+      POS_Location_Id: 1,
+      OrderDetails: [
+        {
+          Prod_Id: 203,
+          Prod_Name: "Test Service",
+          Qty: 1,
+          Rate: 10.0,
+          Amount: 10.0,
+          Size_Id: null,
+          Size_Name: "",
+          Promotion_Id: 0,
+          Promo_Code: "",
+          Discount_Amount: 0.0,
+          Net_Amount: 10.0,
+          Staff_Id: 48,
+          TimeFrame_Ids: [5, 6],
+          Appointment_Date: this.formatDateForAPI(new Date())
+        }
+      ]
+    };
   }
 
   // Helper method to search for services by name
