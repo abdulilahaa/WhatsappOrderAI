@@ -196,7 +196,18 @@ export class NailItAPIService {
       results['GetGroups'] = { success: false, error: error.message };
     }
 
-    // Test 3: Get Locations
+    // Test 3: Get SubGroups (if we have groups)
+    try {
+      const subGroups = await this.getSubGroups('E', 42); // Test with known group ID
+      results['GetSubGroups'] = { 
+        success: true,
+        data: `Found ${subGroups.length} sub-groups for group 42`
+      };
+    } catch (error) {
+      results['GetSubGroups'] = { success: false, error: error.message };
+    }
+
+    // Test 4: Get Locations
     try {
       const locations = await this.getLocations('E');
       results['GetLocations'] = { 
@@ -207,7 +218,7 @@ export class NailItAPIService {
       results['GetLocations'] = { success: false, error: error.message };
     }
 
-    // Test 4: Get Items by Date
+    // Test 5: Get Items by Date
     try {
       const currentDate = this.formatDateForAPI(new Date());
       const items = await this.getItemsByDate({
@@ -223,7 +234,30 @@ export class NailItAPIService {
       results['GetItemsByDate'] = { success: false, error: error.message };
     }
 
-    // Test 5: Get Payment Types
+    // Test 6: Get Service Staff
+    try {
+      const staff = await this.getServiceStaff('E', 1, 42); // Test with location 1 and group 42
+      results['GetServiceStaff'] = { 
+        success: true,
+        data: `Found ${staff.length} staff members for location 1, group 42`
+      };
+    } catch (error) {
+      results['GetServiceStaff'] = { success: false, error: error.message };
+    }
+
+    // Test 7: Get Available Slots
+    try {
+      const currentDate = this.formatDateForAPI(new Date());
+      const slots = await this.getAvailableSlots('E', 1, 1, currentDate); // Test with location 1, staff 1
+      results['GetAvailableSlots'] = { 
+        success: true,
+        data: `Found ${slots.length} available time slots for today`
+      };
+    } catch (error) {
+      results['GetAvailableSlots'] = { success: false, error: error.message };
+    }
+
+    // Test 8: Get Payment Types
     try {
       const paymentTypes = await this.getPaymentTypes('E', 2, 2);
       results['GetPaymentTypes'] = { 
@@ -232,6 +266,24 @@ export class NailItAPIService {
       };
     } catch (error) {
       results['GetPaymentTypes'] = { success: false, error: error.message };
+    }
+
+    // Test 9: User Registration (test data)
+    try {
+      const testUser = {
+        Address: "Test Address 123",
+        Email_Id: "test@example.com",
+        Name: "Test User",
+        Mobile: "12345678",
+        Login_Type: 1
+      };
+      const registerResult = await this.registerUser(testUser);
+      results['RegisterUser'] = { 
+        success: registerResult !== null,
+        data: registerResult ? `User registered with ID ${registerResult.App_User_Id}` : 'Registration failed'
+      };
+    } catch (error) {
+      results['RegisterUser'] = { success: false, error: error.message };
     }
 
     return results;
