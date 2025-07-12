@@ -863,6 +863,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive API Testing
+  app.get("/api/nailit/test-all-endpoints", async (req, res) => {
+    try {
+      console.log("🧪 Testing all NailIt API endpoints...");
+      const results = await nailItAPI.testAllEndpoints();
+      
+      const successCount = Object.values(results).filter(r => r.success).length;
+      const totalCount = Object.keys(results).length;
+      
+      console.log(`✅ API Test Results: ${successCount}/${totalCount} endpoints working`);
+      
+      res.json({
+        success: true,
+        summary: {
+          total: totalCount,
+          successful: successCount,
+          failed: totalCount - successCount
+        },
+        details: results
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false,
+        message: "Error testing endpoints: " + error.message 
+      });
+    }
+  });
+
+  // Register User
+  app.post("/api/nailit/register-user", async (req, res) => {
+    try {
+      const result = await nailItAPI.registerUser(req.body);
+      if (result) {
+        res.json(result);
+      } else {
+        res.status(400).json({ message: "Failed to register user" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: "Error registering user: " + error.message });
+    }
+  });
+
   app.get("/api/nailit/services/search", async (req, res) => {
     try {
       const { query, date } = req.query;

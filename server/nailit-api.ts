@@ -107,6 +107,21 @@ export interface NailItSaveOrderResponse {
   CustomerId: number;
 }
 
+export interface NailItRegisterRequest {
+  Address: string;
+  Email_Id: string;
+  Name: string;
+  Mobile: string;
+  Login_Type: number;
+  Image_Name?: string;
+}
+
+export interface NailItRegisterResponse {
+  App_User_Id: number;
+  Message: string;
+  Status: number;
+}
+
 export class NailItAPIService {
   private client: AxiosInstance;
   private securityToken: string;
@@ -140,6 +155,86 @@ export class NailItAPIService {
       console.error('Failed to register device:', error);
       return false;
     }
+  }
+
+  async registerUser(userData: NailItRegisterRequest): Promise<NailItRegisterResponse | null> {
+    try {
+      const response = await this.client.post('/Register', userData);
+      
+      if (response.data.Status === 0) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to register user:', error);
+      return null;
+    }
+  }
+
+  async testAllEndpoints(): Promise<{ [key: string]: { success: boolean; error?: string; data?: any } }> {
+    const results: { [key: string]: { success: boolean; error?: string; data?: any } } = {};
+    
+    // Test 1: Register Device
+    try {
+      const deviceResult = await this.registerDevice();
+      results['RegisterDevice'] = { 
+        success: deviceResult,
+        data: deviceResult ? 'Device registered successfully' : 'Device registration failed'
+      };
+    } catch (error) {
+      results['RegisterDevice'] = { success: false, error: error.message };
+    }
+
+    // Test 2: Get Groups  
+    try {
+      const groups = await this.getGroups(2);
+      results['GetGroups'] = { 
+        success: true,
+        data: `Found ${groups.length} groups`
+      };
+    } catch (error) {
+      results['GetGroups'] = { success: false, error: error.message };
+    }
+
+    // Test 3: Get Locations
+    try {
+      const locations = await this.getLocations('E');
+      results['GetLocations'] = { 
+        success: true,
+        data: `Found ${locations.length} locations`
+      };
+    } catch (error) {
+      results['GetLocations'] = { success: false, error: error.message };
+    }
+
+    // Test 4: Get Items by Date
+    try {
+      const currentDate = this.formatDateForAPI(new Date());
+      const items = await this.getItemsByDate({
+        selectedDate: currentDate,
+        pageNo: 1,
+        itemTypeId: 2
+      });
+      results['GetItemsByDate'] = { 
+        success: true,
+        data: `Found ${items.totalItems} total items, ${items.items.length} on page 1`
+      };
+    } catch (error) {
+      results['GetItemsByDate'] = { success: false, error: error.message };
+    }
+
+    // Test 5: Get Payment Types
+    try {
+      const paymentTypes = await this.getPaymentTypes('E', 2, 2);
+      results['GetPaymentTypes'] = { 
+        success: true,
+        data: `Found ${paymentTypes.length} payment types`
+      };
+    } catch (error) {
+      results['GetPaymentTypes'] = { success: false, error: error.message };
+    }
+
+    return results;
   }
 
   async getGroups(groupType: number = 2): Promise<NailItGroup[]> {
