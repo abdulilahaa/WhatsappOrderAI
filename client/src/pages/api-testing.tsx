@@ -74,7 +74,7 @@ const NAILIT_ENDPOINTS: EndpointInfo[] = [
     name: "Get Service Staff",
     description: "Gets available staff for a specific service",
     method: "GET",
-    endpoint: "GetServiceStaff",
+    endpoint: "GetServiceStaff1",
     priority: "important",
     category: "data"
   },
@@ -351,7 +351,7 @@ export default function APITestingPage() {
                         const isWorking = result?.success || false;
                         
                         return (
-                          <div key={endpoint.endpoint} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div key={`${endpoint.endpoint}-${endpoint.priority}`} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-3">
                               {getCategoryIcon(endpoint.category)}
                               <div>
