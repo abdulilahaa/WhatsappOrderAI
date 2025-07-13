@@ -20,6 +20,9 @@ import AITest from "@/pages/ai-test-fixed";
 import NotFound from "@/pages/not-found";
 import AddProductModal from "@/components/add-product-modal";
 import Checkout from "@/pages/checkout";
+import StaffAvailability from "@/pages/staff-availability";
+import ServiceAnalytics from "@/pages/service-analytics";
+import QuickBookingInsights from "@/pages/quick-booking-insights";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -49,6 +52,9 @@ function Router() {
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/ai-test" component={AITest} />
         <Route path="/checkout" component={Checkout} />
+        <Route path="/staff-availability" component={StaffAvailability} />
+        <Route path="/service-analytics" component={ServiceAnalytics} />
+        <Route path="/quick-insights" component={QuickBookingInsights} />
         <Route component={NotFound} />
       </Switch>
       

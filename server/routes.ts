@@ -41,6 +41,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Staff availability routes
+  app.get("/api/nailit/staff-availability", async (req, res) => {
+    const { getStaffAvailability } = await import("./routes/staff-availability");
+    await getStaffAvailability(req, res);
+  });
+
+  app.get("/api/analytics/services", async (req, res) => {
+    const { getServiceAnalytics } = await import("./routes/staff-availability");
+    await getServiceAnalytics(req, res);
+  });
+
   // Products API
   app.get("/api/products", async (req, res) => {
     try {
