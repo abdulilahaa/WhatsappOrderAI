@@ -45,7 +45,7 @@ interface Service {
 export default function StaffAvailabilityPage() {
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedService, setSelectedService] = useState<string>("");
+  const [selectedService, setSelectedService] = useState<string>("all");
 
   // Fetch locations
   const { data: locations = [] } = useQuery<Location[]>({
@@ -60,7 +60,7 @@ export default function StaffAvailabilityPage() {
   // Fetch staff availability
   const { data: staffData, isLoading: isLoadingStaff } = useQuery({
     queryKey: ["/api/nailit/staff-availability", selectedLocation, format(selectedDate, "yyyy-MM-dd"), selectedService],
-    enabled: !!selectedService && selectedLocation !== "all",
+    enabled: selectedService !== "all" && selectedLocation !== "all",
   });
 
   // Calculate staff utilization
@@ -136,7 +136,7 @@ export default function StaffAvailabilityPage() {
                   <SelectValue placeholder="Select service" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Services</SelectItem>
+                  <SelectItem value="all">All Services</SelectItem>
                   {services.slice(0, 10).map((service) => (
                     <SelectItem key={service.id} value={service.id.toString()}>
                       {service.name}
