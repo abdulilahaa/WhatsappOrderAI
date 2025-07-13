@@ -126,21 +126,26 @@ export default function APITestingPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Query for getting cached test results
-  const { data: testResults, isLoading } = useQuery<APITestResults>({
+  // Query for getting cached test results with real-time updates
+  const { data: testResults, isLoading, refetch } = useQuery<APITestResults>({
     queryKey: ["/api/nailit/test-all-endpoints"],
-    refetchInterval: false, // Only refresh on manual trigger
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
+    refetchOnWindowFocus: true,
   });
 
   // Mutation for running comprehensive tests
   const runTestsMutation = useMutation({
-    mutationFn: () => apiRequest("/api/nailit/test-all-endpoints"),
+    mutationFn: async () => {
+      const response = await apiRequest("GET", "/api/nailit/test-all-endpoints");
+      return await response.json();
+    },
     onSuccess: (data) => {
       setLastTestTime(new Date());
       queryClient.setQueryData(["/api/nailit/test-all-endpoints"], data);
+      queryClient.invalidateQueries({ queryKey: ["/api/nailit/test-all-endpoints"] });
       toast({
-        title: "API Tests Completed",
-        description: `${data.summary.successful}/${data.summary.total} endpoints working`
+        title: "API Tests Completed", 
+        description: `${data.summary?.successful || 0}/${data.summary?.total || 0} endpoints working`
       });
     },
     onError: (error: any) => {
@@ -212,20 +217,37 @@ export default function APITestingPage() {
           <p className="text-gray-600 mt-2">
             Comprehensive testing and monitoring of all NailIt POS API endpoints
           </p>
-          {lastTestTime && (
-            <p className="text-sm text-gray-500 mt-1">
-              Last tested: {lastTestTime.toLocaleString()}
-            </p>
-          )}
+          <div className="flex items-center gap-4 mt-2">
+            {lastTestTime && (
+              <p className="text-sm text-gray-500">
+                Last tested: {lastTestTime.toLocaleString()}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-xs text-gray-500">Live monitoring active</span>
+            </div>
+          </div>
         </div>
-        <Button 
-          onClick={handleRunFullTest} 
-          disabled={isLoading || isRunningFullTest}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${(isLoading || isRunningFullTest) ? 'animate-spin' : ''}`} />
-          {isLoading || isRunningFullTest ? "Testing..." : "Run All Tests"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => refetch()} 
+            disabled={isLoading}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button 
+            onClick={handleRunFullTest} 
+            disabled={isLoading || isRunningFullTest}
+            className="flex items-center gap-2"
+          >
+            <TestTube className={`h-4 w-4 ${(isLoading || isRunningFullTest) ? 'animate-spin' : ''}`} />
+            {isLoading || isRunningFullTest ? "Testing..." : "Run All Tests"}
+          </Button>
+        </div>
       </div>
 
       {/* Test Results Summary */}
@@ -323,7 +345,7 @@ export default function APITestingPage() {
             {['critical', 'important', 'optional'].map((priority) => {
               const endpointsInPriority = NAILIT_ENDPOINTS.filter(e => e.priority === priority);
               const workingInPriority = endpointsInPriority.filter(e => 
-                testResults?.details?.[e.endpoint.toLowerCase()]?.success
+                testResults?.details?.[e.endpoint]?.success === true
               ).length;
               
               return (
@@ -347,8 +369,8 @@ export default function APITestingPage() {
                   <CardContent>
                     <div className="space-y-2">
                       {endpointsInPriority.map((endpoint) => {
-                        const result = testResults?.details?.[endpoint.endpoint.toLowerCase()];
-                        const isWorking = result?.success || false;
+                        const result = testResults?.details?.[endpoint.endpoint];
+                        const isWorking = result?.success === true;
                         
                         return (
                           <div key={`${endpoint.endpoint}-${endpoint.priority}`} className="flex items-center justify-between p-3 border rounded-lg">
@@ -389,7 +411,7 @@ export default function APITestingPage() {
                   <div className="space-y-4">
                     {Object.entries(testResults.details).map(([endpoint, result]) => {
                       const endpointInfo = NAILIT_ENDPOINTS.find(e => 
-                        e.endpoint.toLowerCase() === endpoint.toLowerCase()
+                        e.endpoint === endpoint
                       );
                       
                       return (
@@ -406,8 +428,8 @@ export default function APITestingPage() {
                               {result.responseTime && (
                                 <Badge variant="outline">{result.responseTime}ms</Badge>
                               )}
-                              {getStatusIcon(result.success)}
-                              {getStatusBadge(result.success)}
+                              {getStatusIcon(result.success === true)}
+                              {getStatusBadge(result.success === true)}
                             </div>
                           </div>
                           
