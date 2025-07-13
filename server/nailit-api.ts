@@ -236,10 +236,11 @@ export class NailItAPIService {
 
     // Test 6: Get Service Staff
     try {
-      const staff = await this.getServiceStaff('E', 1, 42); // Test with location 1 and group 42
+      const currentDate = this.formatDateForURL(new Date());
+      const staff = await this.getServiceStaff(203, 1, 'E', currentDate); // Test with item 203, location 1
       results['GetServiceStaff'] = { 
         success: true,
-        data: `Found ${staff.length} staff members for location 1, group 42`
+        data: `Found ${staff.length} staff members for service 203, location 1`
       };
     } catch (error) {
       results['GetServiceStaff'] = { success: false, error: error.message };
@@ -248,7 +249,7 @@ export class NailItAPIService {
     // Test 7: Get Available Slots
     try {
       const currentDate = this.formatDateForAPI(new Date());
-      const slots = await this.getAvailableSlots('E', 1, 1, currentDate); // Test with location 1, staff 1
+      const slots = await this.getAvailableSlots('E', 1, currentDate); // Test with staff 1
       results['GetAvailableSlots'] = { 
         success: true,
         data: `Found ${slots.length} available time slots for today`
@@ -259,7 +260,7 @@ export class NailItAPIService {
 
     // Test 8: Get Payment Types
     try {
-      const paymentTypes = await this.getPaymentTypes('E', 2, 2);
+      const paymentTypes = await this.getPaymentTypes('E');
       results['GetPaymentTypes'] = { 
         success: true,
         data: `Found ${paymentTypes.length} payment types`
@@ -375,6 +376,15 @@ export class NailItAPIService {
     selectedDate: string
   ): Promise<NailItStaff[]> {
     try {
+      // Handle undefined or empty selectedDate
+      if (!selectedDate) {
+        const today = new Date();
+        const day = today.getDate().toString().padStart(2, '0');
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const year = today.getFullYear();
+        selectedDate = `${day}-${month}-${year}`;
+      }
+      
       // Convert date to DD-MM-YYYY format as required by NailIt API
       let urlDate = selectedDate;
       if (selectedDate.includes('/')) {

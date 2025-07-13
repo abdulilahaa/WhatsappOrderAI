@@ -915,15 +915,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Test staff retrieval
       if (services.length > 0 && locations.length > 0) {
-        const testService = services[0];
-        const testLocation = locations[0];
-        const staff = await nailItAPI.getServiceStaff(
-          testService.id,
-          testLocation.Location_Id,
-          'E',
-          nailItAPI.formatDateForURL(new Date())
-        );
-        tests.staffRetrievable = staff.length >= 0; // Even 0 staff is valid response
+        try {
+          const testService = services[0];
+          const testLocation = locations[0];
+          const staff = await nailItAPI.getServiceStaff(
+            testService.id,
+            testLocation.Location_Id,
+            'E',
+            nailItAPI.formatDateForURL(new Date())
+          );
+          tests.staffRetrievable = true; // API call succeeded
+        } catch (error) {
+          console.error('Staff retrieval test failed:', error);
+          tests.staffRetrievable = false;
+        }
       }
 
       // Test payment types
