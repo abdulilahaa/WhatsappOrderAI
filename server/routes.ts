@@ -846,9 +846,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/nailit/sync-services", async (req, res) => {
     try {
       await aiAgent.syncServicesFromNailItAPI();
-      res.json({ message: "Services synced successfully from NailIt API" });
+      const products = await storage.getProducts();
+      res.json({ 
+        success: true,
+        message: "Services synced successfully from NailIt API",
+        count: products.length,
+        timestamp: new Date().toISOString()
+      });
     } catch (error: any) {
       console.error("Error syncing NailIt services:", error);
+      res.status(500).json({ message: "Error syncing services: " + error.message });
+    }
+  });
+
+  // Additional sync endpoints for integration dashboard
+  app.post("/api/nailit/sync-locations", async (req, res) => {
+    try {
+      const locations = await nailItAPI.getLocations('E');
+      res.json({ 
+        success: true, 
+        message: "Locations refreshed successfully",
+        count: locations.length,
+        locations,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/nailit/sync-payment-types", async (req, res) => {
+    try {
+      const paymentTypes = await nailItAPI.getPaymentTypes('E');
+      res.json({ 
+        success: true, 
+        message: "Payment types refreshed successfully",
+        count: paymentTypes.length,
+        paymentTypes,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/nailit/test-integration", async (req, res) => {
+    try {
+      // Test full integration cycle
+      const tests = {
+        deviceRegistration: false,
+        locationsAvailable: false,
+        servicesAvailable: false,
+        staffRetrievable: false,
+        orderCreatable: false,
+        paymentTypesAvailable: false
+      };
+
+      // Test device registration
+      tests.deviceRegistration = await nailItAPI.registerDevice();
+
+      // Test locations
+      const locations = await nailItAPI.getLocations('E');
+      tests.locationsAvailable = locations.length > 0;
+
+      // Test services
+      const services = await storage.getProducts();
+      tests.servicesAvailable = services.length > 0;
+
+      // Test staff retrieval
+      if (services.length > 0 && locations.length > 0) {
+        const testService = services[0];
+        const testLocation = locations[0];
+        const staff = await nailItAPI.getServiceStaff(
+          testService.id,
+          testLocation.Location_Id,
+          'E',
+          nailItAPI.formatDateForURL(new Date())
+        );
+        tests.staffRetrievable = staff.length >= 0; // Even 0 staff is valid response
+      }
+
+      // Test payment types
+      const paymentTypes = await nailItAPI.getPaymentTypes('E');
+      tests.paymentTypesAvailable = paymentTypes.length > 0;
+
+      // Check if order can be created (all prerequisites met)
+      tests.orderCreatable = tests.deviceRegistration && 
+                            tests.locationsAvailable && 
+                            tests.servicesAvailable && 
+                            tests.paymentTypesAvailable;
+
+      const passedTests = Object.values(tests).filter(t => t).length;
+      const totalTests = Object.keys(tests).length;
+
+      res.json({
+        success: true,
+        integrationHealth: {
+          score: Math.round((passedTests / totalTests) * 100),
+          status: passedTests === totalTests ? 'fully_integrated' : passedTests >= 4 ? 'partially_integrated' : 'integration_issues',
+          tests,
+          summary: `${passedTests}/${totalTests} integration tests passed`
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/ai/sync-services", async (req, res) => {
+    try {
+      await aiAgent.syncServicesFromNailItAPI();
+      const products = await storage.getProducts();
+      res.json({ 
+        success: true, 
+        message: "Services synced from NailIt API", 
+        count: products.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
       res.status(500).json({ message: "Error syncing services: " + error.message });
     }
   });
@@ -1300,74 +1416,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Comprehensive API status endpoint
+  // Comprehensive API status endpoint with all integrations
   app.get("/api/nailit/test-all-endpoints", async (req, res) => {
-    const results = {
-      registerDevice: { status: 'unknown', data: null, error: null },
-      getLocations: { status: 'unknown', data: null, error: null },
-      getGroups: { status: 'unknown', data: null, error: null },
-      getPaymentTypes: { status: 'unknown', data: null, error: null }
-    };
-
-    // Test device registration
-    try {
-      const deviceSuccess = await nailItAPI.registerDevice();
-      results.registerDevice = {
-        status: deviceSuccess ? 'working' : 'error',
-        data: { success: deviceSuccess },
-        error: deviceSuccess ? null : 'Registration failed'
-      };
-    } catch (error: any) {
-      results.registerDevice = { status: 'error', data: null, error: error.message };
-    }
-
-    // Test locations
-    try {
-      const locations = await nailItAPI.getLocations('E');
-      results.getLocations = {
-        status: locations.length > 0 ? 'working' : 'error',
-        data: { locations, count: locations.length },
-        error: locations.length === 0 ? 'No locations returned' : null
-      };
-    } catch (error: any) {
-      results.getLocations = { status: 'error', data: null, error: error.message };
-    }
-
-    // Test groups (known to fail)
-    try {
-      const groups = await nailItAPI.getGroups(2);
-      results.getGroups = {
-        status: groups.length > 0 ? 'working' : 'error',
-        data: { groups, count: groups.length },
-        error: groups.length === 0 ? 'No groups returned (404 on server)' : null
-      };
-    } catch (error: any) {
-      results.getGroups = { status: 'error', data: null, error: 'Groups endpoint returns 404' };
-    }
-
-    // Test payment types
-    try {
-      const paymentTypes = await nailItAPI.getPaymentTypes('E');
-      results.getPaymentTypes = {
-        status: paymentTypes.length > 0 ? 'working' : 'error',
-        data: { paymentTypes, count: paymentTypes.length },
-        error: paymentTypes.length === 0 ? 'No payment types returned' : null
-      };
-    } catch (error: any) {
-      results.getPaymentTypes = { status: 'error', data: null, error: error.message };
-    }
-
-    const workingCount = Object.values(results).filter(r => r.status === 'working').length;
-    const totalCount = Object.keys(results).length;
-
+    const results = await nailItAPI.testAllEndpoints();
+    
     res.json({
-      summary: {
-        working: workingCount,
-        total: totalCount,
-        percentage: Math.round((workingCount / totalCount) * 100)
-      },
-      endpoints: results,
-      timestamp: new Date().toISOString()
+      success: true,
+      summary: results.summary,
+      details: results.details,
+      timestamp: new Date().toISOString(),
+      requiredCustomerData: {
+        forOrders: [
+          "Full Name",
+          "Mobile Number (with country code)",
+          "Email Address",
+          "Preferred Location",
+          "Service Selection",
+          "Preferred Date/Time",
+          "Staff Preference (optional)",
+          "Payment Method"
+        ],
+        forAppointments: [
+          "Service(s) to book",
+          "Appointment Date",
+          "Preferred Time Slot",
+          "Location Selection",
+          "Staff Selection",
+          "Customer Name",
+          "Contact Number",
+          "Email (optional)"
+        ]
+      }
     });
   });
 

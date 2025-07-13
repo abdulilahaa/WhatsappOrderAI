@@ -51,6 +51,7 @@ export default function Integrations() {
   const [lastFullCheck, setLastFullCheck] = useState<Date | null>(null);
   const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
   const [refreshingData, setRefreshingData] = useState<string | null>(null);
+  const [isTestingIntegration, setIsTestingIntegration] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -92,12 +93,17 @@ export default function Integrations() {
     refetchInterval: 120000
   });
 
+  const { data: integrationTest } = useQuery({
+    queryKey: ['/api/nailit/test-integration'],
+    enabled: false
+  });
+
   // System Status Components
   const systemComponents: SystemStatus[] = [
     {
       component: 'NailIt API Connection',
-      status: apiHealthError ? 'error' : apiHealth ? 'healthy' : 'unknown',
-      details: apiHealth ? `${apiHealth.summary?.successful || 0}/${apiHealth.summary?.total || 0} endpoints working` : apiHealthError?.message,
+      status: apiHealthError ? 'error' : apiHealth?.details ? 'healthy' : 'unknown',
+      details: apiHealth?.summary ? `${Object.values(apiHealth.details || {}).filter((r: any) => r.success).length}/${Object.keys(apiHealth.details || {}).length} endpoints working` : apiHealthError?.message,
       icon: Wifi,
       priority: 'critical'
     },
@@ -206,13 +212,11 @@ export default function Integrations() {
       
       switch (dataType) {
         case 'services':
-          return apiRequest("/api/ai/sync-services", { method: "POST" });
+          return apiRequest("/api/nailit/sync-services", { method: "POST" });
         case 'locations':
-          await queryClient.invalidateQueries({ queryKey: ['/api/nailit/locations'] });
-          return { success: true };
+          return apiRequest("/api/nailit/sync-locations", { method: "POST" });
         case 'payments':
-          await queryClient.invalidateQueries({ queryKey: ['/api/nailit/payment-types'] });
-          return { success: true };
+          return apiRequest("/api/nailit/sync-payment-types", { method: "POST" });
         default:
           throw new Error('Unknown data type');
       }
@@ -245,6 +249,33 @@ export default function Integrations() {
 
   const handleSyncData = (dataType: string) => {
     syncDataMutation.mutate(dataType);
+  };
+
+  const testIntegrationMutation = useMutation({
+    mutationFn: () => apiRequest("/api/nailit/test-integration", { method: "POST" }),
+    onSuccess: (data) => {
+      toast({
+        title: "Integration Test Complete",
+        description: data.integrationHealth.summary
+      });
+      queryClient.setQueryData(['/api/nailit/test-integration'], data);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Integration Test Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleTestIntegration = async () => {
+    setIsTestingIntegration(true);
+    try {
+      await testIntegrationMutation.mutateAsync();
+    } finally {
+      setIsTestingIntegration(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -369,7 +400,7 @@ export default function Integrations() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {apiHealth?.summary?.successful || 0}/{apiHealth?.summary?.total || 9}
+              {apiHealth?.details ? Object.values(apiHealth.details).filter((r: any) => r.success).length : 0}/{apiHealth?.details ? Object.keys(apiHealth.details).length : 0}
             </div>
             <p className="text-xs text-muted-foreground">
               NailIt API endpoints working
@@ -411,6 +442,7 @@ export default function Integrations() {
         <TabsList>
           <TabsTrigger value="overview">System Overview</TabsTrigger>
           <TabsTrigger value="data-sync">Data Sync</TabsTrigger>
+          <TabsTrigger value="requirements">Order Requirements</TabsTrigger>
           <TabsTrigger value="troubleshooting">Troubleshooting</TabsTrigger>
         </TabsList>
 
@@ -537,6 +569,55 @@ export default function Integrations() {
 
             <Card>
               <CardHeader>
+                <CardTitle>Integration Health Check</CardTitle>
+                <CardDescription>Test full system integration with NailIt POS</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {integrationTest && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Integration Score</span>
+                      <Badge variant={integrationTest.integrationHealth.score === 100 ? 'default' : 'secondary'}>
+                        {integrationTest.integrationHealth.score}%
+                      </Badge>
+                    </div>
+                    <Progress value={integrationTest.integrationHealth.score} className="h-2" />
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                      {Object.entries(integrationTest.integrationHealth.tests).map(([test, passed]) => (
+                        <div key={test} className="flex items-center gap-2 text-sm">
+                          {passed ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className="text-xs">{test.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Button
+                  onClick={handleTestIntegration}
+                  disabled={isTestingIntegration}
+                  className="w-full"
+                >
+                  {isTestingIntegration ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Testing Integration...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="mr-2 h-4 w-4" />
+                      Test Full Integration
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Sync Status & History</CardTitle>
                 <CardDescription>Last synchronization times and status</CardDescription>
               </CardHeader>
@@ -587,8 +668,245 @@ export default function Integrations() {
           </div>
         </TabsContent>
 
+        <TabsContent value="requirements" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Required Data for Orders
+                </CardTitle>
+                <CardDescription>
+                  Customer information needed to complete NailIt POS orders
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {apiHealth?.requiredCustomerData?.forOrders ? (
+                    apiHealth.requiredCustomerData.forOrders.map((field: string, index: number) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                        <span className="text-sm">{field}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Loading requirements...</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Required Data for Appointments
+                </CardTitle>
+                <CardDescription>
+                  Information needed to book service appointments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {apiHealth?.requiredCustomerData?.forAppointments ? (
+                    apiHealth.requiredCustomerData.forAppointments.map((field: string, index: number) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                        <span className="text-sm">{field}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Loading requirements...</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Integration Data Flow</CardTitle>
+              <CardDescription>How customer data flows through the system</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="bg-blue-100 p-2 rounded-full">
+                    <Users className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">1. Customer Contact</div>
+                    <div className="text-sm text-gray-600">WhatsApp message initiates conversation</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="bg-green-100 p-2 rounded-full">
+                    <Zap className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">2. AI Processing</div>
+                    <div className="text-sm text-gray-600">AI collects required information through conversation</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="bg-purple-100 p-2 rounded-full">
+                    <Database className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">3. Data Validation</div>
+                    <div className="text-sm text-gray-600">System validates all required fields are collected</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="bg-orange-100 p-2 rounded-full">
+                    <Wifi className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">4. NailIt POS Sync</div>
+                    <div className="text-sm text-gray-600">Order/appointment created in NailIt POS system</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="bg-teal-100 p-2 rounded-full">
+                    <CheckCircle className="h-5 w-5 text-teal-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">5. Confirmation</div>
+                    <div className="text-sm text-gray-600">Customer receives confirmation with booking details</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="troubleshooting" className="space-y-4">
           <div className="grid gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Common Integration Issues</CardTitle>
+                <CardDescription>Quick solutions to frequent problems</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                    <div className="space-y-2">
+                      <div className="font-medium">Services Not Syncing</div>
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-2">If services are not syncing from NailIt:</p>
+                        <ol className="list-decimal list-inside space-y-1">
+                          <li>Click "Test Full Integration" to verify API connection</li>
+                          <li>Check if device registration is successful</li>
+                          <li>Try "Sync Now" button in Data Sync tab</li>
+                          <li>Verify NailIt API credentials are correct</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                    <div className="space-y-2">
+                      <div className="font-medium">Order Creation Failing</div>
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-2">Orders may fail if:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Customer mobile number format is incorrect (needs country code)</li>
+                          <li>Service ID doesn't match NailIt database</li>
+                          <li>Location is not selected</li>
+                          <li>Payment type is not available</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                    <div className="space-y-2">
+                      <div className="font-medium">Staff Not Available</div>
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-2">If GetServiceStaff returns empty:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Verify service exists at selected location</li>
+                          <li>Check date format (should be DD-MM-YYYY)</li>
+                          <li>Some services may not require staff assignment</li>
+                          <li>Staff may be fully booked for selected date</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>API Status Reference</CardTitle>
+                <CardDescription>Understanding NailIt API endpoints</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {apiHealth?.details && Object.entries(apiHealth.details).map(([endpoint, result]: [string, any]) => (
+                    <div key={endpoint} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${result.success ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div>
+                          <div className="font-medium text-sm">{endpoint}</div>
+                          {result.error && (
+                            <div className="text-xs text-red-600">{result.error}</div>
+                          )}
+                          {result.data && (
+                            <div className="text-xs text-gray-600">
+                              {result.data.count !== undefined ? `${result.data.count} items` : 'Connected'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant={result.success ? 'default' : 'destructive'}>
+                        {result.success ? 'Working' : 'Failed'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Integration Recovery</CardTitle>
+                <CardDescription>Steps to restore full functionality</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  onClick={handleRunDiagnostics}
+                  disabled={isRunningDiagnostics}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <Activity className={`mr-2 h-4 w-4 ${isRunningDiagnostics ? 'animate-spin' : ''}`} />
+                  Run Full System Diagnostics
+                </Button>
+                
+                <div className="text-sm text-gray-600 space-y-2">
+                  <p className="font-medium">If integration issues persist:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Restart the application server</li>
+                    <li>Verify NailIt API credentials in Settings</li>
+                    <li>Check network connectivity to NailIt servers</li>
+                    <li>Contact NailIt support for API access issues</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Integration Health Analysis</CardTitle>
