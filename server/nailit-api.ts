@@ -375,8 +375,26 @@ export class NailItAPIService {
     selectedDate: string
   ): Promise<NailItStaff[]> {
     try {
+      // Convert date to DD-MM-YYYY format as required by NailIt API
+      let urlDate = selectedDate;
+      if (selectedDate.includes('/')) {
+        // Convert MM/dd/yyyy to dd-MM-yyyy
+        const [month, day, year] = selectedDate.split('/');
+        urlDate = `${day.padStart(2, '0')}-${month.padStart(2, '0')}-${year}`;
+      } else if (!selectedDate.includes('-')) {
+        // If no format detected, use current date in DD-MM-YYYY
+        const today = new Date();
+        const day = today.getDate().toString().padStart(2, '0');
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const year = today.getFullYear();
+        urlDate = `${day}-${month}-${year}`;
+      }
+      
+      console.log(`🔍 GetServiceStaff API call: itemId=${itemId}, locationId=${locationId}, lang=${lang}, date=${urlDate}`);
+      
+      // Correct parameter order from API documentation: ItemId, LocationId, Language, SelectedDate
       const response = await this.client.get(
-        `/GetServiceStaff1/${itemId}/${locationId}/${lang}/${selectedDate}`
+        `/GetServiceStaff1/${itemId}/${locationId}/${lang}/${urlDate}`
       );
       
       if (response.data.Status === 0) {
@@ -458,6 +476,14 @@ export class NailItAPIService {
     const day = date.getDate().toString().padStart(2, '0');
     const year = date.getFullYear();
     return `${month}/${day}/${year}`;
+  }
+
+  // Helper method to format date for URL paths (DD-MM-YYYY format as per NailIt API documentation)
+  formatDateForURL(date: Date): string {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
   }
 
   // Helper method to create a test order for API validation

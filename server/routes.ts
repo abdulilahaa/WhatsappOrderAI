@@ -1182,20 +1182,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const serviceId = parseInt(req.params.serviceId);
       const locationId = parseInt(req.params.locationId);
+      const selectedDate = nailItAPI.formatDateForURL(new Date()); // Use DD-MM-YYYY format
+      
+      console.log(`🧪 Testing GetServiceStaff with CORRECT API format: serviceId=${serviceId}, locationId=${locationId}, date=${selectedDate}`);
       
       const staff = await nailItAPI.getServiceStaff(
         serviceId,
         locationId,
-        nailItAPI.formatDateForAPI(new Date())
+        'E',
+        selectedDate
       );
       
-      res.json({ success: true, staff, count: staff.length });
+      res.json({ 
+        success: true, 
+        staff, 
+        count: staff.length,
+        testParams: { serviceId, locationId, selectedDate },
+        endpoint: `GetServiceStaff1/${serviceId}/${locationId}/E/${selectedDate}`,
+        apiDocFormat: "ItemId/LocationId/Language/SelectedDate"
+      });
     } catch (error: any) {
       res.status(500).json({ 
         success: false, 
         error: error.message, 
         staff: [],
-        note: "ServiceStaff endpoint test"
+        note: "ServiceStaff endpoint test - Using DD-MM-YYYY date format per API docs"
       });
     }
   });
@@ -1238,6 +1249,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         error: error.message,
         note: "SaveOrder endpoint test"
+      });
+    }
+  });
+
+  // Working GetServiceStaff test endpoint with direct API call  
+  app.get("/api/nailit/test-service-staff-direct/:itemId/:locationId", async (req, res) => {
+    try {
+      const itemId = parseInt(req.params.itemId);
+      const locationId = parseInt(req.params.locationId);
+      const today = new Date();
+      const selectedDate = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
+      
+      console.log(`🧪 DIRECT API TEST: GetServiceStaff1/${itemId}/${locationId}/E/${selectedDate}`);
+      
+      // Make direct API call to test correct format
+      const response = await fetch(`http://nailit.innovasolution.net/GetServiceStaff1/${itemId}/${locationId}/E/${selectedDate}`, {
+        method: 'GET',
+        headers: {
+          'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.Status === 0) {
+        res.json({
+          success: true,
+          staff: data.Specialists || [],
+          count: (data.Specialists || []).length,
+          testParams: { itemId, locationId, selectedDate },
+          correctEndpoint: `GetServiceStaff1/${itemId}/${locationId}/E/${selectedDate}`,
+          status: "WORKING - Direct API call successful"
+        });
+      } else {
+        res.json({
+          success: false,
+          error: data.Message || "API returned error status",
+          testParams: { itemId, locationId, selectedDate },
+          apiResponse: data
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        note: "Direct GetServiceStaff API test failed"
       });
     }
   });

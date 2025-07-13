@@ -71,6 +71,14 @@ const NAILIT_ENDPOINTS: EndpointInfo[] = [
     category: "data"
   },
   {
+    name: "Get Service Staff",
+    description: "Gets available staff for a specific service",
+    method: "GET",
+    endpoint: "GetServiceStaff",
+    priority: "important",
+    category: "data"
+  },
+  {
     name: "Get Items By Date",
     description: "Retrieves services/products for specific date",
     method: "GET",
