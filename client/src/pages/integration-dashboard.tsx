@@ -39,10 +39,10 @@ export default function IntegrationDashboard() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [orderTestData, setOrderTestData] = useState<OrderTestData>({
     customerId: 110732,
-    serviceId: 318,
-    serviceName: "Ginger Scalp Scrub Treatment",
+    serviceId: 203, // Changed to a working service ID from API docs
+    serviceName: "Basic Manicure Service",
     locationId: 1,
-    appointmentDate: "13/07/2025",
+    appointmentDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit', year: 'numeric'}), // Tomorrow
     paymentTypeId: 1,
     customerInfo: {
       name: "Sarah Ahmed",
