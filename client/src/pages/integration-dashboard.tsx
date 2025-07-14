@@ -140,10 +140,18 @@ export default function IntegrationDashboard() {
     }
   });
 
-  // Test register user with sample data
+  // Test register user with form data
   const testRegisterUserMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/nailit/test-register-user");
+      const userData = {
+        Address: "Kuwait City, Kuwait",
+        Email_Id: orderTestData.customerInfo.email,
+        Name: orderTestData.customerInfo.name,
+        Mobile: orderTestData.customerInfo.mobile,
+        Login_Type: 1,
+        Image_Name: ""
+      };
+      const response = await apiRequest("POST", "/api/nailit/register-user", userData);
       return await response.json();
     },
     onError: (error) => {
@@ -151,10 +159,28 @@ export default function IntegrationDashboard() {
     }
   });
 
-  // Test integrated order creation (user + order)
+  // Test integrated order creation (user + order) with form data
   const testIntegratedOrderMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/nailit/test-integrated-order");
+      const integratedOrderData = {
+        customerInfo: {
+          name: orderTestData.customerInfo.name,
+          mobile: orderTestData.customerInfo.mobile,
+          email: orderTestData.customerInfo.email,
+          address: "Kuwait City, Kuwait"
+        },
+        orderDetails: {
+          serviceId: orderTestData.serviceId,
+          serviceName: orderTestData.serviceName,
+          price: 5.0, // From your form: Aloevera Mask Treatment - 5.00 KWD
+          locationId: orderTestData.locationId,
+          appointmentDate: orderTestData.appointmentDate,
+          paymentTypeId: orderTestData.paymentTypeId,
+          staffId: 48,
+          timeFrameIds: [5, 6]
+        }
+      };
+      const response = await apiRequest("POST", "/api/nailit/create-order-with-user", integratedOrderData);
       return await response.json();
     },
     onError: (error) => {
@@ -475,7 +501,7 @@ export default function IntegrationDashboard() {
                   disabled={testRegisterUserMutation.isPending}
                   variant="outline"
                 >
-                  {testRegisterUserMutation.isPending ? "Testing..." : "Test Register User API"}
+                  {testRegisterUserMutation.isPending ? "Registering..." : "Register Customer (Form Data)"}
                 </Button>
                 <Button 
                   onClick={handleTestOrder}
@@ -488,7 +514,7 @@ export default function IntegrationDashboard() {
                   disabled={testIntegratedOrderMutation.isPending}
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  {testIntegratedOrderMutation.isPending ? "Creating..." : "Test Integrated Order"}
+                  {testIntegratedOrderMutation.isPending ? "Creating..." : "Complete Order (Register + Order)"}
                 </Button>
               </div>
 

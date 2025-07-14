@@ -1130,6 +1130,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create order with user integration using form data
+  app.post("/api/nailit/create-order-with-user", async (req, res) => {
+    try {
+      console.log("🛒 Creating integrated order with user data from form...");
+      console.log("📋 Request data:", JSON.stringify(req.body, null, 2));
+      
+      const result = await nailItAPI.createOrderWithUser(req.body);
+      
+      if (result && result.Status === 0) {
+        res.json({
+          success: true,
+          message: "Integrated order created successfully!",
+          nailItResponse: result,
+          formData: req.body,
+          orderId: result.OrderId,
+          customerId: result.CustomerId
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result ? `Order failed: ${result.Message}` : "Failed to create integrated order",
+          nailItResponse: result,
+          formData: req.body
+        });
+      }
+    } catch (error: any) {
+      console.error("Integrated order creation error:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Error creating integrated order: " + error.message 
+      });
+    }
+  });
+
   // Test Integrated Order Creation (User Registration + Order)
   app.post("/api/nailit/test-integrated-order", async (req, res) => {
     try {
