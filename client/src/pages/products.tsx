@@ -104,7 +104,12 @@ export default function Products() {
   // Calculate total products from cached data
   const getTotalProducts = () => {
     if (!locations) return 0;
-    return Object.values(locationData).reduce((total, data) => total + (data?.totalFound || 0), 0);
+    let total = 0;
+    locations.forEach(location => {
+      const cachedData = queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", location.Location_Id]);
+      total += cachedData?.totalFound || 0;
+    });
+    return total;
   };
 
   // Filter products by search query for a specific location
@@ -118,7 +123,7 @@ export default function Products() {
 
   // Get location status based on cached data
   const getLocationStatus = (locationId: number) => {
-    const data = locationData[locationId];
+    const data = locationData[locationId] || queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", locationId]);
     if (!data) return { status: 'loading', color: 'text-blue-600' };
     if (data.totalFound > 0) return { status: 'success', color: 'text-green-600' };
     return { status: 'empty', color: 'text-gray-600' };
@@ -159,6 +164,22 @@ export default function Products() {
       setActiveTab(locations[0].Location_Id.toString());
     }
   }, [locations, activeTab]);
+
+  // Preload data for all locations to show service counts
+  React.useEffect(() => {
+    if (locations) {
+      locations.forEach(location => {
+        // Trigger data loading for each location
+        queryClient.prefetchQuery({
+          queryKey: ["/api/nailit/products-by-location", location.Location_Id],
+          queryFn: async () => {
+            const response = await apiRequest("GET", `/api/nailit/products-by-location/${location.Location_Id}`);
+            return await response.json();
+          },
+        });
+      });
+    }
+  }, [locations, queryClient]);
 
   return (
     <div className="container mx-auto p-6">
@@ -239,7 +260,8 @@ export default function Products() {
                   <MapPin className="h-4 w-4" />
                   <span className="truncate">{location.Location_Name}</span>
                   <Badge variant="secondary" className={status.color}>
-                    {locationData[location.Location_Id]?.totalFound || 0}
+                    {locationData[location.Location_Id]?.totalFound || 
+                     queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", location.Location_Id])?.totalFound || 0}
                   </Badge>
                 </TabsTrigger>
               );
@@ -259,7 +281,7 @@ export default function Products() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {locations.map(location => {
                 const status = getLocationStatus(location.Location_Id);
-                const data = locationData[location.Location_Id];
+                const data = locationData[location.Location_Id] || queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", location.Location_Id]);
                 
                 return (
                   <Card key={location.Location_Id} className="hover:shadow-lg transition-shadow">
@@ -307,10 +329,11 @@ export default function Products() {
           {/* Location-specific tabs */}
           {locations.map(location => {
             const isActive = activeTab === location.Location_Id.toString();
-            const filteredProducts = filterLocationProducts(
-              isActive && activeLocationProducts ? activeLocationProducts.products : 
-              locationData[location.Location_Id]?.products || []
-            );
+            const locationProducts = isActive && activeLocationProducts ? activeLocationProducts : 
+              locationData[location.Location_Id] || 
+              queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", location.Location_Id]);
+            
+            const filteredProducts = filterLocationProducts(locationProducts?.products || []);
             
             return (
               <TabsContent key={location.Location_Id} value={location.Location_Id.toString()} className="mt-6">
