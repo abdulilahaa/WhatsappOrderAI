@@ -1621,6 +1621,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   })();
 
+  // Register NailIt order flow routes
+  const { registerNailItOrderFlowRoutes } = await import("./routes/nailit-order-flow");
+  registerNailItOrderFlowRoutes(app);
+
   const httpServer = createServer(app);
   return httpServer;
 }

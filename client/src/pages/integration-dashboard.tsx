@@ -174,10 +174,10 @@ export default function IntegrationDashboard() {
           serviceName: orderTestData.serviceName,
           price: 5.0, // From your form: Aloevera Mask Treatment - 5.00 KWD
           locationId: orderTestData.locationId,
-          appointmentDate: orderTestData.appointmentDate,
+          appointmentDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'}).replace(/\//g, '/'), // Tomorrow's date in MM/dd/yyyy format
           paymentTypeId: orderTestData.paymentTypeId,
           staffId: 48,
-          timeFrameIds: [5, 6]
+          timeFrameIds: [1, 2] // Use earlier time slots
         }
       };
       const response = await apiRequest("POST", "/api/nailit/create-order-with-user", integratedOrderData);
@@ -185,6 +185,31 @@ export default function IntegrationDashboard() {
     },
     onError: (error) => {
       console.error("Test integrated order error:", error);
+    }
+  });
+
+  // Test complete flow with availability check
+  const testCompleteFlowMutation = useMutation({
+    mutationFn: async () => {
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const formattedDate = tomorrow.toLocaleDateString('en-US', {
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric'
+      });
+      
+      const flowData = {
+        customerInfo: orderTestData.customerInfo,
+        serviceId: orderTestData.serviceId,
+        locationId: orderTestData.locationId,
+        appointmentDate: formattedDate
+      };
+      
+      const response = await apiRequest("POST", "/api/nailit/test-complete-flow", flowData);
+      return await response.json();
+    },
+    onError: (error) => {
+      console.error("Complete flow test error:", error);
     }
   });
 
@@ -516,6 +541,13 @@ export default function IntegrationDashboard() {
                 >
                   {testIntegratedOrderMutation.isPending ? "Creating..." : "Complete Order (Register + Order)"}
                 </Button>
+                <Button 
+                  onClick={() => testCompleteFlowMutation.mutate()}
+                  disabled={testCompleteFlowMutation.isPending}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {testCompleteFlowMutation.isPending ? "Testing Flow..." : "Test Complete Flow (With Availability)"}
+                </Button>
               </div>
 
               {/* Test Results */}
@@ -594,6 +626,45 @@ export default function IntegrationDashboard() {
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                   <h4 className="font-semibold text-red-800">Integrated Order Test Failed</h4>
                   <p className="text-sm text-red-700 mt-2">{testIntegratedOrderMutation.error.message}</p>
+                </div>
+              )}
+
+              {/* Complete Flow Test Result */}
+              {testCompleteFlowMutation.data && (
+                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                  <h4 className="font-semibold text-indigo-800">Complete Flow Test Result</h4>
+                  <div className="mt-2">
+                    {testCompleteFlowMutation.data.success ? (
+                      <div>
+                        <p className="text-sm text-indigo-700">✅ Order created through complete flow!</p>
+                        <p className="text-sm text-indigo-600">Order ID: {testCompleteFlowMutation.data.orderId}</p>
+                        <p className="text-sm text-indigo-600">Flow Summary:</p>
+                        <ul className="text-sm text-indigo-600 ml-4 list-disc">
+                          <li>Service: {testCompleteFlowMutation.data.flowSummary?.service}</li>
+                          <li>Staff: {testCompleteFlowMutation.data.flowSummary?.staff}</li>
+                          <li>Time Slots: {testCompleteFlowMutation.data.flowSummary?.timeSlots?.join(', ')}</li>
+                        </ul>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-red-700">{testCompleteFlowMutation.data.message}</p>
+                        <p className="text-sm text-red-600 mt-1">Failed at step: {testCompleteFlowMutation.data.step}</p>
+                      </div>
+                    )}
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-sm font-medium text-indigo-800">View Details</summary>
+                      <pre className="text-xs text-indigo-700 mt-1 overflow-x-auto">
+                        {JSON.stringify(testCompleteFlowMutation.data, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                </div>
+              )}
+
+              {testCompleteFlowMutation.error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-semibold text-red-800">Complete Flow Test Failed</h4>
+                  <p className="text-sm text-red-700 mt-2">{testCompleteFlowMutation.error.message}</p>
                 </div>
               )}
             </CardContent>
