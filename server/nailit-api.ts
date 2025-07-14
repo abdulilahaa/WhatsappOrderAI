@@ -171,6 +171,31 @@ export class NailItAPIService {
     }
   }
 
+  // Method to get or create user and return their App_User_Id
+  async getOrCreateUser(userData: NailItRegisterRequest): Promise<number | null> {
+    try {
+      console.log('🔍 Getting or creating user in NailIt POS:', userData.Email_Id);
+      
+      // Try to register the user
+      const registerResult = await this.registerUser(userData);
+      
+      if (registerResult && registerResult.Status === 0) {
+        console.log('✅ User registered/found with App_User_Id:', registerResult.App_User_Id);
+        return registerResult.App_User_Id;
+      } else if (registerResult) {
+        console.log('⚠️ User registration response:', registerResult);
+        // If Status is not 0, user might already exist or other issue
+        // You could add logic here to handle specific error codes
+        return null;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Failed to get or create user:', error);
+      return null;
+    }
+  }
+
   async testAllEndpoints(): Promise<{ [key: string]: { success: boolean; error?: string; data?: any } }> {
     const results: { [key: string]: { success: boolean; error?: string; data?: any } } = {};
     
@@ -502,7 +527,7 @@ export class NailItAPIService {
       Gross_Amount: 10.0,
       Payment_Type_Id: 1,
       Order_Type: 2,
-      UserId: 128,
+      UserId: 128, // This will be replaced by proper App_User_Id
       FirstName: "Test Customer",
       Mobile: "+96588888889",
       Email: "test@example.com",
@@ -528,6 +553,83 @@ export class NailItAPIService {
         }
       ]
     };
+  }
+
+  // Method to create order with proper user integration
+  async createOrderWithUser(orderData: {
+    customerInfo: {
+      name: string;
+      mobile: string;
+      email: string;
+      address?: string;
+    };
+    orderDetails: {
+      serviceId: number;
+      serviceName: string;
+      price: number;
+      locationId: number;
+      appointmentDate: string;
+      paymentTypeId: number;
+      staffId?: number;
+      timeFrameIds?: number[];
+    };
+  }): Promise<NailItSaveOrderResponse | null> {
+    try {
+      console.log('🛒 Creating integrated order with user registration...');
+      
+      // Step 1: Get or create user
+      const userData: NailItRegisterRequest = {
+        Address: orderData.customerInfo.address || "Kuwait",
+        Email_Id: orderData.customerInfo.email,
+        Name: orderData.customerInfo.name,
+        Mobile: orderData.customerInfo.mobile,
+        Login_Type: 1
+      };
+      
+      const appUserId = await this.getOrCreateUser(userData);
+      
+      if (!appUserId) {
+        console.error('❌ Failed to get or create user');
+        return null;
+      }
+      
+      // Step 2: Create order with the correct App_User_Id
+      const nailItOrder: NailItSaveOrderRequest = {
+        Gross_Amount: orderData.orderDetails.price,
+        Payment_Type_Id: orderData.orderDetails.paymentTypeId,
+        Order_Type: 2, // Service booking
+        UserId: appUserId, // Use the App_User_Id from registration
+        FirstName: orderData.customerInfo.name,
+        Mobile: orderData.customerInfo.mobile,
+        Email: orderData.customerInfo.email,
+        Discount_Amount: 0,
+        Net_Amount: orderData.orderDetails.price,
+        POS_Location_Id: orderData.orderDetails.locationId,
+        OrderDetails: [{
+          Prod_Id: orderData.orderDetails.serviceId,
+          Prod_Name: orderData.orderDetails.serviceName,
+          Qty: 1,
+          Rate: orderData.orderDetails.price,
+          Amount: orderData.orderDetails.price,
+          Size_Id: null,
+          Size_Name: "",
+          Promotion_Id: 0,
+          Promo_Code: "",
+          Discount_Amount: 0,
+          Net_Amount: orderData.orderDetails.price,
+          Staff_Id: orderData.orderDetails.staffId || 48, // Default staff
+          TimeFrame_Ids: orderData.orderDetails.timeFrameIds || [5, 6], // Default time slots
+          Appointment_Date: orderData.orderDetails.appointmentDate
+        }]
+      };
+      
+      console.log('📋 Creating order with App_User_Id:', appUserId);
+      return await this.saveOrder(nailItOrder);
+      
+    } catch (error) {
+      console.error('Failed to create integrated order:', error);
+      return null;
+    }
   }
 
   // Helper method to search for services by name

@@ -1130,6 +1130,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Integrated Order Creation (User Registration + Order)
+  app.post("/api/nailit/test-integrated-order", async (req, res) => {
+    try {
+      console.log("🧪 Testing integrated user registration + order creation...");
+      
+      const testOrderData = {
+        customerInfo: {
+          name: "Ahmed Al-Kuwaiti",
+          mobile: "+96599887766",
+          email: "ahmed.test@nailit.com",
+          address: "Al-Salmiya, Kuwait City"
+        },
+        orderDetails: {
+          serviceId: 203,
+          serviceName: "Manicure & Pedicure",
+          price: 15.0,
+          locationId: 1,
+          appointmentDate: nailItAPI.formatDateForAPI(new Date()),
+          paymentTypeId: 1, // Cash on Arrival
+          staffId: 48,
+          timeFrameIds: [5, 6] // Available time slots
+        }
+      };
+      
+      console.log("📋 Test order data:", JSON.stringify(testOrderData, null, 2));
+      
+      const result = await nailItAPI.createOrderWithUser(testOrderData);
+      
+      if (result && result.Status === 0) {
+        res.json({
+          success: true,
+          message: "Integrated order created successfully!",
+          nailItResponse: result,
+          testData: testOrderData,
+          orderId: result.OrderId,
+          customerId: result.CustomerId
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result ? `Order failed: ${result.Message}` : "Failed to create integrated order",
+          nailItResponse: result,
+          testData: testOrderData
+        });
+      }
+    } catch (error: any) {
+      console.error("Integrated order test error:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Error testing integrated order: " + error.message 
+      });
+    }
+  });
+
   app.get("/api/nailit/services/search", async (req, res) => {
     try {
       const { query, date } = req.query;

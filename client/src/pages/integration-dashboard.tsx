@@ -151,6 +151,17 @@ export default function IntegrationDashboard() {
     }
   });
 
+  // Test integrated order creation (user + order)
+  const testIntegratedOrderMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/nailit/test-integrated-order");
+      return await response.json();
+    },
+    onError: (error) => {
+      console.error("Test integrated order error:", error);
+    }
+  });
+
   const handleTestAllEndpoints = () => {
     testEndpointsMutation.mutate();
   };
@@ -472,6 +483,13 @@ export default function IntegrationDashboard() {
                 >
                   {testOrderMutation.isPending ? "Creating Order..." : "Test Order Creation"}
                 </Button>
+                <Button 
+                  onClick={() => testIntegratedOrderMutation.mutate()}
+                  disabled={testIntegratedOrderMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {testIntegratedOrderMutation.isPending ? "Creating..." : "Test Integrated Order"}
+                </Button>
               </div>
 
               {/* Test Results */}
@@ -520,6 +538,36 @@ export default function IntegrationDashboard() {
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                   <h4 className="font-semibold text-red-800">Test Register User API Failed</h4>
                   <p className="text-sm text-red-700 mt-2">{testRegisterUserMutation.error.message}</p>
+                </div>
+              )}
+
+              {testIntegratedOrderMutation.data && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <h4 className="font-semibold text-emerald-800">Integrated Order Test Result</h4>
+                  <div className="mt-2">
+                    {testIntegratedOrderMutation.data.success ? (
+                      <div>
+                        <p className="text-sm text-emerald-700">✅ Order created successfully!</p>
+                        <p className="text-sm text-emerald-600">Order ID: {testIntegratedOrderMutation.data.orderId}</p>
+                        <p className="text-sm text-emerald-600">Customer ID: {testIntegratedOrderMutation.data.customerId}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-red-700">{testIntegratedOrderMutation.data.message}</p>
+                    )}
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-sm font-medium text-emerald-800">View Details</summary>
+                      <pre className="text-xs text-emerald-700 mt-1 overflow-x-auto">
+                        {JSON.stringify(testIntegratedOrderMutation.data, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                </div>
+              )}
+
+              {testIntegratedOrderMutation.error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-semibold text-red-800">Integrated Order Test Failed</h4>
+                  <p className="text-sm text-red-700 mt-2">{testIntegratedOrderMutation.error.message}</p>
                 </div>
               )}
             </CardContent>
