@@ -995,6 +995,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get products/services by location from NailIt API
+  app.get("/api/nailit/products-by-location/:locationId", async (req, res) => {
+    try {
+      const { locationId } = req.params;
+      const { itemType = "2" } = req.query; // Default to services (2)
+      
+      console.log(`🏢 Fetching products for location ${locationId}, item type ${itemType}`);
+      
+      const currentDate = nailItAPI.formatDateForAPI(new Date());
+      let allItems: any[] = [];
+      let totalFound = 0;
+      
+      // Fetch all items and filter by location
+      const result = await nailItAPI.getItemsByDate({
+        selectedDate: currentDate,
+        itemTypeId: Number(itemType),
+        pageNo: 1
+      });
+      
+      if (result.items && result.items.length > 0) {
+        console.log(`📋 Total items from API: ${result.totalItems}`);
+        
+        // Filter items that are available at this location
+        const locationItems = result.items.filter(item => 
+          item.Location_Ids && item.Location_Ids.includes(Number(locationId))
+        );
+        
+        console.log(`📍 Items available at location ${locationId}: ${locationItems.length}`);
+        allItems = locationItems;
+        totalFound = locationItems.length;
+        
+        // If we have many items, we might need to fetch more pages
+        if (result.totalItems > result.items.length) {
+          console.log(`📄 Need to fetch more pages (total: ${result.totalItems})`);
+          // TODO: Implement pagination if needed
+        }
+      }
+      
+      console.log(`✅ Location ${locationId}: Found ${allItems.length} items`);
+      
+      // Transform to our product format
+      const products = allItems.map(item => ({
+        id: item.Item_Id,
+        name: item.Item_Name,
+        description: item.Item_Desc ? item.Item_Desc.replace(/<[^>]*>/g, '') : '',
+        price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
+        image: item.Image_Url ? `https://api.nailit.com/${item.Image_Url}` : '/placeholder-service.jpg',
+        category: 'NailIt Service',
+        duration: item.Duration || 30,
+        locationId: Number(locationId),
+        nailItData: {
+          Item_Id: item.Item_Id,
+          Primary_Price: item.Primary_Price,
+          Special_Price: item.Special_Price,
+          Duration: item.Duration,
+          Available_Qty: item.Available_Qty,
+          Location_Ids: item.Location_Ids,
+          Is_Favorite: item.Is_Favorite,
+          Sizes: item.Sizes || []
+        }
+      }));
+      
+      res.json({
+        success: true,
+        locationId: Number(locationId),
+        products,
+        totalFound,
+        message: `Filtered ${totalFound} items for location ${locationId} from ${result.totalItems} total items`
+      });
+      
+    } catch (error: any) {
+      console.error(`Error fetching products for location ${req.params.locationId}:`, error);
+      res.status(500).json({ 
+        success: false,
+        message: "Error fetching location products: " + error.message 
+      });
+    }
+  });
+
   // Comprehensive API Testing
   app.get("/api/nailit/test-all-endpoints", async (req, res) => {
     try {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,40 @@ import AddProductModal from "@/components/add-product-modal";
 import WebScraperModal from "@/components/web-scraper-modal";
 import PDFUploadModal from "@/components/pdf-upload-modal";
 import NailItSyncControls from "@/components/nailit-sync-controls";
-import { Plus, Search, Package, Globe, FileText, Settings, Scissors, Sparkles, Palette, Hand, Zap } from "lucide-react";
+import { Plus, Search, Package, Globe, FileText, Settings, MapPin, RefreshCw, Store } from "lucide-react";
 import type { Product } from "@shared/schema";
+
+interface NailItLocation {
+  Location_Id: number;
+  Location_Name: string;
+  Address: string;
+  Phone: string;
+  From_Time: string;
+  To_Time: string;
+  Working_Days: string;
+}
+
+interface LocationProducts {
+  success: boolean;
+  locationId: number;
+  products: any[];
+  totalFound: number;
+  strategies: string[];
+}
+
+// Separate component to handle location queries with hooks
+function LocationProductsManager({ location }: { location: NailItLocation }) {
+  const query = useQuery<LocationProducts>({
+    queryKey: ["/api/nailit/products-by-location", location.Location_Id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/nailit/products-by-location/${location.Location_Id}`);
+      return await response.json();
+    },
+    enabled: !!location.Location_Id,
+  });
+  
+  return { location, query };
+}
 
 export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,104 +54,89 @@ export default function Products() {
   const [isPDFUploadOpen, setIsPDFUploadOpen] = useState(false);
   const [isNailItSyncOpen, setIsNailItSyncOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("overview");
+  const [refreshingLocation, setRefreshingLocation] = useState<number | null>(null);
+  const [locationData, setLocationData] = useState<Record<number, LocationProducts>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: products, isLoading } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
+  // Fetch NailIt locations
+  const { data: locations, isLoading: locationsLoading } = useQuery<NailItLocation[]>({
+    queryKey: ["/api/nailit/locations"],
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (productId: number) => 
-      apiRequest("DELETE", `/api/products/${productId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ 
-        title: "Product removed from database",
-        description: "AI agent updated with latest product catalog"
-      });
+  // Refresh location products
+  const refreshLocationMutation = useMutation({
+    mutationFn: async (locationId: number) => {
+      setRefreshingLocation(locationId);
+      const response = await apiRequest("GET", `/api/nailit/products-by-location/${locationId}`);
+      return await response.json();
     },
-    onError: (error: any) => {
+    onSuccess: (data, locationId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nailit/products-by-location", locationId] });
+      toast({ 
+        title: "Location services refreshed",
+        description: `Found ${data.totalFound} services for this location`
+      });
+      setRefreshingLocation(null);
+    },
+    onError: (error: any, locationId) => {
       toast({
-        title: "Database deletion failed",
+        title: "Refresh failed",
         description: error.message,
         variant: "destructive",
       });
+      setRefreshingLocation(null);
     },
   });
 
-  // Categorize services based on their content and NailIt groups
-  const categorizeService = (product: Product) => {
-    const name = product.name.toLowerCase();
-    const description = product.description.toLowerCase();
+  // Fetch products for active location
+  const activeLocationId = activeTab !== "overview" ? parseInt(activeTab) : null;
+  const { data: activeLocationProducts, isLoading: productsLoading, error: productsError } = useQuery<LocationProducts>({
+    queryKey: ["/api/nailit/products-by-location", activeLocationId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/nailit/products-by-location/${activeLocationId}`);
+      return await response.json();
+    },
+    enabled: !!activeLocationId,
+  });
 
-    if (name.includes('hair') || name.includes('blowout') || name.includes('straightening') || name.includes('extension')) {
-      return 'hair';
-    }
-    if (name.includes('nail') || name.includes('manicure') || name.includes('pedicure') || name.includes('polish') || name.includes('gel')) {
-      return 'nails';
-    }
-    if (name.includes('facial') || name.includes('skin') || name.includes('massage') || name.includes('treatment')) {
-      return 'skincare';
-    }
-    if (name.includes('makeup') || name.includes('lash') || name.includes('brow') || name.includes('eyebrow')) {
-      return 'beauty';
-    }
-    if (name.includes('wax') || name.includes('laser') || name.includes('removal')) {
-      return 'waxing';
-    }
-    
-    return 'other';
+  // Calculate total products from cached data
+  const getTotalProducts = () => {
+    if (!locations) return 0;
+    return Object.values(locationData).reduce((total, data) => total + (data?.totalFound || 0), 0);
   };
 
-  const categorizedProducts = products?.reduce((acc, product) => {
-    const category = categorizeService(product);
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(product);
-    return acc;
-  }, {} as Record<string, Product[]>) || {};
-
-  const filteredProducts = (category: string) => {
-    const categoryProducts = category === 'all' ? products || [] : categorizedProducts[category] || [];
-    return categoryProducts.filter(product =>
+  // Filter products by search query for a specific location
+  const filterLocationProducts = (products: any[]) => {
+    if (!searchQuery) return products;
+    return products.filter(product =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'hair': return <Scissors className="h-4 w-4" />;
-      case 'nails': return <Hand className="h-4 w-4" />;
-      case 'skincare': return <Sparkles className="h-4 w-4" />;
-      case 'beauty': return <Palette className="h-4 w-4" />;
-      case 'waxing': return <Zap className="h-4 w-4" />;
-      default: return <Package className="h-4 w-4" />;
-    }
+  // Get location status based on cached data
+  const getLocationStatus = (locationId: number) => {
+    const data = locationData[locationId];
+    if (!data) return { status: 'loading', color: 'text-blue-600' };
+    if (data.totalFound > 0) return { status: 'success', color: 'text-green-600' };
+    return { status: 'empty', color: 'text-gray-600' };
   };
 
-  const getCategoryName = (category: string) => {
-    switch (category) {
-      case 'hair': return 'Hair Services';
-      case 'nails': return 'Nail Services';
-      case 'skincare': return 'Skincare';
-      case 'beauty': return 'Beauty & Makeup';
-      case 'waxing': return 'Waxing & Removal';
-      case 'other': return 'Other Services';
-      default: return 'All Services';
+  // Update location data when fetched
+  React.useEffect(() => {
+    if (activeLocationProducts && activeLocationId) {
+      setLocationData(prev => ({
+        ...prev,
+        [activeLocationId]: activeLocationProducts
+      }));
     }
-  };
+  }, [activeLocationProducts, activeLocationId]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setIsModalOpen(true);
-  };
-
-  const handleDelete = (productId: number) => {
-    if (confirm("Are you sure you want to delete this product?")) {
-      deleteMutation.mutate(productId);
-    }
   };
 
   const handleAddNew = () => {
@@ -132,13 +149,24 @@ export default function Products() {
     setEditingProduct(null);
   };
 
+  const handleRefreshLocation = (locationId: number) => {
+    refreshLocationMutation.mutate(locationId);
+  };
+
+  // Set first location as default tab when locations are loaded
+  React.useEffect(() => {
+    if (locations && locations.length > 0 && activeTab === "overview") {
+      setActiveTab(locations[0].Location_Id.toString());
+    }
+  }, [locations, activeTab]);
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Service Catalog</h1>
+          <h1 className="text-3xl font-bold">NailIt Service Catalog by Location</h1>
           <p className="text-gray-600 mt-2">
-            Complete NailIt POS integration - {products?.length || 0} authentic services
+            Live services from NailIt POS - {getTotalProducts()} authentic services across {locations?.length || 0} locations
           </p>
         </div>
         <div className="flex gap-2">
@@ -165,7 +193,7 @@ export default function Products() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Search services..."
+            placeholder="Search services across all locations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -173,89 +201,199 @@ export default function Products() {
         </div>
       </div>
 
-      {isLoading ? (
+      {locationsLoading ? (
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading services...</p>
+          <p className="mt-4 text-gray-600">Loading NailIt locations...</p>
         </div>
+      ) : !locations || locations.length === 0 ? (
+        <Card className="text-center py-8">
+          <CardContent>
+            <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No locations found</h3>
+            <p className="text-gray-600 mb-4">
+              Unable to fetch NailIt locations. Please check the API connection.
+            </p>
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/nailit/locations"] })}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="all" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              All
-              <Badge variant="secondary">{products?.length || 0}</Badge>
+          <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${Math.min(locations.length + 1, 6)}, 1fr)` }}>
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <Store className="h-4 w-4" />
+              Overview
+              <Badge variant="secondary">{getTotalProducts()}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="hair" className="flex items-center gap-2">
-              {getCategoryIcon('hair')}
-              Hair
-              <Badge variant="secondary">{categorizedProducts.hair?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="nails" className="flex items-center gap-2">
-              {getCategoryIcon('nails')}
-              Nails
-              <Badge variant="secondary">{categorizedProducts.nails?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="skincare" className="flex items-center gap-2">
-              {getCategoryIcon('skincare')}
-              Skincare
-              <Badge variant="secondary">{categorizedProducts.skincare?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="beauty" className="flex items-center gap-2">
-              {getCategoryIcon('beauty')}
-              Beauty
-              <Badge variant="secondary">{categorizedProducts.beauty?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="waxing" className="flex items-center gap-2">
-              {getCategoryIcon('waxing')}
-              Waxing
-              <Badge variant="secondary">{categorizedProducts.waxing?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="other" className="flex items-center gap-2">
-              {getCategoryIcon('other')}
-              Other
-              <Badge variant="secondary">{categorizedProducts.other?.length || 0}</Badge>
-            </TabsTrigger>
+            {locations.slice(0, 5).map(location => {
+              const status = getLocationStatus(location.Location_Id);
+              return (
+                <TabsTrigger 
+                  key={location.Location_Id} 
+                  value={location.Location_Id.toString()} 
+                  className="flex items-center gap-2"
+                >
+                  <MapPin className="h-4 w-4" />
+                  <span className="truncate">{location.Location_Name}</span>
+                  <Badge variant="secondary" className={status.color}>
+                    {locationData[location.Location_Id]?.totalFound || 0}
+                  </Badge>
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
-          {(['all', 'hair', 'nails', 'skincare', 'beauty', 'waxing', 'other'] as const).map((category) => (
-            <TabsContent key={category} value={category} className="mt-6">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
-                  {getCategoryIcon(category)}
-                  {getCategoryName(category)}
-                  <Badge variant="outline">{filteredProducts(category).length} services</Badge>
-                </h2>
-              </div>
-              
-              {filteredProducts(category).length === 0 ? (
-                <Card className="text-center py-8">
-                  <CardContent>
-                    {getCategoryIcon(category)}
-                    <h3 className="text-lg font-semibold mb-2 mt-4">No services found in this category</h3>
-                    <p className="text-gray-600 mb-4">
-                      {searchQuery ? "No services match your search in this category." : "This category is empty."}
-                    </p>
-                    <Button onClick={handleAddNew}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Service
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredProducts(category).map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="mt-6">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Store className="h-4 w-4" />
+                All Locations Overview
+                <Badge variant="outline">{getTotalProducts()} total services</Badge>
+              </h2>
+            </div>
+            
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {locations.map(location => {
+                const status = getLocationStatus(location.Location_Id);
+                const data = locationData[location.Location_Id];
+                
+                return (
+                  <Card key={location.Location_Id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5" />
+                          {location.Location_Name}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRefreshLocation(location.Location_Id)}
+                          disabled={refreshingLocation === location.Location_Id}
+                        >
+                          <RefreshCw className={`h-4 w-4 ${refreshingLocation === location.Location_Id ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600">{location.Address}</p>
+                        <p className="text-sm text-gray-600">Phone: {location.Phone}</p>
+                        <p className="text-sm text-gray-600">Hours: {location.From_Time} - {location.To_Time}</p>
+                        <div className="flex items-center justify-between pt-2">
+                          <span className={`text-sm font-medium ${status.color}`}>
+                            {!data ? 'Loading...' : 
+                             `${data.totalFound || 0} services`}
+                          </span>
+                          <Button
+                            size="sm"
+                            onClick={() => setActiveTab(location.Location_Id.toString())}
+                          >
+                            View Services
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          {/* Location-specific tabs */}
+          {locations.map(location => {
+            const isActive = activeTab === location.Location_Id.toString();
+            const filteredProducts = filterLocationProducts(
+              isActive && activeLocationProducts ? activeLocationProducts.products : 
+              locationData[location.Location_Id]?.products || []
+            );
+            
+            return (
+              <TabsContent key={location.Location_Id} value={location.Location_Id.toString()} className="mt-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      {location.Location_Name}
+                      <Badge variant="outline">{filteredProducts.length} services</Badge>
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">{location.Address}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleRefreshLocation(location.Location_Id)}
+                    disabled={refreshingLocation === location.Location_Id}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${refreshingLocation === location.Location_Id ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
                 </div>
-              )}
-            </TabsContent>
-          ))}
+                
+                {isActive && productsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading services for {location.Location_Name}...</p>
+                  </div>
+                ) : isActive && productsError ? (
+                  <Card className="text-center py-8">
+                    <CardContent>
+                      <div className="text-red-500 mb-4">
+                        <Package className="h-16 w-16 mx-auto mb-2" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">Error loading services</h3>
+                      <p className="text-gray-600 mb-4">
+                        Failed to load services for this location. Please try refreshing.
+                      </p>
+                      <Button onClick={() => handleRefreshLocation(location.Location_Id)}>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : filteredProducts.length === 0 ? (
+                  <Card className="text-center py-8">
+                    <CardContent>
+                      <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">
+                        {searchQuery ? "No services match your search" : "No services available"}
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        {searchQuery 
+                          ? `No services at ${location.Location_Name} match "${searchQuery}"`
+                          : `${location.Location_Name} currently has no services available`
+                        }
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <Button onClick={() => handleRefreshLocation(location.Location_Id)}>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Refresh Location
+                        </Button>
+                        <Button onClick={handleAddNew} variant="outline">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Service
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onEdit={handleEdit}
+                        onDelete={() => {}} // Remove delete functionality for NailIt products
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            );
+          })}
         </Tabs>
       )}
 
