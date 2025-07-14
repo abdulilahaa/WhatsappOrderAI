@@ -376,33 +376,17 @@ export class NailItAPIService {
     selectedDate: string;
   }): Promise<{ items: NailItItem[]; totalItems: number }> {
     try {
-      // Start with minimal parameters to avoid server errors
+      // Use the exact format from NailIt API documentation
       const requestBody: any = {
+        Lang: params.lang || 'E',
+        Like: params.like || '',
+        Page_No: params.pageNo || 1,
+        Item_Type_Id: params.itemTypeId || 2,
+        Group_Id: params.groupId || 0,
+        Location_Ids: params.locationIds || [],
+        Is_Home_Service: params.isHomeService || false,
         Selected_Date: params.selectedDate
       };
-
-      // Only add optional parameters if they have meaningful values
-      if (params.lang && params.lang !== 'E') {
-        requestBody.Lang = params.lang;
-      }
-      if (params.like) {
-        requestBody.Like = params.like;
-      }
-      if (params.pageNo && params.pageNo > 1) {
-        requestBody.Page_No = params.pageNo;
-      }
-      if (params.itemTypeId && params.itemTypeId > 0) {
-        requestBody.Item_Type_Id = params.itemTypeId;
-      }
-      if (params.groupId && params.groupId > 0) {
-        requestBody.Group_Id = params.groupId;
-      }
-      if (params.locationIds && params.locationIds.length > 0) {
-        requestBody.Location_Ids = params.locationIds;
-      }
-      if (params.isHomeService) {
-        requestBody.Is_Home_Service = params.isHomeService;
-      }
 
       console.log('📤 GetItemsByDate request:', JSON.stringify(requestBody, null, 2));
       const response = await this.client.post('/GetItemsByDate', requestBody);
@@ -440,7 +424,7 @@ export class NailItAPIService {
       let pageNo = 1;
       let hasMorePages = true;
 
-      while (hasMorePages && pageNo <= 5) { // Limit to 5 pages to avoid infinite loops
+      while (hasMorePages && pageNo <= 3) { // Limit to 3 pages to avoid infinite loops
         const result = await this.getItemsByDate({
           ...params,
           pageNo
@@ -589,10 +573,11 @@ export class NailItAPIService {
 
   // Helper method to format date for API calls (NailIt expects MM/dd/yyyy format)
   formatDateForAPI(date: Date): string {
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    // NailIt API expects DD-MM-YYYY format as shown in documentation
     const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
-    return `${month}/${day}/${year}`;
+    return `${day}-${month}-${year}`;
   }
 
   // Try multiple date formats to find what works

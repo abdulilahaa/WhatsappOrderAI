@@ -1010,25 +1010,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch all items with different parameter combinations
       let result = { items: [], totalItems: 0 };
       
-      // Try multiple approaches to get the data, including different date formats
-      console.log(`🔍 Trying comprehensive API parameter testing for location ${locationId}...`);
+      // Use the EXACT working example from NailIt documentation
+      console.log(`🔍 Testing with documentation example for location ${locationId}...`);
       
       const testParams = [
-        { itemTypeId: 0, groupId: 0 }, // No type/group filters - most likely to work
-        { itemTypeId: 2, groupId: 0 }, // Services only
-        { itemTypeId: 1, groupId: 0 }, // Products only
+        { itemTypeId: 2, groupId: 10 }, // Use working Group_Id from documentation
+        { itemTypeId: 2, groupId: 0 },  // Services without group filter
+        { itemTypeId: 2, groupId: 7 },  // Hair Treatment group
+        { itemTypeId: 2, groupId: 6 },  // Nails group
       ];
       
       for (const params of testParams) {
         try {
           console.log(`📋 Testing params: type=${params.itemTypeId}, group=${params.groupId}`);
           
-          // Try simple single call first to avoid infinite loops
+          // Try with specific location filter like documentation example
           result = await nailItAPI.getItemsByDate({
             itemTypeId: params.itemTypeId,
             groupId: params.groupId,
             selectedDate: currentDate,
-            pageNo: 1
+            pageNo: 1,
+            locationIds: [Number(locationId)] // Filter by specific location like documentation
           });
           
           console.log(`📊 Result: ${result.totalItems} total items, ${result.items.length} returned`);
