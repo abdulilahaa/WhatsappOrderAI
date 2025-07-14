@@ -1221,6 +1221,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test complete flow with availability check
+  app.post("/api/nailit/test-complete-flow", async (req, res) => {
+    try {
+      console.log("🌊 Testing complete flow with availability check...");
+      console.log("📋 Flow data:", JSON.stringify(req.body, null, 2));
+      
+      const { customerInfo, serviceId, locationId, appointmentDate } = req.body;
+      let flowSummary: any = {};
+      let step = "initialization";
+      
+      try {
+        // Step 1: Check service availability
+        step = "availability_check";
+        console.log("1️⃣ Checking service availability...");
+        const availability = await aiAgent.getNailItServiceAvailability(
+          Number(serviceId),
+          Number(locationId),
+          appointmentDate
+        );
+        
+        flowSummary.availability = availability;
+        
+        if (!availability || !availability.staff || availability.staff.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "No staff available for selected service and date",
+            step,
+            flowSummary
+          });
+        }
+        
+        // Step 2: Get available time slots
+        step = "time_slots";
+        console.log("2️⃣ Getting available time slots...");
+        const slots = await nailItAPI.getAvailableSlots(
+          'E', // Language
+          Number(locationId),
+          appointmentDate.split('/').join('/')  // Ensure proper date format
+        );
+        
+        flowSummary.timeSlots = slots;
+        
+        if (!slots || slots.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "No time slots available for selected date",
+            step,
+            flowSummary
+          });
+        }
+        
+        // Step 3: Create order with user
+        step = "order_creation";
+        console.log("3️⃣ Creating order with user...");
+        
+        const orderData = {
+          customerInfo: {
+            name: customerInfo.name,
+            mobile: customerInfo.mobile,
+            email: customerInfo.email,
+            address: customerInfo.address || "Kuwait City, Kuwait"
+          },
+          orderDetails: {
+            serviceId: Number(serviceId),
+            serviceName: `Service ${serviceId}`,
+            price: 15.0,
+            locationId: Number(locationId),
+            appointmentDate: appointmentDate,
+            paymentTypeId: 1, // Cash on Arrival
+            staffId: availability.staff[0].Id, // Use first available staff
+            timeFrameIds: slots.slice(0, 2).map((slot: any) => slot.TimeFrame_Id) // Use first 2 slots
+          }
+        };
+        
+        const orderResult = await nailItAPI.createOrderWithUser(orderData);
+        
+        flowSummary.order = orderResult;
+        flowSummary.service = `Service ${serviceId}`;
+        flowSummary.staff = availability.staff[0].Name;
+        flowSummary.timeSlots = slots.slice(0, 2).map((s: any) => s.TimeFrame_Name);
+        
+        if (orderResult && orderResult.Status === 0) {
+          res.json({
+            success: true,
+            message: "Complete flow test successful!",
+            orderId: orderResult.OrderId,
+            customerId: orderResult.CustomerId,
+            flowSummary,
+            step: "completed"
+          });
+        } else {
+          res.status(400).json({
+            success: false,
+            message: orderResult ? `Flow failed at order creation: ${orderResult.Message}` : "Order creation failed",
+            step,
+            flowSummary
+          });
+        }
+        
+      } catch (stepError: any) {
+        console.error(`Flow failed at step ${step}:`, stepError);
+        res.status(500).json({
+          success: false,
+          message: `Flow failed at ${step}: ${stepError.message}`,
+          step,
+          flowSummary
+        });
+      }
+      
+    } catch (error: any) {
+      console.error("Complete flow test error:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Error testing complete flow: " + error.message,
+        step: "error"
+      });
+    }
+  });
+
   app.get("/api/nailit/services/search", async (req, res) => {
     try {
       const { query, date } = req.query;

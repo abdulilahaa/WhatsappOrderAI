@@ -114,7 +114,12 @@ export default function IntegrationDashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     },
     onError: (error) => {
-      console.error("Test order error:", error);
+      console.error("Test order error:", {
+        message: error?.message || "Unknown error",
+        stack: error?.stack,
+        cause: error?.cause,
+        fullError: error
+      });
     }
   });
 
@@ -136,26 +141,45 @@ export default function IntegrationDashboard() {
       return await response.json();
     },
     onError: (error) => {
-      console.error("Register user error:", error);
+      console.error("Register user error:", {
+        message: error?.message || "Unknown error",
+        stack: error?.stack,
+        cause: error?.cause,
+        fullError: error
+      });
     }
   });
 
   // Test register user with form data
   const testRegisterUserMutation = useMutation({
     mutationFn: async () => {
-      const userData = {
-        Address: "Kuwait City, Kuwait",
-        Email_Id: orderTestData.customerInfo.email,
-        Name: orderTestData.customerInfo.name,
-        Mobile: orderTestData.customerInfo.mobile,
-        Login_Type: 1,
-        Image_Name: ""
-      };
-      const response = await apiRequest("POST", "/api/nailit/register-user", userData);
-      return await response.json();
+      try {
+        const userData = {
+          Address: "Kuwait City, Kuwait",
+          Email_Id: orderTestData.customerInfo.email,
+          Name: orderTestData.customerInfo.name,
+          Mobile: orderTestData.customerInfo.mobile,
+          Login_Type: 1,
+          Image_Name: ""
+        };
+        const response = await apiRequest("POST", "/api/nailit/register-user", userData);
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorData}`);
+        }
+        return await response.json();
+      } catch (error: any) {
+        console.error("API request failed:", error);
+        throw error;
+      }
     },
     onError: (error) => {
-      console.error("Test register user error:", error);
+      console.error("Test register user error:", {
+        message: error?.message || "Unknown error",
+        stack: error?.stack,
+        cause: error?.cause,
+        fullError: error
+      });
     }
   });
 
@@ -184,7 +208,12 @@ export default function IntegrationDashboard() {
       return await response.json();
     },
     onError: (error) => {
-      console.error("Test integrated order error:", error);
+      console.error("Test integrated order error:", {
+        message: error?.message || "Unknown error",
+        stack: error?.stack,
+        cause: error?.cause,
+        fullError: error
+      });
     }
   });
 
@@ -209,7 +238,12 @@ export default function IntegrationDashboard() {
       return await response.json();
     },
     onError: (error) => {
-      console.error("Complete flow test error:", error);
+      console.error("Complete flow test error:", {
+        message: error?.message || "Unknown error",
+        stack: error?.stack,
+        cause: error?.cause,
+        fullError: error
+      });
     }
   });
 
