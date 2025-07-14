@@ -81,7 +81,10 @@ export default function IntegrationDashboard() {
 
   // Test all API endpoints
   const testEndpointsMutation = useMutation({
-    mutationFn: () => apiRequest("/api/nailit/test-all-endpoints"),
+    mutationFn: async () => {
+      const response = await apiRequest("GET", "/api/nailit/test-all-endpoints");
+      return await response.json();
+    },
     onSuccess: (data) => {
       console.log("Test endpoints response:", data);
       if (data.details) {
@@ -103,10 +106,10 @@ export default function IntegrationDashboard() {
 
   // Test order creation
   const testOrderMutation = useMutation({
-    mutationFn: (orderData: any) => apiRequest("/api/nailit/save-order", {
-      method: "POST",
-      body: JSON.stringify(orderData)
-    }),
+    mutationFn: async (orderData: any) => {
+      const response = await apiRequest("POST", "/api/nailit/save-order", orderData);
+      return await response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     },
@@ -117,10 +120,10 @@ export default function IntegrationDashboard() {
 
   // Test AI conversation
   const testConversationMutation = useMutation({
-    mutationFn: (testData: any) => apiRequest("/api/ai/test", {
-      method: "POST", 
-      body: JSON.stringify(testData)
-    }),
+    mutationFn: async (testData: any) => {
+      const response = await apiRequest("POST", "/api/ai/test", testData);
+      return await response.json();
+    },
     onError: (error) => {
       console.error("Test conversation error:", error);
     }
@@ -128,12 +131,23 @@ export default function IntegrationDashboard() {
 
   // Register new user
   const registerUserMutation = useMutation({
-    mutationFn: (userData: any) => apiRequest("/api/nailit/register-user", {
-      method: "POST",
-      body: JSON.stringify(userData)
-    }),
+    mutationFn: async (userData: any) => {
+      const response = await apiRequest("POST", "/api/nailit/register-user", userData);
+      return await response.json();
+    },
     onError: (error) => {
       console.error("Register user error:", error);
+    }
+  });
+
+  // Test register user with sample data
+  const testRegisterUserMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/nailit/test-register-user");
+      return await response.json();
+    },
+    onError: (error) => {
+      console.error("Test register user error:", error);
     }
   });
 
@@ -446,6 +460,13 @@ export default function IntegrationDashboard() {
                   {registerUserMutation.isPending ? "Registering..." : "Register User"}
                 </Button>
                 <Button 
+                  onClick={() => testRegisterUserMutation.mutate()}
+                  disabled={testRegisterUserMutation.isPending}
+                  variant="outline"
+                >
+                  {testRegisterUserMutation.isPending ? "Testing..." : "Test Register User API"}
+                </Button>
+                <Button 
                   onClick={handleTestOrder}
                   disabled={testOrderMutation.isPending}
                 >
@@ -483,6 +504,22 @@ export default function IntegrationDashboard() {
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                   <h4 className="font-semibold text-red-800">User Registration Failed</h4>
                   <p className="text-sm text-red-700 mt-2">{registerUserMutation.error.message}</p>
+                </div>
+              )}
+
+              {testRegisterUserMutation.data && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="font-semibold text-green-800">Test Register User API Result</h4>
+                  <pre className="text-sm text-green-700 mt-2 overflow-x-auto">
+                    {JSON.stringify(testRegisterUserMutation.data, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {testRegisterUserMutation.error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-semibold text-red-800">Test Register User API Failed</h4>
+                  <p className="text-sm text-red-700 mt-2">{testRegisterUserMutation.error.message}</p>
                 </div>
               )}
             </CardContent>
