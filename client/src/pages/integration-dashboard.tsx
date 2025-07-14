@@ -415,6 +415,16 @@ export default function IntegrationDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-amber-800 mb-2">⚠️ Location-Product-Staff Relationships</h4>
+                <ul className="text-sm text-amber-700 space-y-1">
+                  <li>• Each location has specific products and staff available</li>
+                  <li>• Changing location will filter available services</li>
+                  <li>• Staff availability depends on selected location and service</li>
+                  <li>• The system validates these relationships before creating orders</li>
+                </ul>
+              </div>
+              
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Customer ID</label>
@@ -424,7 +434,7 @@ export default function IntegrationDashboard() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Service</label>
+                  <label className="text-sm font-medium">Service (filtered by location)</label>
                   <Select
                     value={orderTestData.serviceId.toString()}
                     onValueChange={(value) => {
@@ -437,10 +447,20 @@ export default function IntegrationDashboard() {
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select a service available at this location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {products?.slice(0, 10).map((product) => (
+                      {products?.filter(product => {
+                        // Check if product is available at selected location
+                        const locationMatch = product.description.match(/Location IDs:\s*(\[[\d,\s]+\])/);
+                        if (!locationMatch) return true; // If no location info, assume available everywhere
+                        try {
+                          const locationIds = JSON.parse(locationMatch[1]);
+                          return locationIds.includes(orderTestData.locationId);
+                        } catch {
+                          return true;
+                        }
+                      }).slice(0, 20).map((product) => (
                         <SelectItem key={product.id} value={product.id.toString()}>
                           {product.name} - {product.price} KWD
                         </SelectItem>
@@ -452,7 +472,14 @@ export default function IntegrationDashboard() {
                   <label className="text-sm font-medium">Location</label>
                   <Select
                     value={orderTestData.locationId.toString()}
-                    onValueChange={(value) => setOrderTestData({...orderTestData, locationId: Number(value)})}
+                    onValueChange={(value) => {
+                      setOrderTestData({
+                        ...orderTestData, 
+                        locationId: Number(value),
+                        serviceId: 203, // Reset service when location changes
+                        serviceName: "Aloevera Mask Treatment"
+                      });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -460,7 +487,7 @@ export default function IntegrationDashboard() {
                     <SelectContent>
                       {locations?.map((location: any) => (
                         <SelectItem key={location.Location_Id} value={location.Location_Id.toString()}>
-                          {location.Location_Name}
+                          {location.Location_Name} - {location.Address}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -546,7 +573,7 @@ export default function IntegrationDashboard() {
                   disabled={testCompleteFlowMutation.isPending}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
-                  {testCompleteFlowMutation.isPending ? "Testing Flow..." : "Test Complete Flow (With Availability)"}
+                  {testCompleteFlowMutation.isPending ? "Validating Location-Product-Staff..." : "Test Complete Flow (With Availability)"}
                 </Button>
               </div>
 

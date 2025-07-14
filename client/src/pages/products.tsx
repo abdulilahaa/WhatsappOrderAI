@@ -15,6 +15,13 @@ import NailItSyncControls from "@/components/nailit-sync-controls";
 import { Plus, Search, Package, Globe, FileText, Settings, Scissors, Sparkles, Palette, Hand, Zap } from "lucide-react";
 import type { Product } from "@shared/schema";
 
+interface NailItLocation {
+  Location_Id: number;
+  Location_Name: string;
+  Address: string;
+  Phone: string;
+}
+
 export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,11 +30,16 @@ export default function Products() {
   const [isNailItSyncOpen, setIsNailItSyncOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [selectedLocation, setSelectedLocation] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
+  });
+
+  const { data: locations = [] } = useQuery<NailItLocation[]>({
+    queryKey: ["/api/nailit/locations"],
   });
 
   const deleteMutation = useMutation({
@@ -49,66 +61,55 @@ export default function Products() {
     },
   });
 
-  // Categorize services based on their content and NailIt groups
-  const categorizeService = (product: Product) => {
-    const name = product.name.toLowerCase();
-    const description = product.description.toLowerCase();
-
-    if (name.includes('hair') || name.includes('blowout') || name.includes('straightening') || name.includes('extension')) {
-      return 'hair';
+  // Parse location IDs from product descriptions
+  const getProductLocations = (product: Product): number[] => {
+    // Look for "Location IDs:" in description
+    const locationMatch = product.description.match(/Location IDs:\s*(\[[\d,\s]+\])/);
+    if (locationMatch) {
+      try {
+        return JSON.parse(locationMatch[1]);
+      } catch {
+        return [];
+      }
     }
-    if (name.includes('nail') || name.includes('manicure') || name.includes('pedicure') || name.includes('polish') || name.includes('gel')) {
-      return 'nails';
-    }
-    if (name.includes('facial') || name.includes('skin') || name.includes('massage') || name.includes('treatment')) {
-      return 'skincare';
-    }
-    if (name.includes('makeup') || name.includes('lash') || name.includes('brow') || name.includes('eyebrow')) {
-      return 'beauty';
-    }
-    if (name.includes('wax') || name.includes('laser') || name.includes('removal')) {
-      return 'waxing';
-    }
-    
-    return 'other';
+    // If no location IDs found, assume available at all locations
+    return locations.map(loc => loc.Location_Id);
   };
 
-  const categorizedProducts = products?.reduce((acc, product) => {
-    const category = categorizeService(product);
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(product);
+  // Group products by location
+  const productsByLocation = products?.reduce((acc, product) => {
+    const productLocations = getProductLocations(product);
+    productLocations.forEach(locationId => {
+      if (!acc[locationId]) acc[locationId] = [];
+      acc[locationId].push(product);
+    });
     return acc;
-  }, {} as Record<string, Product[]>) || {};
+  }, {} as Record<number, Product[]>) || {};
 
-  const filteredProducts = (category: string) => {
-    const categoryProducts = category === 'all' ? products || [] : categorizedProducts[category] || [];
-    return categoryProducts.filter(product =>
+  const filteredProducts = (locationId: string) => {
+    let productsToFilter: Product[] = [];
+    
+    if (locationId === 'all') {
+      productsToFilter = products || [];
+    } else {
+      const locId = parseInt(locationId);
+      productsToFilter = productsByLocation[locId] || [];
+    }
+    
+    return productsToFilter.filter(product =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'hair': return <Scissors className="h-4 w-4" />;
-      case 'nails': return <Hand className="h-4 w-4" />;
-      case 'skincare': return <Sparkles className="h-4 w-4" />;
-      case 'beauty': return <Palette className="h-4 w-4" />;
-      case 'waxing': return <Zap className="h-4 w-4" />;
-      default: return <Package className="h-4 w-4" />;
-    }
+  const getLocationIcon = () => {
+    return <Settings className="h-4 w-4" />;
   };
 
-  const getCategoryName = (category: string) => {
-    switch (category) {
-      case 'hair': return 'Hair Services';
-      case 'nails': return 'Nail Services';
-      case 'skincare': return 'Skincare';
-      case 'beauty': return 'Beauty & Makeup';
-      case 'waxing': return 'Waxing & Removal';
-      case 'other': return 'Other Services';
-      default: return 'All Services';
-    }
+  const getLocationName = (locationId: string) => {
+    if (locationId === 'all') return 'All Locations';
+    const location = locations.find(loc => loc.Location_Id === parseInt(locationId));
+    return location?.Location_Name || `Location ${locationId}`;
   };
 
   const handleEdit = (product: Product) => {
@@ -180,61 +181,43 @@ export default function Products() {
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="flex w-full overflow-x-auto">
             <TabsTrigger value="all" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               All
               <Badge variant="secondary">{products?.length || 0}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="hair" className="flex items-center gap-2">
-              {getCategoryIcon('hair')}
-              Hair
-              <Badge variant="secondary">{categorizedProducts.hair?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="nails" className="flex items-center gap-2">
-              {getCategoryIcon('nails')}
-              Nails
-              <Badge variant="secondary">{categorizedProducts.nails?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="skincare" className="flex items-center gap-2">
-              {getCategoryIcon('skincare')}
-              Skincare
-              <Badge variant="secondary">{categorizedProducts.skincare?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="beauty" className="flex items-center gap-2">
-              {getCategoryIcon('beauty')}
-              Beauty
-              <Badge variant="secondary">{categorizedProducts.beauty?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="waxing" className="flex items-center gap-2">
-              {getCategoryIcon('waxing')}
-              Waxing
-              <Badge variant="secondary">{categorizedProducts.waxing?.length || 0}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="other" className="flex items-center gap-2">
-              {getCategoryIcon('other')}
-              Other
-              <Badge variant="secondary">{categorizedProducts.other?.length || 0}</Badge>
-            </TabsTrigger>
+            {locations.map((location) => (
+              <TabsTrigger key={location.Location_Id} value={location.Location_Id.toString()} className="flex items-center gap-2">
+                {getLocationIcon()}
+                {location.Location_Name}
+                <Badge variant="secondary">{productsByLocation[location.Location_Id]?.length || 0}</Badge>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          {(['all', 'hair', 'nails', 'skincare', 'beauty', 'waxing', 'other'] as const).map((category) => (
-            <TabsContent key={category} value={category} className="mt-6">
+          {['all', ...locations.map(loc => loc.Location_Id.toString())].map((locationId) => (
+            <TabsContent key={locationId} value={locationId} className="mt-6">
               <div className="mb-4">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
-                  {getCategoryIcon(category)}
-                  {getCategoryName(category)}
-                  <Badge variant="outline">{filteredProducts(category).length} services</Badge>
+                  {locationId === 'all' ? <Package className="h-4 w-4" /> : getLocationIcon()}
+                  {getLocationName(locationId)}
+                  <Badge variant="outline">{filteredProducts(locationId).length} services</Badge>
+                  {locationId !== 'all' && (
+                    <span className="text-sm text-gray-600 ml-2">
+                      {locations.find(loc => loc.Location_Id === parseInt(locationId))?.Address}
+                    </span>
+                  )}
                 </h2>
               </div>
               
-              {filteredProducts(category).length === 0 ? (
+              {filteredProducts(locationId).length === 0 ? (
                 <Card className="text-center py-8">
                   <CardContent>
-                    {getCategoryIcon(category)}
-                    <h3 className="text-lg font-semibold mb-2 mt-4">No services found in this category</h3>
+                    <Package className="h-12 w-12 mx-auto text-gray-400" />
+                    <h3 className="text-lg font-semibold mb-2 mt-4">No services found at this location</h3>
                     <p className="text-gray-600 mb-4">
-                      {searchQuery ? "No services match your search in this category." : "This category is empty."}
+                      {searchQuery ? "No services match your search at this location." : "This location has no services available."}
                     </p>
                     <Button onClick={handleAddNew}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -244,12 +227,13 @@ export default function Products() {
                 </Card>
               ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredProducts(category).map((product) => (
+                  {filteredProducts(locationId).map((product) => (
                     <ProductCard
                       key={product.id}
                       product={product}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      locationInfo={locationId !== 'all' ? locations.find(loc => loc.Location_Id === parseInt(locationId)) : undefined}
                     />
                   ))}
                 </div>
