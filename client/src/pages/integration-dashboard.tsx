@@ -83,9 +83,21 @@ export default function IntegrationDashboard() {
   const testEndpointsMutation = useMutation({
     mutationFn: () => apiRequest("/api/nailit/test-all-endpoints"),
     onSuccess: (data) => {
-      if (data.results) {
-        setTestResults(data.results);
+      console.log("Test endpoints response:", data);
+      if (data.details) {
+        const results = Object.entries(data.details).map(([endpoint, result]: [string, any]) => ({
+          endpoint,
+          success: result.success,
+          responseTime: result.responseTime,
+          error: result.error,
+          data: result.data
+        }));
+        setTestResults(results);
       }
+    },
+    onError: (error) => {
+      console.error("Test endpoints error:", error);
+      setTestResults([]);
     }
   });
 
@@ -97,6 +109,9 @@ export default function IntegrationDashboard() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+    },
+    onError: (error) => {
+      console.error("Test order error:", error);
     }
   });
 
@@ -105,7 +120,10 @@ export default function IntegrationDashboard() {
     mutationFn: (testData: any) => apiRequest("/api/ai/test", {
       method: "POST", 
       body: JSON.stringify(testData)
-    })
+    }),
+    onError: (error) => {
+      console.error("Test conversation error:", error);
+    }
   });
 
   // Register new user
@@ -113,7 +131,10 @@ export default function IntegrationDashboard() {
     mutationFn: (userData: any) => apiRequest("/api/nailit/register-user", {
       method: "POST",
       body: JSON.stringify(userData)
-    })
+    }),
+    onError: (error) => {
+      console.error("Register user error:", error);
+    }
   });
 
   const handleTestAllEndpoints = () => {
@@ -455,6 +476,13 @@ export default function IntegrationDashboard() {
                   <pre className="text-sm text-blue-700 mt-2 overflow-x-auto">
                     {JSON.stringify(registerUserMutation.data, null, 2)}
                   </pre>
+                </div>
+              )}
+
+              {registerUserMutation.error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-semibold text-red-800">User Registration Failed</h4>
+                  <p className="text-sm text-red-700 mt-2">{registerUserMutation.error.message}</p>
                 </div>
               )}
             </CardContent>
