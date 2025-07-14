@@ -1037,6 +1037,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Register User with sample data
+  app.post("/api/nailit/test-register-user", async (req, res) => {
+    try {
+      console.log("🧪 Testing NailIt Register User API with sample data...");
+      
+      const sampleUserData = {
+        Address: "123 Kuwait City, Kuwait",
+        Email_Id: "testuser@example.com",
+        Name: "Test User",
+        Mobile: "+96599123456",
+        Login_Type: 1, // Standard login type
+        Image_Name: "" // Optional
+      };
+
+      console.log("📋 Sample user data:", JSON.stringify(sampleUserData, null, 2));
+      
+      const result = await nailItAPI.registerUser(sampleUserData);
+      
+      if (result) {
+        console.log("✅ User registration successful:", result);
+        res.json({
+          success: true,
+          message: "User successfully registered in NailIt POS",
+          nailItResponse: result,
+          sampleData: sampleUserData
+        });
+      } else {
+        console.log("❌ User registration failed");
+        res.status(400).json({
+          success: false,
+          message: "Failed to register user in NailIt POS",
+          sampleData: sampleUserData
+        });
+      }
+    } catch (error: any) {
+      console.error("User registration error:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Error testing user registration: " + error.message 
+      });
+    }
+  });
+
   // Save Order to NailIt POS
   app.post("/api/nailit/save-order", async (req, res) => {
     try {
