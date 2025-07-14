@@ -376,28 +376,102 @@ export class NailItAPIService {
     selectedDate: string;
   }): Promise<{ items: NailItItem[]; totalItems: number }> {
     try {
-      const requestBody = {
-        Lang: params.lang || 'E',
-        Like: params.like || '',
-        Page_No: params.pageNo || 1,
-        Item_Type_Id: params.itemTypeId || 2,
-        Group_Id: params.groupId || 0,
-        Location_Ids: params.locationIds || [],
-        Is_Home_Service: params.isHomeService || false,
+      // Start with minimal parameters to avoid server errors
+      const requestBody: any = {
         Selected_Date: params.selectedDate
       };
 
+      // Only add optional parameters if they have meaningful values
+      if (params.lang && params.lang !== 'E') {
+        requestBody.Lang = params.lang;
+      }
+      if (params.like) {
+        requestBody.Like = params.like;
+      }
+      if (params.pageNo && params.pageNo > 1) {
+        requestBody.Page_No = params.pageNo;
+      }
+      if (params.itemTypeId && params.itemTypeId > 0) {
+        requestBody.Item_Type_Id = params.itemTypeId;
+      }
+      if (params.groupId && params.groupId > 0) {
+        requestBody.Group_Id = params.groupId;
+      }
+      if (params.locationIds && params.locationIds.length > 0) {
+        requestBody.Location_Ids = params.locationIds;
+      }
+      if (params.isHomeService) {
+        requestBody.Is_Home_Service = params.isHomeService;
+      }
+
+      console.log('📤 GetItemsByDate request:', JSON.stringify(requestBody, null, 2));
       const response = await this.client.post('/GetItemsByDate', requestBody);
+      console.log('📥 GetItemsByDate response status:', response.data.Status, 'Message:', response.data.Message || 'No message', 'Total:', response.data.Total_Items, 'Items length:', response.data.Items?.length || 0);
       
-      if (response.data.Status === 0) {
+      // Handle both Status 0 (success) and Status 1 (success with pagination)
+      if (response.data.Status === 0 || response.data.Status === 1) {
         return {
           items: response.data.Items || [],
           totalItems: response.data.Total_Items || 0
         };
       }
+      
+      console.log('❌ API returned non-success status:', response.data.Status, response.data.Message);
       return { items: [], totalItems: 0 };
     } catch (error) {
       console.error('Failed to get items by date:', error);
+      return { items: [], totalItems: 0 };
+    }
+  }
+
+  // Get all items with pagination
+  async getAllItemsByDate(params: {
+    lang?: string;
+    like?: string;
+    itemTypeId?: number;
+    groupId?: number;
+    locationIds?: number[];
+    isHomeService?: boolean;
+    selectedDate: string;
+  }): Promise<{ items: NailItItem[]; totalItems: number }> {
+    try {
+      let allItems: NailItItem[] = [];
+      let totalItems = 0;
+      let pageNo = 1;
+      let hasMorePages = true;
+
+      while (hasMorePages && pageNo <= 5) { // Limit to 5 pages to avoid infinite loops
+        const result = await this.getItemsByDate({
+          ...params,
+          pageNo
+        });
+
+        if (result.totalItems > 0) {
+          totalItems = result.totalItems;
+        }
+
+        if (result.items && result.items.length > 0) {
+          allItems.push(...result.items);
+          console.log(`📄 Page ${pageNo}: Got ${result.items.length} items (${allItems.length}/${totalItems} total)`);
+          pageNo++;
+          
+          // Check if we have all items
+          if (allItems.length >= totalItems) {
+            hasMorePages = false;
+          }
+        } else {
+          console.log(`📄 Page ${pageNo}: No items returned, stopping pagination`);
+          hasMorePages = false;
+        }
+      }
+
+      console.log(`📊 Final result: ${allItems.length} items retrieved from ${totalItems} total`);
+      return {
+        items: allItems,
+        totalItems: totalItems
+      };
+    } catch (error) {
+      console.error('Failed to get all items by date:', error);
       return { items: [], totalItems: 0 };
     }
   }
@@ -519,6 +593,35 @@ export class NailItAPIService {
     const day = date.getDate().toString().padStart(2, '0');
     const year = date.getFullYear();
     return `${month}/${day}/${year}`;
+  }
+
+  // Try multiple date formats to find what works
+  async getItemsWithMultipleDateFormats(params: any): Promise<{ items: NailItItem[]; totalItems: number }> {
+    const date = new Date();
+    const dateFormats = [
+      `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear()}`, // MM/dd/yyyy
+      `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`, // dd/MM/yyyy
+      `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`, // yyyy-MM-dd
+      `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`, // dd-MM-yyyy
+    ];
+
+    for (const dateFormat of dateFormats) {
+      try {
+        const testParams = { ...params, selectedDate: dateFormat };
+        const result = await this.getItemsByDate(testParams);
+        
+        console.log(`📅 Date format ${dateFormat}: ${result.totalItems} total items, ${result.items.length} returned`);
+        
+        if (result.items.length > 0) {
+          console.log(`✅ Found working date format: ${dateFormat}`);
+          return result;
+        }
+      } catch (error) {
+        console.log(`❌ Date format ${dateFormat} failed: ${error.message}`);
+      }
+    }
+    
+    return { items: [], totalItems: 0 };
   }
 
   // Helper method to format date for URL paths (DD-MM-YYYY format as per NailIt API documentation)

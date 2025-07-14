@@ -1007,30 +1007,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let allItems: any[] = [];
       let totalFound = 0;
       
-      // Fetch all items and filter by location
-      const result = await nailItAPI.getItemsByDate({
-        selectedDate: currentDate,
-        itemTypeId: Number(itemType),
-        pageNo: 1
-      });
+      // Fetch all items with different parameter combinations
+      let result = { items: [], totalItems: 0 };
       
-      if (result.items && result.items.length > 0) {
-        console.log(`📋 Total items from API: ${result.totalItems}`);
-        
-        // Filter items that are available at this location
-        const locationItems = result.items.filter(item => 
-          item.Location_Ids && item.Location_Ids.includes(Number(locationId))
-        );
-        
-        console.log(`📍 Items available at location ${locationId}: ${locationItems.length}`);
-        allItems = locationItems;
-        totalFound = locationItems.length;
-        
-        // If we have many items, we might need to fetch more pages
-        if (result.totalItems > result.items.length) {
-          console.log(`📄 Need to fetch more pages (total: ${result.totalItems})`);
-          // TODO: Implement pagination if needed
+      // Try multiple approaches to get the data, including different date formats
+      console.log(`🔍 Trying comprehensive API parameter testing for location ${locationId}...`);
+      
+      const testParams = [
+        { itemTypeId: 0, groupId: 0 }, // No type/group filters - most likely to work
+        { itemTypeId: 2, groupId: 0 }, // Services only
+        { itemTypeId: 1, groupId: 0 }, // Products only
+      ];
+      
+      for (const params of testParams) {
+        try {
+          console.log(`📋 Testing params: type=${params.itemTypeId}, group=${params.groupId}`);
+          
+          // Try simple single call first to avoid infinite loops
+          result = await nailItAPI.getItemsByDate({
+            itemTypeId: params.itemTypeId,
+            groupId: params.groupId,
+            selectedDate: currentDate,
+            pageNo: 1
+          });
+          
+          console.log(`📊 Result: ${result.totalItems} total items, ${result.items.length} returned`);
+          
+          if (result.items.length > 0) {
+            console.log(`✅ Success with params: type=${params.itemTypeId}, group=${params.groupId}`);
+            break; // Found working parameters
+          }
+        } catch (error) {
+          console.log(`❌ Test params failed: ${error.message}`);
         }
+      }
+      
+      // Check if we got any data from API
+      if (result.totalItems > 0) {
+        console.log(`📋 API reports ${result.totalItems} total items available`);
+        
+        if (result.items && result.items.length > 0) {
+          console.log(`📦 Got ${result.items.length} items from API`);
+          
+          // Filter items that are available at this location
+          const locationItems = result.items.filter(item => 
+            item.Location_Ids && item.Location_Ids.includes(Number(locationId))
+          );
+          
+          console.log(`📍 Items available at location ${locationId}: ${locationItems.length}`);
+          allItems = locationItems;
+          totalFound = locationItems.length;
+        } else {
+          console.log(`⚠️ API has ${result.totalItems} items but returned 0 - likely server error or pagination issue`);
+          // For now, return empty result but log the issue
+          totalFound = 0;
+        }
+      } else {
+        console.log(`❌ No items found in API`);
       }
       
       console.log(`✅ Location ${locationId}: Found ${allItems.length} items`);
