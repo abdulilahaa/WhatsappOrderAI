@@ -1014,17 +1014,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 Testing with documentation example for location ${locationId}...`);
       
       const testParams = [
+        { itemTypeId: 2, groupId: 0 },  // All services (broadest search first)
         { itemTypeId: 2, groupId: 10 }, // Use working Group_Id from documentation
-        { itemTypeId: 2, groupId: 0 },  // Services without group filter
-        { itemTypeId: 2, groupId: 7 },  // Hair Treatment group
+        { itemTypeId: 2, groupId: 7 },  // Hair Treatment group  
         { itemTypeId: 2, groupId: 6 },  // Nails group
+        { itemTypeId: 1, groupId: 0 },  // All products as fallback
       ];
       
       for (const params of testParams) {
         try {
           console.log(`📋 Testing params: type=${params.itemTypeId}, group=${params.groupId}`);
           
-          // Try with specific location filter like documentation example
+          // Try with specific location filter like documentation example  
           result = await nailItAPI.getItemsByDate({
             itemTypeId: params.itemTypeId,
             groupId: params.groupId,
@@ -1033,11 +1034,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
             locationIds: [Number(locationId)] // Filter by specific location like documentation
           });
           
+          // If we get results, also try to get more pages to get complete data
+          if (result.items.length > 0 && result.totalItems > result.items.length) {
+            console.log(`📋 Found ${result.totalItems} total items, fetching all pages...`);
+            
+            const totalPages = Math.ceil(result.totalItems / 20);
+            const allItems: any[] = [...result.items];
+            
+            // Fetch remaining pages (limit to prevent infinite loops)
+            for (let page = 2; page <= Math.min(totalPages, 10); page++) {
+              try {
+                const pageResult = await nailItAPI.getItemsByDate({
+                  itemTypeId: params.itemTypeId,
+                  groupId: params.groupId,
+                  selectedDate: currentDate,
+                  pageNo: page,
+                  locationIds: [Number(locationId)]
+                });
+                
+                if (pageResult.items && pageResult.items.length > 0) {
+                  allItems.push(...pageResult.items);
+                  console.log(`📄 Page ${page}: Got ${pageResult.items.length} more items (total: ${allItems.length})`);
+                } else {
+                  break; // No more data
+                }
+              } catch (pageError) {
+                console.log(`❌ Error fetching page ${page}: ${pageError.message}`);
+                break;
+              }
+            }
+            
+            // Update result with all fetched items
+            result.items = allItems;
+            result.totalItems = allItems.length;
+            console.log(`📦 Total items fetched: ${allItems.length}`);
+          }
+          
           console.log(`📊 Result: ${result.totalItems} total items, ${result.items.length} returned`);
           
           if (result.items.length > 0) {
-            console.log(`✅ Success with params: type=${params.itemTypeId}, group=${params.groupId}`);
-            break; // Found working parameters
+            console.log(`✅ Success with params: type=${params.itemTypeId}, group=${params.groupId} - found ${result.items.length} items`);
+            
+            // Don't break immediately - continue if this is group=0 (broadest search) and we found good results
+            if (params.groupId === 0 && result.totalItems > 0) {
+              console.log(`🎯 Using comprehensive Group_Id=0 results with ${result.totalItems} total items available`);
+              break; // Use the comprehensive results
+            } else if (params.groupId !== 0) {
+              // For other groups, only break if we haven't found a better result yet
+              break;
+            }
           }
         } catch (error) {
           console.log(`❌ Test params failed: ${error.message}`);

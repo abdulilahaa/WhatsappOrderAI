@@ -188,6 +188,18 @@ export default function Products() {
           <h1 className="text-3xl font-bold">NailIt Service Catalog by Location</h1>
           <p className="text-gray-600 mt-2">
             Live services from NailIt POS - {getTotalProducts()} authentic services across {locations?.length || 0} locations
+            <br />
+            <Button 
+              variant="link" 
+              className="p-0 h-auto text-blue-600"
+              onClick={() => {
+                locations?.forEach(location => {
+                  queryClient.invalidateQueries({ queryKey: ["/api/nailit/products-by-location", location.Location_Id] });
+                });
+              }}
+            >
+              🔄 Refresh all locations
+            </Button>
           </p>
         </div>
         <div className="flex gap-2">
