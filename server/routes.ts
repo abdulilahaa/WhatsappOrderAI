@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const allItems: any[] = [...result.items];
             
             // Fetch remaining pages (limit to prevent infinite loops)
-            for (let page = 2; page <= Math.min(totalPages, 10); page++) {
+            for (let page = 2; page <= Math.min(totalPages, 20); page++) {
               try {
                 const pageResult = await nailItAPI.getItemsByDate({
                   itemTypeId: params.itemTypeId,
@@ -1066,8 +1066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Update result with all fetched items
             result.items = allItems;
-            result.totalItems = allItems.length;
-            console.log(`📦 Total items fetched: ${allItems.length}`);
+            console.log(`📦 Total items fetched: ${allItems.length} out of ${originalTotal} available`);
           }
           
           console.log(`📊 Result: ${result.totalItems} total items, ${result.items.length} returned`);
@@ -1103,7 +1102,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log(`📍 Items available at location ${locationId}: ${locationItems.length}`);
           allItems = locationItems;
-          totalFound = locationItems.length;
+          
+          // Use actual API reported total, not filtered count
+          totalFound = result.totalItems;
         } else {
           console.log(`⚠️ API has ${result.totalItems} items but returned 0 - likely server error or pagination issue`);
           // For now, return empty result but log the issue
@@ -1142,7 +1143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationId: Number(locationId),
         products,
         totalFound,
-        message: `Filtered ${totalFound} items for location ${locationId} from ${result.totalItems} total items`
+        message: `Showing ${products.length} items for location ${locationId} from ${totalFound} total available in NailIt API`
       });
       
     } catch (error: any) {
