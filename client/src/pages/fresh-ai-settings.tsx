@@ -25,7 +25,7 @@ export default function FreshAISettingsPage() {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: Partial<FreshAISettings>) => {
-      return apiRequest('/api/fresh-ai-settings', { method: 'PUT', body: data });
+      return apiRequest('PUT', '/api/fresh-ai-settings', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/fresh-ai-settings'] });
