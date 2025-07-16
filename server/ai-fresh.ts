@@ -231,23 +231,33 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       await this.updateStateFromMessage(customerMessage, state, locations);
 
       // If we have all required information and customer confirms, create the booking
-      if (state.phase === 'confirmation' && 
+      if ((state.phase === 'confirmation' || state.phase === 'customer_info') && 
           state.collectedData.selectedServices.length > 0 &&
           state.collectedData.locationId &&
           state.collectedData.customerName &&
           state.collectedData.customerEmail &&
-          (customerMessage.toLowerCase().includes('yes') || customerMessage.toLowerCase().includes('book') || customerMessage.toLowerCase().includes('confirm'))) {
+          (customerMessage.toLowerCase().includes('yes') || customerMessage.toLowerCase().includes('book') || customerMessage.toLowerCase().includes('confirm') || customerMessage.toLowerCase().includes('booking'))) {
         
-        console.log('🎯 Creating final booking...');
-        const bookingSuccess = await this.createBooking(state, customer);
+        console.log('🎯 Creating final booking with real NailIt order...');
+        const bookingResult = await this.createBooking(state, customer);
         
-        if (bookingSuccess) {
+        if (bookingResult.success) {
           state.phase = 'completed';
+          const staffMessage = state.collectedData.staffName && state.collectedData.staffName !== "Available Specialist" 
+            ? `\n• Specialist: ${state.collectedData.staffName}` 
+            : '';
+          
           const finalMessage = state.language === 'ar' 
-            ? `تم! تم حجز موعدك بنجاح 🎉\n\nتفاصيل الحجز:\n• الخدمة: ${state.collectedData.selectedServices[0].itemName}\n• الفرع: ${state.collectedData.locationName}\n• العميل: ${state.collectedData.customerName}\n\nسنرسل لك تأكيد الحجز عبر البريد الإلكتروني. شكراً لاختيارك نيل إت!`
-            : `Perfect! Your appointment has been successfully booked! 🎉\n\nBooking Details:\n• Service: ${state.collectedData.selectedServices[0].itemName}\n• Location: ${state.collectedData.locationName}\n• Customer: ${state.collectedData.customerName}\n\nWe'll send you a booking confirmation via email. Thank you for choosing NailIt!`;
+            ? `تم! تم حجز موعدك بنجاح 🎉\n\nتفاصيل الحجز:\n• الخدمة: ${state.collectedData.selectedServices[0].itemName}\n• الفرع: ${state.collectedData.locationName}\n• العميل: ${state.collectedData.customerName}${staffMessage}\n• رقم الطلب: ${bookingResult.orderId}\n\nتم تأكيد حجزك في نظام نيل إت. سنرسل لك تأكيد الحجز عبر البريد الإلكتروني. شكراً لاختيارك نيل إت!`
+            : `Perfect! Your appointment has been successfully booked! 🎉\n\nBooking Details:\n• Service: ${state.collectedData.selectedServices[0].itemName}\n• Location: ${state.collectedData.locationName}\n• Customer: ${state.collectedData.customerName}${staffMessage}\n• Order Number: ${bookingResult.orderId}\n\nYour booking has been confirmed in the NailIt POS system. We'll send you a booking confirmation via email. Thank you for choosing NailIt!`;
           
           return this.createResponse(state, finalMessage);
+        } else {
+          const errorMessage = state.language === 'ar'
+            ? `عذراً، حدث خطأ في الحجز: ${bookingResult.message}. يرجى المحاولة مرة أخرى أو الاتصال بنا مباشرة.`
+            : `Sorry, there was an error with your booking: ${bookingResult.message}. Please try again or contact us directly.`;
+          
+          return this.createResponse(state, errorMessage);
         }
       }
 
@@ -279,6 +289,34 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
             lowerMessage.includes('arraya') && locationName.includes('arraya')) {
           state.collectedData.locationId = location.Location_Id;
           state.collectedData.locationName = location.Location_Name;
+          
+          // Check staff availability when location is selected
+          if (state.collectedData.selectedServices.length > 0) {
+            try {
+              const serviceId = state.collectedData.selectedServices[0].itemId;
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const dateStr = nailItAPI.formatDateForAPI(tomorrow);
+              
+              console.log(`🔍 Checking staff availability for service ${serviceId} at location ${location.Location_Id}`);
+              const staff = await nailItAPI.getServiceStaff(serviceId, location.Location_Id, 'E', dateStr);
+              
+              if (staff && staff.length > 0) {
+                const assignedStaff = staff[0];
+                state.collectedData.staffId = assignedStaff.Id;
+                state.collectedData.staffName = assignedStaff.Name;
+                console.log(`✅ Staff assigned: ${assignedStaff.Name} (ID: ${assignedStaff.Id})`);
+              } else {
+                state.collectedData.staffId = 1;
+                state.collectedData.staffName = "Available Specialist";
+                console.log('⚠️ No specific staff found, using fallback');
+              }
+            } catch (error) {
+              console.error('Error checking staff availability:', error);
+              state.collectedData.staffId = 1;
+              state.collectedData.staffName = "Available Specialist";
+            }
+          }
           break;
         }
       }
@@ -338,66 +376,208 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
 
   private async extractServiceFromMessage(message: string, state: ConversationState): Promise<void> {
     try {
-      const lowerMessage = message.toLowerCase();
+      console.log(`🔍 Extracting services from real NailIt catalog: "${message}"`);
       
-      // Detect specific service requests
-      const serviceMapping = {
-        'french manicure': { name: 'French Manicure', price: 15 },
-        'manicure': { name: 'Classic Manicure', price: 12 },
-        'pedicure': { name: 'Classic Pedicure', price: 18 },
-        'gel manicure': { name: 'Gel Manicure', price: 20 },
-        'nail art': { name: 'Nail Art Design', price: 25 },
-        'acrylic nails': { name: 'Acrylic Nails', price: 30 }
-      };
-
-      for (const [keyword, service] of Object.entries(serviceMapping)) {
-        if (lowerMessage.includes(keyword)) {
-          state.collectedData.selectedServices = [{
-            itemId: Math.floor(Math.random() * 10000), // Temporary ID for demo
-            itemName: service.name,
-            price: service.price,
-            quantity: 1
-          }];
-          break;
+      // Get all available services from NailIt API with proper date formatting
+      const dateStr = new Date().toISOString().split('T')[0].split('-').reverse().join('-'); // DD-MM-YYYY format
+      const allServices = await nailItAPI.getItemsByDate({
+        Lang: 'E',
+        Like: '',
+        Page_No: 1,
+        Item_Type_Id: 2,
+        Group_Id: 0,
+        Location_Ids: [1, 52, 53],
+        Is_Home_Service: false,
+        Selected_Date: dateStr
+      });
+      
+      if (!allServices || !allServices.items || allServices.items.length === 0) {
+        console.log('❌ No services available from NailIt API, trying fallback search...');
+        
+        // Try multiple pages to get more services
+        let allItems = [];
+        for (let page = 1; page <= 3; page++) {
+          const pageResults = await nailItAPI.getItemsByDate({
+            Lang: 'E',
+            Like: '',
+            Page_No: page,
+            Item_Type_Id: 2,
+            Group_Id: 0,
+            Location_Ids: [1, 52, 53],
+            Is_Home_Service: false,
+            Selected_Date: dateStr
+          });
+          
+          if (pageResults && pageResults.items) {
+            allItems.push(...pageResults.items);
+            console.log(`📄 Page ${page}: Found ${pageResults.items.length} services`);
+          }
         }
+        
+        if (allItems.length === 0) {
+          console.log('❌ No services found even with multiple pages');
+          return;
+        }
+        
+        allServices.items = allItems;
+        console.log(`✅ Total services loaded: ${allItems.length}`);
+      }
+      
+      const lowerMessage = message.toLowerCase();
+      let bestMatch = null;
+      let highestScore = 0;
+      
+      // Search through ALL available services for exact matches
+      for (const service of allServices.items) {
+        const serviceName = service.Item_Name.toLowerCase();
+        let score = 0;
+        
+        // Exact name match gets highest score
+        if (serviceName === lowerMessage.trim()) {
+          score = 100;
+        }
+        // Service name contains the search term
+        else if (serviceName.includes(lowerMessage.trim())) {
+          score = 90;
+        }
+        // Search term contains service name
+        else if (lowerMessage.includes(serviceName)) {
+          score = 80;
+        }
+        // Keyword matching for common terms
+        else if (lowerMessage.includes('french') && serviceName.includes('french')) {
+          score = 85;
+        }
+        else if (lowerMessage.includes('manicure') && serviceName.includes('manicure')) {
+          score = 75;
+        }
+        else if (lowerMessage.includes('pedicure') && serviceName.includes('pedicure')) {
+          score = 75;
+        }
+        else if (lowerMessage.includes('gel') && serviceName.includes('gel')) {
+          score = 75;
+        }
+        
+        if (score > highestScore) {
+          highestScore = score;
+          bestMatch = service;
+        }
+      }
+      
+      if (bestMatch && highestScore > 50) {
+        console.log(`✅ Found exact NailIt service: ${bestMatch.Item_Name} (Score: ${highestScore})`);
+        
+        // Store EXACT service details from NailIt system
+        state.collectedData.selectedServices = [{
+          itemId: bestMatch.Item_Id,
+          itemName: bestMatch.Item_Name, // EXACT name from NailIt
+          price: bestMatch.Special_Price || bestMatch.Primary_Price,
+          quantity: 1,
+          duration: bestMatch.Duration,
+          description: bestMatch.Item_Desc?.replace(/<[^>]*>/g, '') || ''
+        }];
+        
+        console.log(`📋 Service extracted: ${bestMatch.Item_Name} - ${bestMatch.Special_Price || bestMatch.Primary_Price} KWD`);
+      } else {
+        console.log(`❌ No matching service found for: "${message}"`);
       }
     } catch (error) {
       console.error('Service extraction error:', error);
     }
   }
 
-  async createBooking(state: ConversationState, customer: Customer): Promise<boolean> {
+  async createBooking(state: ConversationState, customer: Customer): Promise<{ success: boolean; orderId?: number; message?: string }> {
     try {
       if (!state.collectedData.selectedServices.length || 
           !state.collectedData.locationId || 
           !state.collectedData.customerName || 
           !state.collectedData.customerEmail) {
-        return false;
+        return { success: false, message: 'Missing required booking information' };
       }
 
-      const orderData = {
-        items: state.collectedData.selectedServices,
-        locationId: state.collectedData.locationId,
-        customerName: state.collectedData.customerName,
-        customerEmail: state.collectedData.customerEmail,
-        appointmentDate: state.collectedData.appointmentDate || new Date().toISOString().split('T')[0],
-        paymentTypeId: state.collectedData.paymentTypeId || 1
+      console.log('🎯 Creating real NailIt order with collected data:', state.collectedData);
+      
+      // Register or get customer in NailIt system
+      const customerData = {
+        Address: customer.phoneNumber || '',
+        Email_Id: state.collectedData.customerEmail || customer.email || 'customer@example.com',
+        Name: state.collectedData.customerName || customer.name || 'Customer',
+        Mobile: customer.phoneNumber || '+96500000000',
+        Login_Type: 1
       };
 
-      console.log('🔍 Creating booking with NailIt API:', orderData);
+      console.log('👤 Registering customer in NailIt system...');
+      const nailItCustomerId = await nailItAPI.getOrCreateUser(customerData);
       
-      const result = await nailItAPI.createOrderWithUser(orderData);
-      
-      if (result && result.orderId) {
-        console.log('✅ Booking created successfully with Order ID:', result.orderId);
-        return true;
+      if (!nailItCustomerId) {
+        console.log('❌ Failed to create customer in NailIt system');
+        return { success: false, message: 'Failed to register customer in NailIt system' };
+      }
+
+      console.log(`✅ Customer registered in NailIt: ID ${nailItCustomerId}`);
+
+      // Create order details from selected services
+      const orderDetails = state.collectedData.selectedServices.map(service => ({
+        Prod_Id: service.itemId,
+        Prod_Name: service.itemName,
+        Qty: service.quantity,
+        Rate: service.price,
+        Amount: service.price * service.quantity,
+        Size_Id: null,
+        Size_Name: "",
+        Promotion_Id: 0,
+        Promo_Code: "",
+        Discount_Amount: 0,
+        Net_Amount: service.price * service.quantity,
+        Staff_Id: state.collectedData.staffId || 1,
+        TimeFrame_Ids: state.collectedData.timeSlotIds || [1],
+        Appointment_Date: state.collectedData.appointmentDate || nailItAPI.formatDateForAPI(new Date())
+      }));
+
+      const totalAmount = state.collectedData.selectedServices.reduce((sum, service) => sum + (service.price * service.quantity), 0);
+
+      // Create NailIt order
+      const orderData = {
+        Gross_Amount: totalAmount,
+        Payment_Type_Id: 1, // Cash on arrival
+        Order_Type: 1,
+        UserId: nailItCustomerId,
+        FirstName: state.collectedData.customerName || customer.name || 'Customer',
+        Mobile: customer.phoneNumber || '+96500000000',
+        Email: state.collectedData.customerEmail || customer.email || 'customer@example.com',
+        Discount_Amount: 0,
+        Net_Amount: totalAmount,
+        POS_Location_Id: state.collectedData.locationId,
+        OrderDetails: orderDetails
+      };
+
+      console.log('📋 Creating order in NailIt POS system...');
+      const orderResult = await nailItAPI.saveOrder(orderData);
+
+      if (orderResult && orderResult.Status === 0) {
+        console.log(`🎉 Order created successfully in NailIt POS! Order ID: ${orderResult.OrderId}`);
+        
+        // Mark the conversation as completed
+        state.collectedData.readyForBooking = true;
+        
+        return { 
+          success: true, 
+          orderId: orderResult.OrderId,
+          message: `Order confirmed in NailIt POS system with Order ID: ${orderResult.OrderId}`
+        };
       } else {
-        console.log('❌ Booking failed:', result);
-        return false;
+        console.log('❌ Failed to create order in NailIt POS:', orderResult);
+        return { 
+          success: false, 
+          message: orderResult?.Message || 'Failed to create order in NailIt system'
+        };
       }
     } catch (error) {
       console.error('❌ Booking creation error:', error);
-      return false;
+      return { 
+        success: false, 
+        message: `Booking error: ${error.message}`
+      };
     }
   }
 
@@ -504,9 +684,40 @@ How can I help you today?`;
         state.collectedData.locationId = locationId;
         state.collectedData.locationName = location.Location_Name;
         
-        // Auto-assign staff and time to simplify the process
-        state.collectedData.staffId = 1;
-        state.collectedData.staffName = "Available Specialist";
+        // Check staff availability for the selected service
+        let staffInfo = "";
+        if (state.collectedData.selectedServices.length > 0) {
+          try {
+            const serviceId = state.collectedData.selectedServices[0].itemId;
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const dateStr = nailItAPI.formatDateForAPI(tomorrow);
+            
+            console.log(`🔍 Checking staff availability for service ${serviceId} at location ${locationId}`);
+            const staff = await nailItAPI.getServiceStaff(serviceId, locationId, 'E', dateStr);
+            
+            if (staff && staff.length > 0) {
+              const assignedStaff = staff[0];
+              state.collectedData.staffId = assignedStaff.Id;
+              state.collectedData.staffName = assignedStaff.Name;
+              
+              staffInfo = state.language === 'ar'
+                ? `\n\nسيتم تعيين المتخصص: ${assignedStaff.Name} لخدمتك. إذا كنت تفضل متخصص آخر، يرجى إعلامي.`
+                : `\n\nYour specialist will be: ${assignedStaff.Name}. If you'd prefer someone else, please let me know.`;
+              
+              console.log(`✅ Staff assigned: ${assignedStaff.Name} (ID: ${assignedStaff.Id})`);
+            } else {
+              // Fallback if no staff found
+              state.collectedData.staffId = 1;
+              state.collectedData.staffName = "Available Specialist";
+              console.log('⚠️ No specific staff found, using fallback');
+            }
+          } catch (error) {
+            console.error('Error checking staff availability:', error);
+            state.collectedData.staffId = 1;
+            state.collectedData.staffName = "Available Specialist";
+          }
+        }
         
         const today = new Date();
         const tomorrow = new Date(today);
@@ -518,9 +729,13 @@ How can I help you today?`;
         
         state.phase = 'customer_info';
         
+        const serviceName = state.collectedData.selectedServices.length > 0 
+          ? state.collectedData.selectedServices[0].itemName 
+          : 'your service';
+        
         const response = state.language === 'ar'
-          ? `تم اختيار: ${location.Location_Name} ✓\n\nسنحجز لك موعد غداً في تمام الساعة 10:00 صباحاً مع أحد المتخصصين.\n\nما اسمك الكامل؟`
-          : `Selected: ${location.Location_Name} ✓\n\nWe'll book your appointment tomorrow at 10:00 AM with one of our specialists.\n\nWhat's your full name?`;
+          ? `تم اختيار: ${location.Location_Name} ✓\n\nخدمتك: ${serviceName}\nسنحجز لك موعد غداً في تمام الساعة 10:00 صباحاً.${staffInfo}\n\nما اسمك الكامل؟`
+          : `Selected: ${location.Location_Name} ✓\n\nYour service: ${serviceName}\nWe'll book your appointment tomorrow at 10:00 AM.${staffInfo}\n\nWhat's your full name?`;
         
         return this.createResponse(state, response);
       }
