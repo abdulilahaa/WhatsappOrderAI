@@ -526,6 +526,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Order and Payment flow test
+  app.get("/api/test-order-payment", async (req, res) => {
+    try {
+      const { testOrderAndPayment } = await import('./test-order-payment');
+      const result = await testOrderAndPayment();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Order and payment test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Payment flow test
+  app.get("/api/test-payment-flow", async (req, res) => {
+    try {
+      const { testPaymentFlow } = await import('./test-payment-flow');
+      const result = await testPaymentFlow();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Payment flow test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fresh AI Conversation Management
   app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
     try {
