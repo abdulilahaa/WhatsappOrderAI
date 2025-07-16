@@ -938,13 +938,68 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
 
   async searchNailItServices(query: string, date?: string): Promise<NailItItem[]> {
     try {
-      const searchDate = date || nailItAPI.formatDateForAPI(new Date());
-      const locations = await nailItAPI.getLocations('E');
-      const locationIds = locations.map(loc => loc.Location_Id);
+      // Get all services from all locations for comprehensive search
+      const searchParams = {
+        itemTypeId: 2, // Services
+        groupId: 0, // All groups
+        selectedDate: date || nailItAPI.formatDateForAPI(new Date()),
+        pageNo: 1,
+        locationIds: [1, 52, 53] // All locations
+      };
+
+      console.log('🔍 AI searching ALL NailIt services with params:', searchParams);
       
-      return await nailItAPI.searchServices(query, searchDate, locationIds);
+      // Get first page to determine total
+      const firstPage = await nailItAPI.getItemsByDate(searchParams);
+      
+      if (!firstPage || !firstPage.items) {
+        return [];
+      }
+      
+      console.log(`📦 Found ${firstPage.totalItems} total services from NailIt API for AI`);
+      
+      // Get all pages if there are multiple pages
+      let allItems = [...firstPage.items];
+      
+      if (firstPage.totalItems > firstPage.items.length) {
+        const itemsPerPage = firstPage.items.length;
+        const totalPages = Math.ceil(firstPage.totalItems / itemsPerPage);
+        
+        console.log(`📄 AI fetching ${totalPages - 1} additional pages...`);
+        
+        const pagePromises = [];
+        for (let page = 2; page <= totalPages; page++) {
+          pagePromises.push(
+            nailItAPI.getItemsByDate({
+              ...searchParams,
+              pageNo: page
+            })
+          );
+        }
+        
+        const additionalPages = await Promise.all(pagePromises);
+        additionalPages.forEach(pageResponse => {
+          if (pageResponse && pageResponse.items) {
+            allItems.push(...pageResponse.items);
+          }
+        });
+      }
+      
+      console.log(`✅ AI has access to ${allItems.length} total services across all locations`);
+      
+      // Filter services based on query if provided
+      if (query && query.trim()) {
+        const filtered = allItems.filter(item => 
+          item.Item_Name.toLowerCase().includes(query.toLowerCase()) ||
+          (item.Item_Desc && item.Item_Desc.toLowerCase().includes(query.toLowerCase()))
+        );
+        console.log(`🎯 Filtered to ${filtered.length} services matching "${query}"`);
+        return filtered;
+      }
+      
+      return allItems;
     } catch (error) {
-      console.error('Failed to search NailIt services:', error);
+      console.error('Error searching NailIt services:', error);
       return [];
     }
   }

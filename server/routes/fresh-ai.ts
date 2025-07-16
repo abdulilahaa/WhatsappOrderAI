@@ -12,7 +12,12 @@ export async function testFreshAI(req: Request, res: Response) {
     }
 
     // Get or create customer
-    let customer = await storage.getCustomer(parseInt(customerId));
+    const customerIdNum = parseInt(customerId);
+    if (isNaN(customerIdNum)) {
+      return res.status(400).json({ error: "Invalid customer ID format" });
+    }
+    
+    let customer = await storage.getCustomer(customerIdNum);
     if (!customer) {
       // Always check if customer exists by phone number to avoid duplicates
       const testPhoneNumber = '+96500000000';

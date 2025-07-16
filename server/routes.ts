@@ -1021,10 +1021,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // If no synced data, try a quick API call
+      // If no synced data, fetch ALL pages from API
       try {
         const currentDate = nailItAPI.formatDateForAPI(new Date());
-        const result = await nailItAPI.getItemsByDate({
+        console.log(`🔄 Fetching ALL services for location ${locationId}...`);
+        
+        // Get first page to determine total items and pages needed
+        const firstPage = await nailItAPI.getItemsByDate({
           itemTypeId: 2,
           groupId: 0, 
           selectedDate: currentDate,
@@ -1032,10 +1035,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           locationIds: [Number(locationId)]
         });
         
-        console.log(`📊 API quick check: ${result.totalItems} total, got ${result.items.length} items`);
+        console.log(`📊 Location ${locationId}: ${firstPage.totalItems} total items available`);
+        
+        const totalItems = firstPage.totalItems;
+        const itemsPerPage = firstPage.items.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        
+        let allItems = [...firstPage.items];
+        
+        // Fetch remaining pages if there are more than 1 page
+        if (totalPages > 1) {
+          console.log(`📄 Fetching ${totalPages - 1} additional pages for location ${locationId}...`);
+          
+          const pagePromises = [];
+          for (let page = 2; page <= totalPages; page++) {
+            pagePromises.push(
+              nailItAPI.getItemsByDate({
+                itemTypeId: 2,
+                groupId: 0,
+                selectedDate: currentDate,
+                pageNo: page,
+                locationIds: [Number(locationId)]
+              })
+            );
+          }
+          
+          // Execute all page requests in parallel for faster loading
+          const additionalPages = await Promise.all(pagePromises);
+          
+          // Combine all items
+          additionalPages.forEach(pageResponse => {
+            allItems.push(...pageResponse.items);
+          });
+        }
+        
+        console.log(`✅ Location ${locationId}: Successfully fetched ${allItems.length} out of ${totalItems} services`);
         
         // Transform items to product format
-        const products = result.items.map(item => ({
+        const products = allItems.map(item => ({
           id: item.Item_Id,
           name: item.Item_Name,
           description: item.Item_Desc ? item.Item_Desc.replace(/<[^>]*>/g, '') : '',
@@ -1060,8 +1097,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: true,
           locationId: Number(locationId),
           products,
-          totalFound: result.totalItems,
-          message: `Showing ${products.length} items for location ${locationId} from ${result.totalItems} total available`
+          totalFound: allItems.length,
+          message: `Showing all ${allItems.length} services for location ${locationId}`,
+          paginationInfo: {
+            totalPages,
+            itemsPerPage,
+            totalItems
+          }
         });
       } catch (apiError) {
         console.log(`⚠️ API call failed, returning empty: ${apiError.message}`);
