@@ -107,7 +107,9 @@ export default function Products() {
     let total = 0;
     locations.forEach(location => {
       const cachedData = queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", location.Location_Id]);
-      total += cachedData?.totalFound || 0;
+      if (cachedData?.totalFound) {
+        total += cachedData.totalFound;
+      }
     });
     return total;
   };
@@ -187,7 +189,10 @@ export default function Products() {
         <div>
           <h1 className="text-3xl font-bold">NailIt Service Catalog by Location</h1>
           <p className="text-gray-600 mt-2">
-            Live services from NailIt POS - {getTotalProducts()} authentic services across {locations?.length || 0} locations
+            Live services from NailIt POS - {getTotalProducts()} authentic services across {locations?.length || 0} locations 
+            {getTotalProducts() > 0 && (
+              <span className="text-green-600 font-semibold"> ✓ Connected</span>
+            )}
             <br />
             <Button 
               variant="link" 
