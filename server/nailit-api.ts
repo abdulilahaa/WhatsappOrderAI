@@ -122,6 +122,50 @@ export interface NailItRegisterResponse {
   Status: number;
 }
 
+export interface NailItOrderPaymentDetail {
+  Status: number;
+  Message: string;
+  OrderId: number;
+  PaymentId: number;
+  PayDate: string;
+  Date: string;
+  Time: string;
+  ChannelId: number;
+  PayAmount: number;
+  Delivery_Charges: number;
+  CustomerId: number;
+  PayType: string;
+  KNetPayId?: string;
+  KNetAuth?: string;
+  KNetResult?: string;
+  KNetReference?: string;
+  KNetTransId?: string;
+  RedeemPoints: number;
+  RedeemAmount: number;
+  WalletAmount: number;
+  EarnedPoints: number;
+  Customer_Name: string;
+  Location_Name: string;
+  Booking_Datetime: string;
+  Address: string;
+  Order_Type: number;
+  Order_Status_Id: number;
+  OrderStatus: string;
+  MinBookingDate: string;
+  PayNowExpireDate: string;
+  Tip: number;
+  Services: Array<{
+    Service_Id: number;
+    Service_Name: string;
+    Service_Date: string;
+    Service_Time_Slots: string;
+    Price: number;
+    Qty: number;
+    Image_URL: string;
+    Staff_Name: string;
+  }>;
+}
+
 export class NailItAPIService {
   private client: AxiosInstance;
   private securityToken: string;
@@ -728,6 +772,34 @@ export class NailItAPIService {
       
     } catch (error) {
       console.error('Failed to create integrated order:', error);
+      return null;
+    }
+  }
+
+  // NEW V2.1 API: Get Order Payment Detail
+  async getOrderPaymentDetail(orderId: number): Promise<NailItOrderPaymentDetail | null> {
+    try {
+      console.log(`📋 Getting order payment details for Order ID: ${orderId}`);
+      
+      const response = await this.client.get<NailItOrderPaymentDetail>(
+        `/GetOrderPaymentDetail/${orderId}`,
+        {
+          headers: {
+            'X-NailItMobile-SecurityToken': this.securityToken
+          }
+        }
+      );
+
+      if (response.data && response.data.Status === 0) {
+        console.log(`✅ Order payment details retrieved successfully for Order ID: ${orderId}`);
+        console.log(`📊 Order Status: ${response.data.OrderStatus}, Payment: ${response.data.PayType}, Amount: ${response.data.PayAmount} KWD`);
+        return response.data;
+      } else {
+        console.error(`❌ Failed to get order payment details: ${response.data?.Message || 'Unknown error'}`);
+        return null;
+      }
+    } catch (error: any) {
+      console.error(`❌ Error getting order payment details for Order ID ${orderId}:`, error.response?.data || error.message);
       return null;
     }
   }

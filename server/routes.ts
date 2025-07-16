@@ -1831,6 +1831,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // NEW V2.1 API: Get Order Payment Detail endpoint
+  app.get("/api/nailit/order/:orderId/payment-details", async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      
+      if (!orderId || isNaN(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Valid order ID is required"
+        });
+      }
+
+      const paymentDetails = await nailItAPI.getOrderPaymentDetail(orderId);
+      
+      if (paymentDetails) {
+        res.json({
+          success: true,
+          orderDetails: paymentDetails,
+          summary: {
+            orderId: paymentDetails.OrderId,
+            status: paymentDetails.OrderStatus,
+            paymentType: paymentDetails.PayType,
+            amount: paymentDetails.PayAmount,
+            customer: paymentDetails.Customer_Name,
+            location: paymentDetails.Location_Name,
+            bookingDate: paymentDetails.MinBookingDate,
+            servicesCount: paymentDetails.Services.length
+          }
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: "Order payment details not found or API error"
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        note: "Order payment details retrieval failed"
+      });
+    }
+  });
+
+  // Enhanced order tracking endpoint with payment status
+  app.get("/api/nailit/order/:orderId/status", async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      const paymentDetails = await nailItAPI.getOrderPaymentDetail(orderId);
+      
+      if (paymentDetails) {
+        res.json({
+          success: true,
+          orderId,
+          status: {
+            orderStatus: paymentDetails.OrderStatus,
+            orderStatusId: paymentDetails.Order_Status_Id,
+            paymentStatus: paymentDetails.PayType,
+            lastUpdate: paymentDetails.PayDate
+          },
+          customer: {
+            name: paymentDetails.Customer_Name,
+            customerId: paymentDetails.CustomerId
+          },
+          booking: {
+            location: paymentDetails.Location_Name,
+            bookingDateTime: paymentDetails.Booking_Datetime,
+            minBookingDate: paymentDetails.MinBookingDate,
+            expiryDate: paymentDetails.PayNowExpireDate
+          },
+          services: paymentDetails.Services.map(service => ({
+            name: service.Service_Name,
+            date: service.Service_Date,
+            timeSlots: service.Service_Time_Slots,
+            staff: service.Staff_Name,
+            price: service.Price
+          })),
+          payment: {
+            amount: paymentDetails.PayAmount,
+            type: paymentDetails.PayType,
+            date: paymentDetails.PayDate,
+            tip: paymentDetails.Tip,
+            earnedPoints: paymentDetails.EarnedPoints
+          }
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: "Order not found"
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
   // Comprehensive API status endpoint with all integrations
   app.get("/api/nailit/test-all-endpoints", async (req, res) => {
     const results = await nailItAPI.testAllEndpoints();
