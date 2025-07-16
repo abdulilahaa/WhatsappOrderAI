@@ -14,7 +14,7 @@ import Integrations from "@/pages/integrations";
 import APIDataDashboard from "@/pages/api-data-dashboard";
 import APITestingPage from "@/pages/api-testing";
 import IntegrationDashboard from "@/pages/integration-dashboard";
-import AISettingsPage from "@/pages/ai-settings";
+import FreshAISettingsPage from "@/pages/fresh-ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";
 import FreshAITest from "@/pages/fresh-ai-test";
 import NotFound from "@/pages/not-found";
@@ -48,7 +48,7 @@ function Router() {
         <Route path="/api-testing" component={APITestingPage} />
         <Route path="/integration-dashboard" component={IntegrationDashboard} />
         <Route path="/integrations" component={Integrations} />
-        <Route path="/ai-settings" component={AISettingsPage} />
+        <Route path="/ai-settings" component={FreshAISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/fresh-ai-test" component={FreshAITest} />
         <Route path="/checkout" component={Checkout} />

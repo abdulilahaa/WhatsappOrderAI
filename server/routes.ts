@@ -6,7 +6,7 @@ import { freshAI } from "./ai-fresh";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
-import { insertProductSchema, insertAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
+import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import multer from "multer";
@@ -395,27 +395,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI Settings API
-  app.get("/api/ai-settings", async (req, res) => {
+  // Fresh AI Settings API
+  app.get("/api/fresh-ai-settings", async (req, res) => {
     try {
-      const settings = await storage.getAISettings();
+      const settings = await storage.getFreshAISettings();
       res.json(settings);
     } catch (error: any) {
-      res.status(500).json({ message: "Error fetching AI settings: " + error.message });
+      res.status(500).json({ message: "Error fetching Fresh AI settings: " + error.message });
     }
   });
 
-  app.put("/api/ai-settings", async (req, res) => {
+  app.put("/api/fresh-ai-settings", async (req, res) => {
     try {
-      const validatedData = insertAISettingsSchema.partial().parse(req.body);
-      const settings = await storage.updateAISettings(validatedData);
+      const validatedData = insertFreshAISettingsSchema.partial().parse(req.body);
+      const settings = await storage.updateFreshAISettings(validatedData);
       
       res.json(settings);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      res.status(500).json({ message: "Error updating AI settings: " + error.message });
+      res.status(500).json({ message: "Error updating Fresh AI settings: " + error.message });
     }
   });
 

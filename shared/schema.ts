@@ -48,41 +48,45 @@ export const messages = pgTable("messages", {
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 
-export const aiSettings = pgTable("ai_settings", {
+// Fresh AI Settings - Specifically designed for the Fresh AI Agent
+export const freshAISettings = pgTable("fresh_ai_settings", {
   id: serial("id").primaryKey(),
-  businessName: text("business_name").notNull().default("My Business"),
-  assistantName: text("assistant_name").notNull().default("AI Assistant"),
-  businessType: text("business_type").notNull().default("ecommerce"), // ecommerce, appointment_based, hybrid
-  tone: text("tone").notNull().default("friendly"), // friendly, professional, enthusiastic, helpful
-  responseSpeed: text("response_speed").notNull().default("natural"), // instant, quick, natural, thoughtful
-  autoSuggestProducts: boolean("auto_suggest_products").notNull().default(true),
+  // Business Identity
+  businessName: text("business_name").notNull().default("NailIt Salon"),
+  assistantName: text("assistant_name").notNull().default("NailIt Assistant"),
+  welcomeMessageEN: text("welcome_message_en").notNull().default("Welcome to NailIt! How can I help you today?"),
+  welcomeMessageAR: text("welcome_message_ar").notNull().default("مرحباً بك في نيل إت! كيف يمكنني مساعدتك اليوم؟"),
+  
+  // Conversation Settings
+  conversationTone: text("conversation_tone").notNull().default("professional"), // natural, friendly, professional, enthusiastic
+  responseStyle: text("response_style").notNull().default("concise"), // concise, detailed, conversational
+  defaultLanguage: text("default_language").notNull().default("en"), // en, ar, both
+  
+  // OpenAI Configuration
+  openaiModel: text("openai_model").notNull().default("gpt-4"),
+  openaiTemperature: decimal("openai_temperature", { precision: 2, scale: 1 }).notNull().default("0.3"),
+  maxTokens: integer("max_tokens").notNull().default(500),
+  
+  // Booking Behavior
+  autoStaffAssignment: boolean("auto_staff_assignment").notNull().default(true),
   collectCustomerInfo: boolean("collect_customer_info").notNull().default(true),
-  welcomeMessage: text("welcome_message").notNull().default("Hello! How can I help you today?"),
-  // Appointment-specific settings
-  appointmentDuration: integer("appointment_duration").default(60), // in minutes
-  workingHours: jsonb("working_hours").default({
-    monday: { start: "09:00", end: "17:00", enabled: true },
-    tuesday: { start: "09:00", end: "17:00", enabled: true },
-    wednesday: { start: "09:00", end: "17:00", enabled: true },
-    thursday: { start: "09:00", end: "17:00", enabled: true },
-    friday: { start: "09:00", end: "17:00", enabled: true },
-    saturday: { start: "09:00", end: "15:00", enabled: true },
-    sunday: { start: "10:00", end: "14:00", enabled: false }
-  }),
-  timeZone: text("time_zone").notNull().default("Asia/Kuwait"),
-  bookingLeadTime: integer("booking_lead_time").default(24), // hours in advance required
-  // Business locations for appointments
-  locations: jsonb("locations").default([
-    { id: 1, name: "Main Branch", address: "Kuwait City" }
-  ]),
-  // Required fields for appointments
-  requiredFields: jsonb("required_fields").default({
-    name: true,
-    email: true,
-    phone: true,
-    location: true,
-    paymentMethod: true
-  }),
+  requireEmailConfirmation: boolean("require_email_confirmation").notNull().default(true),
+  defaultPaymentMethod: text("default_payment_method").default("cash"), // cash, card, knet
+  
+  // System Prompts
+  systemPromptEN: text("system_prompt_en").notNull().default("You are a professional customer service agent for a salon in Kuwait."),
+  systemPromptAR: text("system_prompt_ar").notNull().default("أنت وكيل خدمة عملاء مهني لصالون في الكويت."),
+  
+  // Response Preferences
+  showServicePrices: boolean("show_service_prices").notNull().default(true),
+  showServiceDuration: boolean("show_service_duration").notNull().default(true),
+  showStaffNames: boolean("show_staff_names").notNull().default(true),
+  maxServicesDisplay: integer("max_services_display").notNull().default(4),
+  
+  // Integration Settings
+  useNailItAPI: boolean("use_nail_it_api").notNull().default(true),
+  fallbackToDatabase: boolean("fallback_to_database").notNull().default(true),
+  
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -140,7 +144,7 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   timestamp: true,
 });
 
-export const insertAISettingsSchema = createInsertSchema(aiSettings).omit({
+export const insertFreshAISettingsSchema = createInsertSchema(freshAISettings).omit({
   id: true,
   updatedAt: true,
 });
@@ -203,6 +207,8 @@ export const appointmentsRelations = relations(appointments, ({ one }) => ({
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Customer = typeof customers.$inferSelect;
+export type FreshAISettings = typeof freshAISettings.$inferSelect;
+export type InsertFreshAISettings = z.infer<typeof insertFreshAISettingsSchema>;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
@@ -210,8 +216,7 @@ export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
-export type AISettings = typeof aiSettings.$inferSelect;
-export type InsertAISettings = z.infer<typeof insertAISettingsSchema>;
+
 export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type WhatsAppSettings = typeof whatsappSettings.$inferSelect;

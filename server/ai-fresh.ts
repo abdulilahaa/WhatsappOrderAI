@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai';
 import { storage } from './storage';
 import { nailItAPI } from './nailit-api';
-import type { Customer, Product, AISettings } from '@shared/schema';
+import type { Customer, Product, FreshAISettings } from '@shared/schema';
 import type { NailItItem, NailItStaff, NailItTimeSlot, NailItPaymentType } from './nailit-api';
 
 const openai = new OpenAI({
@@ -74,15 +74,15 @@ export interface ConversationState {
 
 export class FreshAIAgent {
   private conversationStates: Map<string, ConversationState> = new Map();
-  private settings: AISettings;
+  private settings: FreshAISettings;
 
   constructor() {
-    this.settings = {} as AISettings;
+    this.settings = {} as FreshAISettings;
     this.initialize();
   }
 
   private async initialize() {
-    this.settings = await storage.getAISettings();
+    this.settings = await storage.getFreshAISettings();
   }
 
   async processMessage(
@@ -137,25 +137,29 @@ export class FreshAIAgent {
   }
 
   private async handleNaturalGreeting(message: string, state: ConversationState): Promise<AIResponse> {
+    // Get locations from NailIt API
+    const locations = await nailItAPI.getLocations();
+    const locationList = locations.map(loc => `• ${loc.Location_Name}`).join('\n');
+    
     const response = state.language === 'ar' 
-      ? `مرحباً! أهلاً بك في نيل إت 🌟
+      ? `مرحباً! أنا ${this.settings.assistantName} من ${this.settings.businessName} 🌟
+
+${this.settings.welcomeMessageAR}
 
 نحن متخصصون في خدمات العناية بالأظافر والجمال في الكويت.
 
-لدينا 3 فروع:
-• الأفنيوز مول
-• مجمع الزهراء  
-• الراية مول
+لدينا ${locations.length} فروع:
+${locationList}
 
 كيف يمكنني مساعدتك اليوم؟`
-      : `Hello! Welcome to NailIt 🌟
+      : `Hello! I'm ${this.settings.assistantName} from ${this.settings.businessName} 🌟
+
+${this.settings.welcomeMessageEN}
 
 We specialize in nail care and beauty services in Kuwait.
 
-We have 3 locations:
-• Al-Plaza Mall
-• Zahra Complex
-• Arraya Mall
+We have ${locations.length} locations:
+${locationList}
 
 How can I help you today?`;
     
@@ -193,15 +197,21 @@ How can I help you today?`;
     // Get available locations
     const locations = await nailItAPI.getLocations();
 
-    // Build system prompt for advanced AI
-    const systemPrompt = `You are a professional customer service agent for NailIt salon in Kuwait. 
+    // Build system prompt for advanced AI using configured settings
+    const baseSystemPrompt = state.language === 'ar' ? this.settings.systemPromptAR : this.settings.systemPromptEN;
+    const systemPrompt = `${baseSystemPrompt}
+
+CONVERSATION TONE: ${this.settings.conversationTone.toUpperCase()}
+RESPONSE STYLE: ${this.settings.responseStyle.toUpperCase()}
+BUSINESS: ${this.settings.businessName}
+ASSISTANT: ${this.settings.assistantName}
 
 IMPORTANT RULES:
 1. NEVER ask for information the customer has already provided
 2. REMEMBER what the customer has said in previous messages
 3. ANALYZE the conversation context before responding
 4. Only ask for missing information needed to complete a booking
-5. Be natural and conversational, not robotic
+5. Be ${this.settings.conversationTone} and ${this.settings.responseStyle}, not robotic
 6. If customer mentions a service, acknowledge it and proceed
 
 Available locations:
@@ -227,13 +237,13 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
 
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4", // Using GPT-4 for better understanding
+        model: this.settings.openaiModel, // Using configured model
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: customerMessage }
         ],
-        temperature: 0.3,
-        max_tokens: 500
+        temperature: parseFloat(this.settings.openaiTemperature),
+        max_tokens: this.settings.maxTokens
       });
 
       const aiResponse = completion.choices[0]?.message?.content || "I'm sorry, I couldn't understand. Can you please try again?";
@@ -649,7 +659,7 @@ How can I help you today?`;
         Selected_Date: new Date().toISOString().split('T')[0].split('-').reverse().join('-')
       });
 
-      const services = allServices.items.slice(0, 4); // Get first 4 services
+      const services = allServices.items.slice(0, this.settings.maxServicesDisplay); // Get configured number of services
 
       if (services.length === 0) {
         const response = state.language === 'ar'
@@ -666,8 +676,16 @@ How can I help you today?`;
 
       services.forEach((service, index) => {
         const price = service.Special_Price || service.Primary_Price;
-        response += `${index + 1}. ${service.Item_Name} - ${price} KWD\n`;
-        if (service.Duration && service.Duration > 0) {
+        response += `${index + 1}. ${service.Item_Name}`;
+        
+        // Show price if configured to do so
+        if (this.settings.showServicePrices) {
+          response += ` - ${price} KWD`;
+        }
+        response += `\n`;
+        
+        // Show duration if configured to do so
+        if (this.settings.showServiceDuration && service.Duration && service.Duration > 0) {
           const duration = state.language === 'ar' ? `${service.Duration} دقيقة` : `${service.Duration} minutes`;
           response += `   ${duration}\n`;
         }
@@ -728,9 +746,12 @@ How can I help you today?`;
               state.collectedData.staffId = assignedStaff.Id;
               state.collectedData.staffName = assignedStaff.Name;
               
-              staffInfo = state.language === 'ar'
-                ? `\n\nسيتم تعيين المتخصص: ${assignedStaff.Name} لخدمتك. إذا كنت تفضل متخصص آخر، يرجى إعلامي.`
-                : `\n\nYour specialist will be: ${assignedStaff.Name}. If you'd prefer someone else, please let me know.`;
+              // Show staff names if configured to do so
+              if (this.settings.showStaffNames) {
+                staffInfo = state.language === 'ar'
+                  ? `\n\nسيتم تعيين المتخصص: ${assignedStaff.Name} لخدمتك. إذا كنت تفضل متخصص آخر، يرجى إعلامي.`
+                  : `\n\nYour specialist will be: ${assignedStaff.Name}. If you'd prefer someone else, please let me know.`;
+              }
               
               console.log(`✅ Staff assigned: ${assignedStaff.Name} (ID: ${assignedStaff.Id})`);
             } else {

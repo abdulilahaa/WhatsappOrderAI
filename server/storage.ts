@@ -1,8 +1,8 @@
 import { 
-  products, customers, orders, conversations, messages, aiSettings, whatsappSettings, appointments,
+  products, customers, orders, conversations, messages, freshAISettings, whatsappSettings, appointments,
   type Product, type InsertProduct, type Customer, type InsertCustomer, 
   type Order, type InsertOrder, type Conversation, type InsertConversation,
-  type Message, type InsertMessage, type AISettings, type InsertAISettings,
+  type Message, type InsertMessage, type FreshAISettings, type InsertFreshAISettings,
   type WhatsAppSettings, type InsertWhatsAppSettings, type Appointment, type InsertAppointment
 } from "@shared/schema";
 import { db } from "./db";
@@ -47,9 +47,9 @@ export interface IStorage {
   // Conversation deletion
   deleteConversation(id: number): Promise<boolean>;
 
-  // AI Settings
-  getAISettings(): Promise<AISettings>;
-  updateAISettings(settings: Partial<InsertAISettings>): Promise<AISettings>;
+  // Fresh AI Settings
+  getFreshAISettings(): Promise<FreshAISettings>;
+  updateFreshAISettings(settings: Partial<InsertFreshAISettings>): Promise<FreshAISettings>;
 
   // WhatsApp Settings
   getWhatsAppSettings(): Promise<WhatsAppSettings>;
@@ -78,17 +78,32 @@ export class DatabaseStorage implements IStorage {
 
   private async initializeDefaults() {
     try {
-      // Initialize AI settings if they don't exist
-      const existingAI = await db.select().from(aiSettings).limit(1);
-      if (existingAI.length === 0) {
-        await db.insert(aiSettings).values({
-          businessName: "OrderBot AI",
-          assistantName: "Emma",
-          tone: "friendly",
-          responseSpeed: "natural",
-          autoSuggestProducts: true,
+      // Initialize Fresh AI settings if they don't exist
+      const existingFreshAI = await db.select().from(freshAISettings).limit(1);
+      if (existingFreshAI.length === 0) {
+        await db.insert(freshAISettings).values({
+          businessName: "NailIt Salon",
+          assistantName: "NailIt Assistant",
+          welcomeMessageEN: "Welcome to NailIt! How can I help you today?",
+          welcomeMessageAR: "مرحباً بك في نيل إت! كيف يمكنني مساعدتك اليوم؟",
+          conversationTone: "professional",
+          responseStyle: "concise",
+          defaultLanguage: "en",
+          openaiModel: "gpt-4",
+          openaiTemperature: "0.3",
+          maxTokens: 500,
+          autoStaffAssignment: true,
           collectCustomerInfo: true,
-          welcomeMessage: "Hello! Welcome to OrderBot AI. How can I help you today?",
+          requireEmailConfirmation: true,
+          defaultPaymentMethod: "cash",
+          systemPromptEN: "You are a professional customer service agent for NailIt salon in Kuwait. Be helpful, friendly, and guide customers through the booking process naturally.",
+          systemPromptAR: "أنت وكيل خدمة عملاء مهني لصالون نيل إت في الكويت. كن مفيداً وودوداً وأرشد العملاء خلال عملية الحجز بطريقة طبيعية.",
+          showServicePrices: true,
+          showServiceDuration: true,
+          showStaffNames: true,
+          maxServicesDisplay: 4,
+          useNailItAPI: true,
+          fallbackToDatabase: true
         });
       }
 
@@ -310,30 +325,48 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  // AI Settings
-  async getAISettings(): Promise<AISettings> {
-    const [settings] = await db.select().from(aiSettings).limit(1);
+  // Fresh AI Settings
+  async getFreshAISettings(): Promise<FreshAISettings> {
+    let [settings] = await db.select().from(freshAISettings).limit(1);
+    
     if (!settings) {
       // Create default settings if none exist
-      const [newSettings] = await db.insert(aiSettings).values({
-        businessName: "OrderBot AI",
-        assistantName: "Emma",
-        tone: "friendly",
-        responseSpeed: "natural",
-        autoSuggestProducts: true,
+      [settings] = await db.insert(freshAISettings).values({
+        businessName: "NailIt Salon",
+        assistantName: "NailIt Assistant",
+        welcomeMessageEN: "Welcome to NailIt! How can I help you today?",
+        welcomeMessageAR: "مرحباً بك في نيل إت! كيف يمكنني مساعدتك اليوم؟",
+        conversationTone: "professional",
+        responseStyle: "concise",
+        defaultLanguage: "en",
+        openaiModel: "gpt-4",
+        openaiTemperature: "0.3",
+        maxTokens: 500,
+        autoStaffAssignment: true,
         collectCustomerInfo: true,
-        welcomeMessage: "Hello! Welcome to OrderBot AI. How can I help you today?",
+        requireEmailConfirmation: true,
+        defaultPaymentMethod: "cash",
+        systemPromptEN: "You are a professional customer service agent for NailIt salon in Kuwait. Be helpful, friendly, and guide customers through the booking process naturally.",
+        systemPromptAR: "أنت وكيل خدمة عملاء مهني لصالون نيل إت في الكويت. كن مفيداً وودوداً وأرشد العملاء خلال عملية الحجز بطريقة طبيعية.",
+        showServicePrices: true,
+        showServiceDuration: true,
+        showStaffNames: true,
+        maxServicesDisplay: 4,
+        useNailItAPI: true,
+        fallbackToDatabase: true
       }).returning();
-      return newSettings;
     }
+    
     return settings;
   }
 
-  async updateAISettings(settings: Partial<InsertAISettings>): Promise<AISettings> {
+  async updateFreshAISettings(settings: Partial<InsertFreshAISettings>): Promise<FreshAISettings> {
     const [updatedSettings] = await db
-      .update(aiSettings)
-      .set(settings)
+      .update(freshAISettings)
+      .set({ ...settings, updatedAt: new Date() })
+      .where(eq(freshAISettings.id, 1))
       .returning();
+    
     return updatedSettings;
   }
 

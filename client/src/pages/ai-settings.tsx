@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { insertAISettingsSchema } from "@shared/schema";
+import { insertFreshAISettingsSchema } from "@shared/schema";
 import type { AISettings } from "@shared/schema";
 import { Save, AlertCircle, MapPin, Plus, Trash2, ExternalLink } from "lucide-react";
 
@@ -32,7 +32,7 @@ export default function AISettingsPage() {
   });
 
   const form = useForm({
-    resolver: zodResolver(insertAISettingsSchema),
+    resolver: zodResolver(insertFreshAISettingsSchema),
     defaultValues: {
       businessName: "",
       assistantName: "",
