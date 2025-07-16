@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
 import { aiAgent } from "./ai";
+import { freshAI } from "./ai-fresh";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
@@ -1218,6 +1219,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Error testing save order: " + error.message 
       });
     }
+  });
+
+  // Fresh AI Agent Testing Endpoints
+  app.post("/api/fresh-ai/test", async (req, res) => {
+    const { testFreshAI } = await import("./routes/fresh-ai");
+    await testFreshAI(req, res);
+  });
+
+  app.delete("/api/fresh-ai/conversation/:customerId", async (req, res) => {
+    const { clearConversationState } = await import("./routes/fresh-ai");
+    await clearConversationState(req, res);
+  });
+
+  app.get("/api/fresh-ai/conversation/:customerId", async (req, res) => {
+    const { getConversationState } = await import("./routes/fresh-ai");
+    await getConversationState(req, res);
   });
 
   // Create order with user integration using form data

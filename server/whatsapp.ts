@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { aiAgent } from "./ai";
+import { freshAI } from "./ai-fresh";
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
 
@@ -118,21 +119,26 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // Process with AI
-      const aiResponse = await aiAgent.processMessage(
+      // Process with Fresh AI Agent
+      const aiResponse = await freshAI.processMessage(
         message.text,
         customer,
         conversationHistory
       );
 
-      // Handle order intent
+      // Handle order intent (if using old AI)
       if (aiResponse.orderIntent) {
         await this.handleOrderIntent(customer, aiResponse.orderIntent);
       }
 
-      // Handle appointment intent
+      // Handle appointment intent (if using old AI)
       if (aiResponse.appointmentIntent) {
         await this.handleAppointmentIntent(customer, aiResponse.appointmentIntent);
+      }
+
+      // Handle Fresh AI completion (if order is ready for booking)
+      if (aiResponse.collectedData?.readyForBooking) {
+        await this.handleFreshAIBooking(customer, aiResponse.collectedData);
       }
 
       // Send AI response
@@ -145,14 +151,14 @@ export class WhatsAppService {
         isFromAI: true,
       });
 
-      // Send suggested products if any
-      if (aiResponse.suggestedProducts && aiResponse.suggestedProducts.length > 0) {
-        const productMessage = this.formatProductSuggestions(aiResponse.suggestedProducts);
-        await this.sendMessage(customer.phoneNumber, productMessage);
+      // Send suggested services if any
+      if (aiResponse.suggestedServices && aiResponse.suggestedServices.length > 0) {
+        const serviceMessage = this.formatServiceSuggestions(aiResponse.suggestedServices);
+        await this.sendMessage(customer.phoneNumber, serviceMessage);
         
         await storage.createMessage({
           conversationId: conversation.id,
-          content: productMessage,
+          content: serviceMessage,
           isFromAI: true,
         });
       }
@@ -427,15 +433,115 @@ export class WhatsAppService {
     }
   }
 
-  private formatProductSuggestions(products: any[]): string {
-    let message = "Here are some products you might like:\n\n";
-    
-    products.forEach((product, index) => {
-      message += `${index + 1}. *${product.name}* - ${product.price} KWD\n`;
-      message += `   ${product.description}\n\n`;
-    });
+  private async handleFreshAIBooking(customer: Customer, collectedData: any): Promise<void> {
+    try {
+      console.log("Processing Fresh AI booking:", JSON.stringify(collectedData, null, 2));
+      
+      // Get user from NailIt API or create new user
+      const userData = {
+        Address: "Kuwait City, Kuwait",
+        Email_Id: collectedData.customerEmail,
+        Name: collectedData.customerName,
+        Mobile: customer.phoneNumber,
+        Login_Type: 1,
+        Image_Name: ""
+      };
 
-    message += "Would you like to know more about any of these products or place an order?";
+      const userId = await nailItAPI.getOrCreateUser(userData);
+      if (!userId) {
+        throw new Error("Failed to create user in NailIt system");
+      }
+
+      // Prepare order details
+      const orderDetails = collectedData.selectedServices.map(service => ({
+        Prod_Id: service.itemId,
+        Prod_Name: service.itemName,
+        Qty: service.quantity,
+        Rate: service.price,
+        Amount: service.price * service.quantity,
+        Size_Id: null,
+        Size_Name: "",
+        Promotion_Id: 0,
+        Promo_Code: "",
+        Discount_Amount: 0,
+        Net_Amount: service.price * service.quantity,
+        Staff_Id: collectedData.staffId || 0,
+        TimeFrame_Ids: collectedData.timeSlotIds || [],
+        Appointment_Date: collectedData.appointmentDate || nailItAPI.formatDateForURL(new Date())
+      }));
+
+      // Create NailIt order
+      const orderData = {
+        Gross_Amount: collectedData.totalAmount,
+        Payment_Type_Id: collectedData.paymentTypeId,
+        Order_Type: 1,
+        UserId: userId,
+        FirstName: collectedData.customerName,
+        Mobile: customer.phoneNumber,
+        Email: collectedData.customerEmail,
+        Discount_Amount: 0,
+        Net_Amount: collectedData.totalAmount,
+        POS_Location_Id: collectedData.locationId,
+        OrderDetails: orderDetails
+      };
+
+      const orderResult = await nailItAPI.saveOrder(orderData);
+      
+      if (orderResult && orderResult.Status === 1) {
+        // Create local order for dashboard tracking
+        const localOrder = await storage.createOrder({
+          customerId: customer.id,
+          status: "confirmed",
+          items: collectedData.selectedServices.map(service => ({
+            productId: service.itemId,
+            quantity: service.quantity,
+            price: service.price.toString()
+          })),
+          total: collectedData.totalAmount.toString(),
+          notes: `Fresh AI booking - NailIt Order ID: ${orderResult.OrderId}`
+        });
+
+        // Send confirmation message
+        const confirmationMessage = `🎉 *Booking Confirmed!*\n\n` +
+          `Order ID: ${orderResult.OrderId}\n` +
+          `Location: ${collectedData.locationName}\n` +
+          `Date: ${collectedData.appointmentDate}\n` +
+          `Time: ${collectedData.timeSlotNames?.join(', ')}\n` +
+          `Total: ${collectedData.totalAmount} KWD\n\n` +
+          `Thank you ${collectedData.customerName}! Your appointment is confirmed. We'll see you soon!`;
+
+        await this.sendMessage(customer.phoneNumber, confirmationMessage);
+        
+        // Clear conversation state after successful booking
+        freshAI.clearConversationState(customer.id.toString());
+        
+        console.log(`Fresh AI booking successful: NailIt Order ${orderResult.OrderId}, Local Order ${localOrder.id}`);
+      } else {
+        throw new Error(`NailIt order creation failed: ${orderResult?.Message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("Error handling Fresh AI booking:", error);
+      await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue processing your booking. Please try again or contact us directly.");
+    }
+  }
+
+  private formatServiceSuggestions(services: any[]): string {
+    let message = "Here are some services we offer:\n\n";
+    
+    services.forEach((service, index) => {
+      const price = service.Special_Price || service.Primary_Price;
+      message += `${index + 1}. *${service.Item_Name}* - ${price} KWD\n`;
+      if (service.Item_Desc) {
+        const cleanDesc = service.Item_Desc.replace(/<[^>]*>/g, '').slice(0, 100);
+        message += `   ${cleanDesc}...\n`;
+      }
+      if (service.Duration) {
+        message += `   Duration: ${service.Duration} minutes\n`;
+      }
+      message += "\n";
+    });
+    
+    message += "Which service interests you?";
     return message;
   }
 
