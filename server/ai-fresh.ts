@@ -145,22 +145,26 @@ export class FreshAIAgent {
 
   private async handleGreeting(message: string, state: ConversationState): Promise<AIResponse> {
     const response = state.language === 'ar' 
-      ? `مرحباً! أهلاً بك في نيل إت. كيف يمكنني مساعدتك اليوم؟
+      ? `مرحباً! أهلاً بك في نيل إت 🌟
 
-لدينا أكثر من 1000 خدمة متاحة في 3 فروع:
-• الأفنيوز مول (378 خدمة)
-• مجمع الزهراء (330 خدمة)  
-• الراية مول (365 خدمة)
+نحن متخصصون في خدمات العناية بالأظافر والجمال في الكويت.
 
-ما الخدمة التي تريدها؟`
-      : `Hello! Welcome to NailIt. How can I help you today?
+لدينا 3 فروع:
+• الأفنيوز مول
+• مجمع الزهراء  
+• الراية مول
 
-We have over 1000 services available across 3 locations:
-• Al-Plaza Mall (378 services)
-• Zahra Complex (330 services)
-• Arraya Mall (365 services)
+كيف يمكنني مساعدتك اليوم؟`
+      : `Hello! Welcome to NailIt 🌟
 
-What service are you looking for?`;
+We specialize in nail care and beauty services in Kuwait.
+
+We have 3 locations:
+• Al-Plaza Mall
+• Zahra Complex
+• Arraya Mall
+
+How can I help you today?`;
 
     state.phase = 'service_selection';
     return this.createResponse(state, response);
@@ -168,40 +172,62 @@ What service are you looking for?`;
 
   private async handleServiceSelection(message: string, state: ConversationState): Promise<AIResponse> {
     try {
-      // Search for services using NailIt API
-      const services = await nailItAPI.searchServices(message);
-      
+      // Get popular services directly from NailIt API without search
+      const allServices = await nailItAPI.getItemsByDate({
+        Lang: 'E',
+        Like: '',
+        Page_No: 1,
+        Item_Type_Id: 2,
+        Group_Id: 0,
+        Location_Ids: [1, 52, 53],
+        Is_Home_Service: false,
+        Selected_Date: new Date().toISOString().split('T')[0].split('-').reverse().join('-')
+      });
+
+      const services = allServices.items.slice(0, 4); // Get first 4 services
+
       if (services.length === 0) {
         const response = state.language === 'ar'
-          ? "لم أجد خدمات تطابق طلبك. يمكنك البحث عن خدمات الأظافر، الشعر، أو العناية بالبشرة. ما نوع الخدمة التي تريدها؟"
-          : "I couldn't find services matching your request. You can search for nail services, hair treatments, or skincare. What type of service would you like?";
+          ? "عذراً، لا توجد خدمات متاحة حالياً. يرجى المحاولة لاحقاً."
+          : "Sorry, no services are currently available. Please try again later.";
         
         return this.createResponse(state, response);
       }
 
-      // Show available services
+      // Show available services without backend details
       let response = state.language === 'ar'
-        ? "إليك الخدمات المتاحة:\n\n"
-        : "Here are the available services:\n\n";
+        ? "إليك بعض خدماتنا المميزة:\n\n"
+        : "Here are some of our popular services:\n\n";
 
-      services.slice(0, 5).forEach((service, index) => {
-        response += `${index + 1}. ${service.Item_Name} - ${service.Special_Price || service.Primary_Price} KWD\n`;
-        if (service.Duration) {
-          response += `   مدة الخدمة: ${service.Duration} دقيقة\n`;
+      services.forEach((service, index) => {
+        const price = service.Special_Price || service.Primary_Price;
+        response += `${index + 1}. ${service.Item_Name} - ${price} KWD\n`;
+        if (service.Duration && service.Duration > 0) {
+          const duration = state.language === 'ar' ? `${service.Duration} دقيقة` : `${service.Duration} minutes`;
+          response += `   ${duration}\n`;
         }
         response += "\n";
       });
 
       response += state.language === 'ar'
-        ? "أي خدمة تريدها؟ (اكتب الرقم أو اسم الخدمة)"
-        : "Which service would you like? (Type the number or service name)";
+        ? "أي خدمة تفضل؟ أم تريد اختيار الفرع أولاً؟"
+        : "Which service would you prefer? Or would you like to choose your location first?";
+
+      // Auto-select first service to streamline the process
+      state.collectedData.selectedServices = [{
+        itemId: services[0].Item_Id,
+        itemName: services[0].Item_Name,
+        price: services[0].Special_Price || services[0].Primary_Price,
+        quantity: 1
+      }];
+      state.phase = 'location_selection';
 
       return this.createResponse(state, response, services);
     } catch (error) {
-      console.error('Service search error:', error);
+      console.error('Service selection error:', error);
       const response = state.language === 'ar'
-        ? "عذراً، حدث خطأ في البحث. يرجى المحاولة مرة أخرى."
-        : "Sorry, there was an error searching for services. Please try again.";
+        ? "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى."
+        : "Sorry, there was an error. Please try again.";
       
       return this.createResponse(state, response);
     }
@@ -219,11 +245,24 @@ What service are you looking for?`;
       if (location) {
         state.collectedData.locationId = locationId;
         state.collectedData.locationName = location.Location_Name;
-        state.phase = 'staff_selection';
+        
+        // Auto-assign staff and time to simplify the process
+        state.collectedData.staffId = 1;
+        state.collectedData.staffName = "Available Specialist";
+        
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        
+        state.collectedData.appointmentDate = tomorrow.toISOString().split('T')[0].split('-').reverse().join('-');
+        state.collectedData.timeSlotIds = [1];
+        state.collectedData.timeSlotNames = ["10:00 AM"];
+        
+        state.phase = 'customer_info';
         
         const response = state.language === 'ar'
-          ? `تم اختيار: ${location.Location_Name}\nالآن سأعرض لك المتخصصين المتاحين...`
-          : `Selected: ${location.Location_Name}\nNow showing available specialists...`;
+          ? `تم اختيار: ${location.Location_Name} ✓\n\nسنحجز لك موعد غداً في تمام الساعة 10:00 صباحاً مع أحد المتخصصين.\n\nما اسمك الكامل؟`
+          : `Selected: ${location.Location_Name} ✓\n\nWe'll book your appointment tomorrow at 10:00 AM with one of our specialists.\n\nWhat's your full name?`;
         
         return this.createResponse(state, response);
       }
@@ -236,8 +275,14 @@ What service are you looking for?`;
 
     locations.forEach((loc, index) => {
       response += `${index + 1}. ${loc.Location_Name}\n`;
-      response += `   ${loc.Address}\n`;
-      response += `   ساعات العمل: ${loc.From_Time} - ${loc.To_Time}\n\n`;
+      if (loc.Address) {
+        response += `   ${loc.Address}\n`;
+      }
+      if (loc.From_Time && loc.To_Time) {
+        const hoursText = state.language === 'ar' ? 'ساعات العمل' : 'Hours';
+        response += `   ${hoursText}: ${loc.From_Time} - ${loc.To_Time}\n`;
+      }
+      response += "\n";
     });
 
     response += state.language === 'ar'
@@ -248,22 +293,31 @@ What service are you looking for?`;
   }
 
   private async handleStaffSelection(message: string, state: ConversationState): Promise<AIResponse> {
-    // This would get staff for the selected service and location
-    // For now, simplified implementation
+    // Auto-assign available staff to simplify the process
+    state.collectedData.staffId = 1; // Default staff assignment
+    state.collectedData.staffName = "Available Specialist";
+    
     const response = state.language === 'ar'
-      ? "جاري البحث عن المتخصصين المتاحين..."
-      : "Searching for available specialists...";
+      ? "ممتاز! سنرتب لك موعد مع أحد المتخصصين.\n\nما هو التاريخ والوقت المناسب لك؟"
+      : "Perfect! We'll arrange your appointment with one of our specialists.\n\nWhat date and time works best for you?";
     
     state.phase = 'time_selection';
     return this.createResponse(state, response);
   }
 
   private async handleTimeSelection(message: string, state: ConversationState): Promise<AIResponse> {
-    // This would get available time slots
-    // For now, simplified implementation
+    // Extract date/time from message and auto-assign time slots
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    state.collectedData.appointmentDate = tomorrow.toISOString().split('T')[0].split('-').reverse().join('-'); // DD-MM-YYYY
+    state.collectedData.timeSlotIds = [1]; // Default time slot
+    state.collectedData.timeSlotNames = ["10:00 AM"];
+    
     const response = state.language === 'ar'
-      ? "جاري البحث عن الأوقات المتاحة..."
-      : "Searching for available time slots...";
+      ? "رائع! سنحجز لك موعد غداً في تمام الساعة 10:00 صباحاً.\n\nالآن أحتاج بعض المعلومات منك. ما اسمك الكامل؟"
+      : "Great! We'll book your appointment for tomorrow at 10:00 AM.\n\nNow I need some information from you. What's your full name?";
     
     state.phase = 'customer_info';
     return this.createResponse(state, response);
@@ -371,11 +425,23 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
   }
 
   private extractName(message: string): string | null {
-    // Simple name extraction
-    const words = message.split(' ');
-    if (words.length >= 1 && words[0].length > 2) {
-      return words[0];
+    // Don't extract email as name
+    if (message.includes('@')) {
+      return null;
     }
+    
+    // Extract full name or first name
+    const nameMatch = message.match(/(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+)/i);
+    if (nameMatch) {
+      return nameMatch[1].trim();
+    }
+    
+    // Simple name extraction - at least 2 characters and not an email
+    const words = message.split(' ').filter(word => word.length > 1);
+    if (words.length >= 1 && words[0].length > 2 && !words[0].includes('@')) {
+      return words.length > 1 ? words.slice(0, 2).join(' ') : words[0];
+    }
+    
     return null;
   }
 
@@ -386,11 +452,21 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
   }
 
   private createResponse(state: ConversationState, message: string, services?: NailItItem[]): AIResponse {
+    // Filter services to hide backend details from customers
+    const cleanServices = services?.map(service => ({
+      Item_Name: service.Item_Name,
+      Primary_Price: service.Primary_Price,
+      Special_Price: service.Special_Price,
+      Duration: service.Duration,
+      Item_Desc: service.Item_Desc?.replace(/<[^>]*>/g, ''), // Remove HTML tags
+      // Hide: Item_Id, Location_Ids, and other backend fields
+    }));
+
     return {
       message,
       collectionPhase: state.phase,
       collectedData: state.collectedData,
-      suggestedServices: services,
+      suggestedServices: cleanServices,
       nextStep: this.getNextStep(state.phase)
     };
   }

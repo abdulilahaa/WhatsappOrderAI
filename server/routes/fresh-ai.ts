@@ -14,11 +14,28 @@ export async function testFreshAI(req: Request, res: Response) {
     // Get or create customer
     let customer = await storage.getCustomer(parseInt(customerId));
     if (!customer) {
-      customer = await storage.createCustomer({
-        name: 'Test Customer',
-        phoneNumber: '+96500000000',
-        email: 'test@example.com'
-      });
+      // Always check if customer exists by phone number to avoid duplicates
+      const testPhoneNumber = '+96500000000';
+      try {
+        const existingCustomer = await storage.getCustomerByPhoneNumber(testPhoneNumber);
+        if (existingCustomer) {
+          customer = existingCustomer;
+        } else {
+          customer = await storage.createCustomer({
+            name: 'Test Customer',
+            phoneNumber: testPhoneNumber,
+            email: 'test@example.com'
+          });
+        }
+      } catch (createError) {
+        // If creation fails due to duplicate, try to get the existing customer again
+        const existingCustomer = await storage.getCustomerByPhoneNumber(testPhoneNumber);
+        if (existingCustomer) {
+          customer = existingCustomer;
+        } else {
+          throw createError;
+        }
+      }
     }
 
     // Process message with fresh AI
