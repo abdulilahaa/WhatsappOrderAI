@@ -46,6 +46,7 @@ export interface ConversationState {
       price: number;
       quantity: number;
     }>;
+    availableServices?: NailItItem[];
     locationId?: number;
     locationName?: string;
     staffId?: number;
@@ -85,9 +86,9 @@ export class FreshAIAgent {
     await this.initialize();
 
     const customerId = customer.id.toString();
+    
+    // Get existing state or create new one
     let state = this.conversationStates.get(customerId);
-
-    // Initialize conversation state if not exists
     if (!state) {
       state = {
         phase: 'greeting',
@@ -100,34 +101,19 @@ export class FreshAIAgent {
       this.conversationStates.set(customerId, state);
     }
 
-    // Update language if it changed
+    // Update language and timestamp
     state.language = this.detectLanguage(customerMessage);
     state.lastUpdated = new Date();
 
     try {
-      // Process based on current phase
-      switch (state.phase) {
-        case 'greeting':
-          return await this.handleGreeting(customerMessage, state);
-        case 'service_selection':
-          return await this.handleServiceSelection(customerMessage, state);
-        case 'location_selection':
-          return await this.handleLocationSelection(customerMessage, state);
-        case 'staff_selection':
-          return await this.handleStaffSelection(customerMessage, state);
-        case 'time_selection':
-          return await this.handleTimeSelection(customerMessage, state);
-        case 'customer_info':
-          return await this.handleCustomerInfo(customerMessage, state, customer);
-        case 'payment_method':
-          return await this.handlePaymentMethod(customerMessage, state);
-        case 'confirmation':
-          return await this.handleConfirmation(customerMessage, state, customer);
-        default:
-          return this.createResponse(state, "I'm sorry, something went wrong. Let's start over!");
-      }
+      console.log(`🧩 Debug: Customer ${customerId}, Phase: ${state.phase}, Message: "${customerMessage}"`);
+      console.log(`🧩 Current services: ${JSON.stringify(state.collectedData.selectedServices)}`);
+      
+      // Always use advanced AI for better understanding
+      return await this.handleWithAdvancedAI(customerMessage, state, customer, conversationHistory);
     } catch (error) {
       console.error('AI processing error:', error);
+      console.error('Error details:', error.message);
       return {
         message: state.language === 'ar' 
           ? "عذراً، حدث خطأ. دعنا نبدأ من جديد!"
@@ -141,6 +127,278 @@ export class FreshAIAgent {
   private detectLanguage(message: string): 'en' | 'ar' {
     // Simple Arabic detection - if contains Arabic characters
     return /[\u0600-\u06FF]/.test(message) ? 'ar' : 'en';
+  }
+
+  private async handleNaturalGreeting(message: string, state: ConversationState): Promise<AIResponse> {
+    const response = state.language === 'ar' 
+      ? `مرحباً! أهلاً بك في نيل إت 🌟
+
+نحن متخصصون في خدمات العناية بالأظافر والجمال في الكويت.
+
+لدينا 3 فروع:
+• الأفنيوز مول
+• مجمع الزهراء  
+• الراية مول
+
+كيف يمكنني مساعدتك اليوم؟`
+      : `Hello! Welcome to NailIt 🌟
+
+We specialize in nail care and beauty services in Kuwait.
+
+We have 3 locations:
+• Al-Plaza Mall
+• Zahra Complex
+• Arraya Mall
+
+How can I help you today?`;
+    
+    state.phase = 'service_selection';
+    return this.createResponse(state, response);
+  }
+
+  private async handleWithAdvancedAI(
+    customerMessage: string,
+    state: ConversationState,
+    customer: Customer,
+    conversationHistory: Array<{ content: string; isFromAI: boolean }>
+  ): Promise<AIResponse> {
+    
+    // Build conversation context
+    const conversationContext = conversationHistory.map(msg => 
+      `${msg.isFromAI ? 'Assistant' : 'Customer'}: ${msg.content}`
+    ).join('\n');
+
+    // Current booking state
+    const currentState = {
+      selectedServices: state.collectedData.selectedServices || [],
+      locationId: state.collectedData.locationId,
+      locationName: state.collectedData.locationName,
+      customerName: state.collectedData.customerName,
+      customerEmail: state.collectedData.customerEmail,
+      appointmentDate: state.collectedData.appointmentDate,
+      paymentMethod: state.collectedData.paymentTypeName
+    };
+
+    // Get available locations
+    const locations = await nailItAPI.getLocations();
+
+    // Build system prompt for advanced AI
+    const systemPrompt = `You are a professional customer service agent for NailIt salon in Kuwait. 
+
+IMPORTANT RULES:
+1. NEVER ask for information the customer has already provided
+2. REMEMBER what the customer has said in previous messages
+3. ANALYZE the conversation context before responding
+4. Only ask for missing information needed to complete a booking
+5. Be natural and conversational, not robotic
+6. If customer mentions a service, acknowledge it and proceed
+
+Available locations:
+${locations.map(loc => `- ${loc.Location_Name} (ID: ${loc.Location_Id})`).join('\n')}
+
+Current booking state:
+${JSON.stringify(currentState, null, 2)}
+
+Recent conversation:
+${conversationContext}
+
+Customer's latest message: "${customerMessage}"
+
+CONVERSATION CONTEXT: The customer has already provided the following:
+- Services requested: ${currentState.selectedServices.map(s => s.itemName).join(', ') || 'None yet'}
+- Location chosen: ${currentState.locationName || 'Not selected'}
+- Customer name: ${currentState.customerName || 'Not provided'}
+- Customer email: ${currentState.customerEmail || 'Not provided'}
+
+Based on this context, respond naturally. DO NOT ask for information already provided. If all information is complete, proceed to confirmation.
+
+Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4", // Using GPT-4 for better understanding
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: customerMessage }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      });
+
+      const aiResponse = completion.choices[0]?.message?.content || "I'm sorry, I couldn't understand. Can you please try again?";
+
+      // Analyze customer intent and update state
+      await this.updateStateFromMessage(customerMessage, state, locations);
+
+      // If we have all required information and customer confirms, create the booking
+      if (state.phase === 'confirmation' && 
+          state.collectedData.selectedServices.length > 0 &&
+          state.collectedData.locationId &&
+          state.collectedData.customerName &&
+          state.collectedData.customerEmail &&
+          (customerMessage.toLowerCase().includes('yes') || customerMessage.toLowerCase().includes('book') || customerMessage.toLowerCase().includes('confirm'))) {
+        
+        console.log('🎯 Creating final booking...');
+        const bookingSuccess = await this.createBooking(state, customer);
+        
+        if (bookingSuccess) {
+          state.phase = 'completed';
+          const finalMessage = state.language === 'ar' 
+            ? `تم! تم حجز موعدك بنجاح 🎉\n\nتفاصيل الحجز:\n• الخدمة: ${state.collectedData.selectedServices[0].itemName}\n• الفرع: ${state.collectedData.locationName}\n• العميل: ${state.collectedData.customerName}\n\nسنرسل لك تأكيد الحجز عبر البريد الإلكتروني. شكراً لاختيارك نيل إت!`
+            : `Perfect! Your appointment has been successfully booked! 🎉\n\nBooking Details:\n• Service: ${state.collectedData.selectedServices[0].itemName}\n• Location: ${state.collectedData.locationName}\n• Customer: ${state.collectedData.customerName}\n\nWe'll send you a booking confirmation via email. Thank you for choosing NailIt!`;
+          
+          return this.createResponse(state, finalMessage);
+        }
+      }
+
+      return this.createResponse(state, aiResponse);
+    } catch (error) {
+      console.error('Advanced AI error:', error);
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+      return this.createResponse(state, state.language === 'ar' 
+        ? "عذراً، حدث خطأ. كيف يمكنني مساعدتك؟"
+        : "Sorry, there was an error. How can I help you?");
+    }
+  }
+
+  private async updateStateFromMessage(
+    message: string,
+    state: ConversationState,
+    locations: any[]
+  ): Promise<void> {
+    const lowerMessage = message.toLowerCase();
+
+    // Extract location from message
+    if (!state.collectedData.locationId) {
+      for (const location of locations) {
+        const locationName = location.Location_Name.toLowerCase();
+        if (lowerMessage.includes(locationName) || 
+            lowerMessage.includes('plaza') && locationName.includes('plaza') ||
+            lowerMessage.includes('zahra') && locationName.includes('zahra') ||
+            lowerMessage.includes('arraya') && locationName.includes('arraya')) {
+          state.collectedData.locationId = location.Location_Id;
+          state.collectedData.locationName = location.Location_Name;
+          break;
+        }
+      }
+    }
+
+    // Extract name if not already collected
+    if (!state.collectedData.customerName && !message.includes('@')) {
+      const nameMatch = message.match(/(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        state.collectedData.customerName = nameMatch[1].trim();
+      } else if (message.length < 50 && /^[a-zA-Z\s]+$/.test(message)) {
+        state.collectedData.customerName = message.trim();
+      }
+    }
+
+    // Extract email if not already collected
+    if (!state.collectedData.customerEmail) {
+      const emailMatch = message.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+      if (emailMatch) {
+        state.collectedData.customerEmail = emailMatch[0];
+      }
+    }
+
+    // Check if customer is requesting specific services
+    if (state.collectedData.selectedServices.length === 0) {
+      await this.extractServiceFromMessage(message, state);
+      console.log(`🔍 Service extraction result: ${JSON.stringify(state.collectedData.selectedServices)}`);
+    }
+
+    // Update phase based on collected data
+    if (state.collectedData.locationId && state.collectedData.selectedServices.length > 0 && 
+        state.collectedData.customerName && state.collectedData.customerEmail) {
+      state.phase = 'confirmation';
+    } else if (state.collectedData.locationId && state.collectedData.selectedServices.length > 0) {
+      state.phase = 'customer_info';
+    } else if (state.collectedData.selectedServices.length > 0) {
+      state.phase = 'location_selection';
+    } else {
+      state.phase = 'service_selection';
+    }
+  }
+
+  private isAskingForServices(message: string): boolean {
+    const serviceKeywords = [
+      'service', 'services', 'nail', 'nails', 'manicure', 'pedicure', 
+      'treatment', 'facial', 'hair', 'massage', 'beauty',
+      'خدمة', 'خدمات', 'أظافر', 'ظفر', 'مانيكير', 'باديكير', 'علاج', 'شعر', 'تدليك'
+    ];
+    
+    const lowerMessage = message.toLowerCase();
+    return serviceKeywords.some(keyword => lowerMessage.includes(keyword)) ||
+           lowerMessage.includes('what do you offer') ||
+           lowerMessage.includes('what can you do') ||
+           lowerMessage.includes('ماذا تقدمون') ||
+           lowerMessage.includes('ما هي خدماتكم');
+  }
+
+  private async extractServiceFromMessage(message: string, state: ConversationState): Promise<void> {
+    try {
+      const lowerMessage = message.toLowerCase();
+      
+      // Detect specific service requests
+      const serviceMapping = {
+        'french manicure': { name: 'French Manicure', price: 15 },
+        'manicure': { name: 'Classic Manicure', price: 12 },
+        'pedicure': { name: 'Classic Pedicure', price: 18 },
+        'gel manicure': { name: 'Gel Manicure', price: 20 },
+        'nail art': { name: 'Nail Art Design', price: 25 },
+        'acrylic nails': { name: 'Acrylic Nails', price: 30 }
+      };
+
+      for (const [keyword, service] of Object.entries(serviceMapping)) {
+        if (lowerMessage.includes(keyword)) {
+          state.collectedData.selectedServices = [{
+            itemId: Math.floor(Math.random() * 10000), // Temporary ID for demo
+            itemName: service.name,
+            price: service.price,
+            quantity: 1
+          }];
+          break;
+        }
+      }
+    } catch (error) {
+      console.error('Service extraction error:', error);
+    }
+  }
+
+  async createBooking(state: ConversationState, customer: Customer): Promise<boolean> {
+    try {
+      if (!state.collectedData.selectedServices.length || 
+          !state.collectedData.locationId || 
+          !state.collectedData.customerName || 
+          !state.collectedData.customerEmail) {
+        return false;
+      }
+
+      const orderData = {
+        items: state.collectedData.selectedServices,
+        locationId: state.collectedData.locationId,
+        customerName: state.collectedData.customerName,
+        customerEmail: state.collectedData.customerEmail,
+        appointmentDate: state.collectedData.appointmentDate || new Date().toISOString().split('T')[0],
+        paymentTypeId: state.collectedData.paymentTypeId || 1
+      };
+
+      console.log('🔍 Creating booking with NailIt API:', orderData);
+      
+      const result = await nailItAPI.createOrderWithUser(orderData);
+      
+      if (result && result.orderId) {
+        console.log('✅ Booking created successfully with Order ID:', result.orderId);
+        return true;
+      } else {
+        console.log('❌ Booking failed:', result);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Booking creation error:', error);
+      return false;
+    }
   }
 
   private async handleGreeting(message: string, state: ConversationState): Promise<AIResponse> {
