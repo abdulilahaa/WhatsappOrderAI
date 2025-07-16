@@ -550,6 +550,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Payment link generation test
+  app.get("/api/test-payment-link", async (req, res) => {
+    try {
+      const { testPaymentLinkGeneration } = await import('./test-payment-link');
+      const result = await testPaymentLinkGeneration();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Payment link test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fresh AI Conversation Management
   app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
     try {
