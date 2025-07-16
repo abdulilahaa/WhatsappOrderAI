@@ -38,27 +38,34 @@ export interface AIResponse {
 }
 
 export interface ConversationState {
-  phase: 'greeting' | 'service_selection' | 'location_selection' | 'staff_selection' | 'time_selection' | 'customer_info' | 'payment_method' | 'confirmation' | 'completed';
+  phase: 'greeting' | 'service_selection' | 'location_selection' | 'date_selection' | 'time_selection' | 'staff_selection' | 'customer_info' | 'payment_method' | 'order_summary' | 'confirmation' | 'completed';
   collectedData: {
     selectedServices: Array<{
       itemId: number;
       itemName: string;
       price: number;
       quantity: number;
+      duration?: string;
+      description?: string;
     }>;
     availableServices?: NailItItem[];
     locationId?: number;
     locationName?: string;
-    staffId?: number;
-    staffName?: string;
+    appointmentDate?: string;
+    availableTimeSlots?: NailItTimeSlot[];
     timeSlotIds?: number[];
     timeSlotNames?: string[];
-    appointmentDate?: string;
+    availableStaff?: NailItStaff[];
+    staffId?: number;
+    staffName?: string;
     customerName?: string;
     customerEmail?: string;
+    customerPhone?: string;
+    nailItCustomerId?: number;
     paymentTypeId?: number;
     paymentTypeName?: string;
     totalAmount?: number;
+    orderSummaryShown?: boolean;
     readyForBooking?: boolean;
   };
   language: 'en' | 'ar';
@@ -173,9 +180,13 @@ How can I help you today?`;
       selectedServices: state.collectedData.selectedServices || [],
       locationId: state.collectedData.locationId,
       locationName: state.collectedData.locationName,
+      appointmentDate: state.collectedData.appointmentDate,
+      timeSlotIds: state.collectedData.timeSlotIds,
+      staffId: state.collectedData.staffId,
+      staffName: state.collectedData.staffName,
       customerName: state.collectedData.customerName,
       customerEmail: state.collectedData.customerEmail,
-      appointmentDate: state.collectedData.appointmentDate,
+      customerPhone: state.collectedData.customerPhone || customer.phoneNumber,
       paymentMethod: state.collectedData.paymentTypeName
     };
 
@@ -555,11 +566,11 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       // Create NailIt order
       const orderData = {
         Gross_Amount: totalAmount,
-        Payment_Type_Id: 1, // Cash on arrival
+        Payment_Type_Id: state.collectedData.paymentTypeId || 1,
         Order_Type: 1,
         UserId: nailItCustomerId,
         FirstName: state.collectedData.customerName || customer.name || 'Customer',
-        Mobile: customer.phoneNumber || '+96500000000',
+        Mobile: state.collectedData.customerPhone || customer.phoneNumber || '+96500000000',
         Email: state.collectedData.customerEmail || customer.email || 'customer@example.com',
         Discount_Amount: 0,
         Net_Amount: totalAmount,
@@ -739,19 +750,15 @@ How can I help you today?`;
         const tomorrow = new Date(today);
         tomorrow.setDate(today.getDate() + 1);
         
-        state.collectedData.appointmentDate = tomorrow.toISOString().split('T')[0].split('-').reverse().join('-');
-        state.collectedData.timeSlotIds = [1];
-        state.collectedData.timeSlotNames = ["10:00 AM"];
-        
-        state.phase = 'customer_info';
+        state.phase = 'date_selection';
         
         const serviceName = state.collectedData.selectedServices.length > 0 
           ? state.collectedData.selectedServices[0].itemName 
           : 'your service';
         
         const response = state.language === 'ar'
-          ? `تم اختيار: ${location.Location_Name} ✓\n\nخدمتك: ${serviceName}\nسنحجز لك موعد غداً في تمام الساعة 10:00 صباحاً.${staffInfo}\n\nما اسمك الكامل؟`
-          : `Selected: ${location.Location_Name} ✓\n\nYour service: ${serviceName}\nWe'll book your appointment tomorrow at 10:00 AM.${staffInfo}\n\nWhat's your full name?`;
+          ? `تم اختيار: ${location.Location_Name} ✓\n\nخدمتك: ${serviceName}${staffInfo}\n\nمتى تريد موعدك؟ (مثلاً: اليوم، غداً، بعد غد، يوم الأحد)`
+          : `Selected: ${location.Location_Name} ✓\n\nYour service: ${serviceName}${staffInfo}\n\nWhen would you like your appointment? (e.g., today, tomorrow, day after tomorrow, Sunday)`;
         
         return this.createResponse(state, response);
       }
@@ -781,34 +788,167 @@ How can I help you today?`;
     return this.createResponse(state, response);
   }
 
+  private async handleDateSelection(message: string, state: ConversationState): Promise<AIResponse> {
+    const lowerMessage = message.toLowerCase();
+    let selectedDate = new Date();
+    
+    // Parse date from message
+    if (lowerMessage.includes('today') || lowerMessage.includes('اليوم')) {
+      selectedDate = new Date();
+    } else if (lowerMessage.includes('tomorrow') || lowerMessage.includes('غداً') || lowerMessage.includes('غدا')) {
+      selectedDate.setDate(selectedDate.getDate() + 1);
+    } else if (lowerMessage.includes('after tomorrow') || lowerMessage.includes('day after') || lowerMessage.includes('بعد غد')) {
+      selectedDate.setDate(selectedDate.getDate() + 2);
+    } else if (lowerMessage.includes('sunday') || lowerMessage.includes('الأحد')) {
+      const dayOfWeek = selectedDate.getDay();
+      const daysUntilSunday = (7 - dayOfWeek) % 7 || 7;
+      selectedDate.setDate(selectedDate.getDate() + daysUntilSunday);
+    } else {
+      // Default to tomorrow if can't parse
+      selectedDate.setDate(selectedDate.getDate() + 1);
+    }
+    
+    // Format date for NailIt API (DD-MM-YYYY)
+    const formattedDate = selectedDate.toLocaleDateString('en-GB').replace(/\//g, '-');
+    state.collectedData.appointmentDate = formattedDate;
+    
+    // Check time availability for the selected date
+    try {
+      console.log(`🕐 Checking time slots for ${formattedDate} at location ${state.collectedData.locationId}`);
+      
+      const timeSlots = await nailItAPI.getAvailableSlots(
+        state.collectedData.locationId!,
+        state.collectedData.selectedServices[0].itemId,
+        formattedDate,
+        'E'
+      );
+      
+      if (!timeSlots || timeSlots.length === 0) {
+        const response = state.language === 'ar'
+          ? `عذراً، لا توجد مواعيد متاحة في ${formattedDate}. اختر يوماً آخر من فضلك.`
+          : `Sorry, no appointments available on ${formattedDate}. Please choose another day.`;
+        
+        return this.createResponse(state, response);
+      }
+      
+      // Show available times
+      state.collectedData.availableTimeSlots = timeSlots;
+      state.phase = 'time_selection';
+      
+      let response = state.language === 'ar'
+        ? `الأوقات المتاحة في ${formattedDate}:\n\n`
+        : `Available times on ${formattedDate}:\n\n`;
+      
+      timeSlots.slice(0, 5).forEach((slot, index) => {
+        response += `${index + 1}. ${slot.TimeFrame_Name}\n`;
+      });
+      
+      response += state.language === 'ar'
+        ? "\nاختر الوقت المناسب (اكتب الرقم)"
+        : "\nChoose your preferred time (type the number)";
+      
+      return this.createResponse(state, response);
+    } catch (error) {
+      console.error('Error checking time slots:', error);
+      // Fallback - assume time is available
+      state.collectedData.timeSlotIds = [1];
+      state.collectedData.timeSlotNames = ["10:00 AM"];
+      state.phase = 'customer_info';
+      
+      const response = state.language === 'ar'
+        ? `تم اختيار ${formattedDate} الساعة 10:00 صباحاً.\n\nما اسمك الكامل؟`
+        : `Selected ${formattedDate} at 10:00 AM.\n\nWhat's your full name?`;
+      
+      return this.createResponse(state, response);
+    }
+  }
+
   private async handleStaffSelection(message: string, state: ConversationState): Promise<AIResponse> {
-    // Auto-assign available staff to simplify the process
-    state.collectedData.staffId = 1; // Default staff assignment
+    // This handler should be called after time selection to assign staff
+    try {
+      if (state.collectedData.selectedServices.length > 0 && state.collectedData.locationId) {
+        const serviceId = state.collectedData.selectedServices[0].itemId;
+        const staff = await nailItAPI.getServiceStaff(
+          serviceId, 
+          state.collectedData.locationId, 
+          'E', 
+          state.collectedData.appointmentDate!
+        );
+        
+        if (staff && staff.length > 0) {
+          state.collectedData.staffId = staff[0].Id;
+          state.collectedData.staffName = staff[0].Name;
+          
+          const response = state.language === 'ar'
+            ? `تم تعيين المختص: ${staff[0].Name}\n\nالآن أحتاج بياناتك. ما اسمك الكامل؟`
+            : `Your specialist will be: ${staff[0].Name}\n\nNow I need your details. What's your full name?`;
+          
+          state.phase = 'customer_info';
+          return this.createResponse(state, response);
+        }
+      }
+    } catch (error) {
+      console.error('Staff selection error:', error);
+    }
+    
+    // Fallback
+    state.collectedData.staffId = 1;
     state.collectedData.staffName = "Available Specialist";
+    state.phase = 'customer_info';
     
     const response = state.language === 'ar'
-      ? "ممتاز! سنرتب لك موعد مع أحد المتخصصين.\n\nما هو التاريخ والوقت المناسب لك؟"
-      : "Perfect! We'll arrange your appointment with one of our specialists.\n\nWhat date and time works best for you?";
+      ? "سيتم تعيين أحد المختصين المتاحين.\n\nما اسمك الكامل؟"
+      : "We'll assign an available specialist.\n\nWhat's your full name?";
     
-    state.phase = 'time_selection';
     return this.createResponse(state, response);
   }
 
   private async handleTimeSelection(message: string, state: ConversationState): Promise<AIResponse> {
-    // Extract date/time from message and auto-assign time slots
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    const lowerMessage = message.toLowerCase();
     
-    state.collectedData.appointmentDate = tomorrow.toISOString().split('T')[0].split('-').reverse().join('-'); // DD-MM-YYYY
-    state.collectedData.timeSlotIds = [1]; // Default time slot
+    // Check if user selected a time slot by number
+    const selectedNum = parseInt(message.trim());
+    
+    if (selectedNum >= 1 && selectedNum <= 5 && state.collectedData.availableTimeSlots) {
+      const selectedSlot = state.collectedData.availableTimeSlots[selectedNum - 1];
+      
+      if (selectedSlot) {
+        state.collectedData.timeSlotIds = [selectedSlot.TimeFrame_Id];
+        state.collectedData.timeSlotNames = [selectedSlot.TimeFrame_Name];
+        
+        // Move to staff selection
+        state.phase = 'staff_selection';
+        
+        const response = state.language === 'ar'
+          ? `تم اختيار الوقت: ${selectedSlot.TimeFrame_Name}\n\nدعني أتحقق من المختصين المتاحين...`
+          : `Time selected: ${selectedSlot.TimeFrame_Name}\n\nLet me check available specialists...`;
+        
+        return this.createResponse(state, response);
+      }
+    }
+    
+    // If no valid selection, ask again
+    if (state.collectedData.availableTimeSlots && state.collectedData.availableTimeSlots.length > 0) {
+      let response = state.language === 'ar'
+        ? "من فضلك اختر رقم الوقت المناسب:\n\n"
+        : "Please choose a time slot number:\n\n";
+      
+      state.collectedData.availableTimeSlots.slice(0, 5).forEach((slot, index) => {
+        response += `${index + 1}. ${slot.TimeFrame_Name}\n`;
+      });
+      
+      return this.createResponse(state, response);
+    }
+    
+    // Fallback - auto-select time
+    state.collectedData.timeSlotIds = [1];
     state.collectedData.timeSlotNames = ["10:00 AM"];
+    state.phase = 'staff_selection';
     
     const response = state.language === 'ar'
-      ? "رائع! سنحجز لك موعد غداً في تمام الساعة 10:00 صباحاً.\n\nالآن أحتاج بعض المعلومات منك. ما اسمك الكامل؟"
-      : "Great! We'll book your appointment for tomorrow at 10:00 AM.\n\nNow I need some information from you. What's your full name?";
+      ? "تم اختيار الساعة 10:00 صباحاً."
+      : "Selected 10:00 AM for your appointment.";
     
-    state.phase = 'customer_info';
     return this.createResponse(state, response);
   }
 
@@ -887,31 +1027,31 @@ How can I help you today?`;
     if (lowerMessage.includes('1') || lowerMessage.includes('cash') || lowerMessage.includes('arrival') || lowerMessage.includes('نقد')) {
       state.collectedData.paymentTypeId = 1;
       state.collectedData.paymentTypeName = "Cash on Arrival";
-      state.phase = 'confirmation';
+      state.phase = 'order_summary';
       
       const response = state.language === 'ar'
-        ? "ممتاز! اخترت الدفع نقداً عند الوصول. دعني أؤكد تفاصيل حجزك."
-        : "Perfect! You chose Cash on Arrival. Let me confirm your booking details.";
+        ? "ممتاز! اخترت الدفع نقداً عند الوصول. دعني أعرض ملخص حجزك."
+        : "Perfect! You chose Cash on Arrival. Let me show you your booking summary.";
       
       return this.createResponse(state, response);
     } else if (lowerMessage.includes('2') || lowerMessage.includes('knet') || lowerMessage.includes('card') || lowerMessage.includes('كي نت')) {
       state.collectedData.paymentTypeId = 2;
       state.collectedData.paymentTypeName = "KNet";
-      state.phase = 'confirmation';
+      state.phase = 'order_summary';
       
       const response = state.language === 'ar'
-        ? "اخترت الدفع بالبطاقة (كي نت). سأرسل لك رابط الدفع بعد تأكيد الحجز."
-        : "You chose Card Payment (KNet). I'll send you a payment link after confirming your booking.";
+        ? "اخترت الدفع بالبطاقة (كي نت). دعني أعرض ملخص حجزك."
+        : "You chose Card Payment (KNet). Let me show you your booking summary.";
       
       return this.createResponse(state, response);
     } else if (lowerMessage.includes('3') || lowerMessage.includes('apple') || lowerMessage.includes('آبل')) {
       state.collectedData.paymentTypeId = 7;
       state.collectedData.paymentTypeName = "Apple Pay";
-      state.phase = 'confirmation';
+      state.phase = 'order_summary';
       
       const response = state.language === 'ar'
-        ? "اخترت Apple Pay. سأرسل لك رابط الدفع بعد تأكيد الحجز."
-        : "You chose Apple Pay. I'll send you a payment link after confirming your booking.";
+        ? "اخترت Apple Pay. دعني أعرض ملخص حجزك."
+        : "You chose Apple Pay. Let me show you your booking summary.";
       
       return this.createResponse(state, response);
     }
@@ -933,6 +1073,61 @@ How can I help you today?`;
       : "\nWhich payment method do you prefer? (Type the number)";
 
     return this.createResponse(state, response);
+  }
+
+  private async handleOrderSummary(message: string, state: ConversationState): Promise<AIResponse> {
+    // Calculate total
+    const totalAmount = state.collectedData.selectedServices.reduce((sum, service) => sum + service.price, 0);
+    state.collectedData.totalAmount = totalAmount;
+    
+    // Create detailed summary
+    const serviceSummary = state.collectedData.selectedServices.map(s => `${s.itemName} - ${s.price} KWD`).join('\n');
+    const staffInfo = state.collectedData.staffName || "Available Specialist";
+    
+    const summary = state.language === 'ar'
+      ? `📋 ملخص حجزك:
+━━━━━━━━━━━━━━━━━━
+📍 الفرع: ${state.collectedData.locationName}
+🗓️ التاريخ: ${state.collectedData.appointmentDate}
+⏰ الوقت: ${state.collectedData.timeSlotNames?.join(', ') || '10:00 AM'}
+👤 المختص: ${staffInfo}
+
+🔸 الخدمات:
+${serviceSummary}
+
+💰 المبلغ الإجمالي: ${totalAmount} KWD
+💳 طريقة الدفع: ${state.collectedData.paymentTypeName}
+
+👤 بيانات العميل:
+الاسم: ${state.collectedData.customerName}
+الإيميل: ${state.collectedData.customerEmail}
+━━━━━━━━━━━━━━━━━━
+
+هل تريد تأكيد الحجز؟ (اكتب "نعم" للتأكيد)`
+      : `📋 Booking Summary:
+━━━━━━━━━━━━━━━━━━
+📍 Location: ${state.collectedData.locationName}
+🗓️ Date: ${state.collectedData.appointmentDate}
+⏰ Time: ${state.collectedData.timeSlotNames?.join(', ') || '10:00 AM'}
+👤 Specialist: ${staffInfo}
+
+🔸 Services:
+${serviceSummary}
+
+💰 Total Amount: ${totalAmount} KWD
+💳 Payment: ${state.collectedData.paymentTypeName}
+
+👤 Customer Details:
+Name: ${state.collectedData.customerName}
+Email: ${state.collectedData.customerEmail}
+━━━━━━━━━━━━━━━━━━
+
+Do you want to confirm this booking? (Type "yes" to confirm)`;
+
+    state.collectedData.orderSummaryShown = true;
+    state.phase = 'confirmation';
+    
+    return this.createResponse(state, summary);
   }
 
   private async handleConfirmation(message: string, state: ConversationState, customer: Customer): Promise<AIResponse> {
@@ -973,6 +1168,11 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
     // User confirmed - create the actual booking in NailIt POS
     try {
       console.log('🎯 Creating confirmed booking in NailIt POS system...');
+      
+      // Add customer phone if not set
+      if (!state.collectedData.customerPhone) {
+        state.collectedData.customerPhone = customer.phoneNumber;
+      }
       
       const bookingResult = await this.createBooking(state, customer);
       
