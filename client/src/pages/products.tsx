@@ -65,6 +65,21 @@ export default function Products() {
     queryKey: ["/api/nailit/locations"],
   });
 
+  // Prefetch data for all locations when locations are loaded
+  React.useEffect(() => {
+    if (locations && locations.length > 0) {
+      locations.forEach(location => {
+        queryClient.prefetchQuery({
+          queryKey: ["/api/nailit/products-by-location", location.Location_Id],
+          queryFn: async () => {
+            const response = await apiRequest("GET", `/api/nailit/products-by-location/${location.Location_Id}`);
+            return await response.json();
+          },
+        });
+      });
+    }
+  }, [locations, queryClient]);
+
   // Refresh location products
   const refreshLocationMutation = useMutation({
     mutationFn: async (locationId: number) => {
@@ -123,9 +138,14 @@ export default function Products() {
     );
   };
 
+  // Get location data consistently
+  const getLocationData = (locationId: number): LocationProducts | undefined => {
+    return locationData[locationId] || queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", locationId]);
+  };
+
   // Get location status based on cached data
   const getLocationStatus = (locationId: number) => {
-    const data = locationData[locationId] || queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", locationId]);
+    const data = getLocationData(locationId);
     if (!data) return { status: 'loading', color: 'text-blue-600' };
     if (data.totalFound > 0) return { status: 'success', color: 'text-green-600' };
     return { status: 'empty', color: 'text-gray-600' };
@@ -298,7 +318,7 @@ export default function Products() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {locations.map(location => {
                 const status = getLocationStatus(location.Location_Id);
-                const data = locationData[location.Location_Id] || queryClient.getQueryData<LocationProducts>(["/api/nailit/products-by-location", location.Location_Id]);
+                const data = getLocationData(location.Location_Id);
                 
                 return (
                   <Card key={location.Location_Id} className="hover:shadow-lg transition-shadow">

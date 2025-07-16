@@ -215,9 +215,9 @@ BUSINESS INFO:
 - Working hours: 9:00-17:00 (Mon-Sat), 10:00-14:00 (Sun closed)
 - Current date: July 3, 2025 (Kuwait time)
 
-AVAILABLE SERVICES:
-${this.products.slice(0, 5).map(p => `• ${p.name} - ${p.price} KWD (ID: ${p.id})`).join('\n')}
-... and ${this.products.length - 5} more services available
+AVAILABLE SERVICES (Top ${Math.min(this.products.length, 8)}):
+${this.products.slice(0, 8).map(p => `• ${p.name} - ${p.price} KWD (ID: ${p.id})`).join('\n')}
+${this.products.length > 8 ? `... and ${this.products.length - 8} more services available across 3 locations` : ''}
 
 CONVERSATION EXAMPLES:
 English:
@@ -254,14 +254,15 @@ BOOKING RULES:
 - Use KWD currency only
 - Calculate total duration for all services combined
 
-LOCATIONS:
-${(this.settings.locations as any[])?.map ? (this.settings.locations as any[]).map((loc: any) => {
-  let locationText = `• ${loc.name} - ${loc.address}`;
-  if (loc.googleMapsLink) {
-    locationText += `\n  Google Maps: ${loc.googleMapsLink}`;
-  }
-  return locationText;
-}).join('\n') : '• Main Branch - Kuwait City'}
+NAILIT LOCATIONS (Real-time from POS system):
+• Al-Plaza Mall (ID: 1) - Hawally Al-Othman St. Al-Plaza Mall - 378 services available
+• Zahra Complex (ID: 52) - Zahra Complex, Salem Al Mubarak St, Salmiya - 330 services available  
+• Arraya Mall (ID: 53) - Block 7, Al-Shuhada St., Arraya Center - 365 services available
+
+SERVICE SEARCH CAPABILITY:
+- Can search across ${this.products.length}+ authenticated services from NailIt POS
+- Real-time availability checking per location
+- Accurate pricing and duration from live system
 
 BOOKING STEPS:
 1. Greet (detect language)
@@ -440,13 +441,16 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
         details.serviceIds = [3]; // French Manicure (ID 3)
       }
       
-      // Extract location
-      if (content.includes('zahra complex')) {
+      // Extract location (updated for real NailIt locations)
+      if (content.includes('zahra complex') || content.includes('zahra')) {
         details.location = 'Zahra Complex';
-      } else if (content.includes('plaza mall')) {
-        details.location = 'Plaza Mall';
-      } else if (content.includes('arraya mall')) {
+        details.locationId = 52;
+      } else if (content.includes('plaza mall') || content.includes('al-plaza') || content.includes('plaza')) {
+        details.location = 'Al-Plaza Mall';
+        details.locationId = 1;
+      } else if (content.includes('arraya mall') || content.includes('arraya')) {
         details.location = 'Arraya Mall';
+        details.locationId = 53;
       }
       
       // Extract date/time
@@ -528,7 +532,32 @@ JSON FORMAT: { "message": "response", "suggestedProducts": [], "requiresOrderInf
       return [];
     }
 
-    // Simple keyword matching for product suggestions
+    // First try to get live NailIt services
+    try {
+      const nailItItems = await this.searchNailItServices(query);
+      if (nailItItems.length > 0) {
+        console.log(`🔍 Found ${nailItItems.length} NailIt services for query: "${query}"`);
+        
+        // Convert NailIt items to our product format
+        const nailItProducts = nailItItems.slice(0, 3).map(item => ({
+          id: item.Item_Id,
+          name: item.Item_Name,
+          description: item.Item_Desc ? item.Item_Desc.replace(/<[^>]*>/g, '') : '',
+          price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
+          image: item.Image_Url ? `https://api.nailit.com/${item.Image_Url}` : '/placeholder-service.jpg',
+          category: 'NailIt Service',
+          duration: parseInt(item.Duration) || 30,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }));
+        return nailItProducts;
+      }
+    } catch (error) {
+      console.log("NailIt search failed, falling back to local products:", error.message);
+    }
+    
+    // Fallback to local products with enhanced keyword matching
     const keywords = query.toLowerCase().split(' ');
     const relevantProducts = this.products.filter(product => {
       const productText = `${product.name} ${product.description}`.toLowerCase();
