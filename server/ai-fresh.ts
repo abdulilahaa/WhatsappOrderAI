@@ -813,21 +813,38 @@ How can I help you today?`;
   }
 
   private async handleCustomerInfo(message: string, state: ConversationState, customer: Customer): Promise<AIResponse> {
-    // Extract customer info from message
+    // Try to extract both name and email from the same message
+    const extractedName = this.extractName(message);
+    const extractedEmail = this.extractEmail(message);
+    
+    // If we got both name and email in one message
+    if (extractedName && extractedEmail && !state.collectedData.customerName && !state.collectedData.customerEmail) {
+      state.collectedData.customerName = extractedName;
+      state.collectedData.customerEmail = extractedEmail;
+      state.phase = 'payment_method';
+      
+      const response = state.language === 'ar'
+        ? `شكراً ${extractedName}! تم حفظ بياناتك. الآن اختر طريقة الدفع المناسبة لك.`
+        : `Thank you ${extractedName}! Your details have been saved. Now choose your preferred payment method.`;
+      
+      return this.createResponse(state, response);
+    }
+    
+    // Extract customer info step by step
     if (!state.collectedData.customerName) {
-      state.collectedData.customerName = this.extractName(message);
-      if (state.collectedData.customerName) {
+      if (extractedName) {
+        state.collectedData.customerName = extractedName;
         const response = state.language === 'ar'
-          ? `شكراً ${state.collectedData.customerName}! الآن أحتاج إيميلك لإكمال الحجز.`
-          : `Thank you ${state.collectedData.customerName}! Now I need your email to complete the booking.`;
+          ? `شكراً ${extractedName}! الآن أحتاج إيميلك لإكمال الحجز.`
+          : `Thank you ${extractedName}! Now I need your email to complete the booking.`;
         
         return this.createResponse(state, response);
       }
     }
 
     if (!state.collectedData.customerEmail) {
-      state.collectedData.customerEmail = this.extractEmail(message);
-      if (state.collectedData.customerEmail) {
+      if (extractedEmail) {
+        state.collectedData.customerEmail = extractedEmail;
         state.phase = 'payment_method';
         
         const response = state.language === 'ar'
@@ -839,15 +856,67 @@ How can I help you today?`;
     }
 
     // Ask for missing info
+    if (!state.collectedData.customerName) {
+      const response = state.language === 'ar'
+        ? "لإكمال حجزك، أحتاج اسمك الكامل. ما اسمك؟"
+        : "To complete your booking, I need your full name. What's your name?";
+      
+      return this.createResponse(state, response);
+    } else if (!state.collectedData.customerEmail) {
+      const response = state.language === 'ar'
+        ? "ممتاز! الآن أحتاج إيميلك لإكمال الحجز."
+        : "Great! Now I need your email to complete the booking.";
+      
+      return this.createResponse(state, response);
+    }
+
+    // This shouldn't happen, but just in case
+    state.phase = 'payment_method';
     const response = state.language === 'ar'
-      ? "لإكمال حجزك، أحتاج اسمك وإيميلك. ما اسمك؟"
-      : "To complete your booking, I need your name and email. What's your name?";
+      ? "شكراً! دعنا ننتقل لاختيار طريقة الدفع."
+      : "Thank you! Let's proceed to choose your payment method.";
     
     return this.createResponse(state, response);
   }
 
   private async handlePaymentMethod(message: string, state: ConversationState): Promise<AIResponse> {
-    // Get payment types
+    // Check if user is choosing a payment method
+    const lowerMessage = message.toLowerCase();
+    
+    // Parse payment method selection
+    if (lowerMessage.includes('1') || lowerMessage.includes('cash') || lowerMessage.includes('arrival') || lowerMessage.includes('نقد')) {
+      state.collectedData.paymentTypeId = 1;
+      state.collectedData.paymentTypeName = "Cash on Arrival";
+      state.phase = 'confirmation';
+      
+      const response = state.language === 'ar'
+        ? "ممتاز! اخترت الدفع نقداً عند الوصول. دعني أؤكد تفاصيل حجزك."
+        : "Perfect! You chose Cash on Arrival. Let me confirm your booking details.";
+      
+      return this.createResponse(state, response);
+    } else if (lowerMessage.includes('2') || lowerMessage.includes('knet') || lowerMessage.includes('card') || lowerMessage.includes('كي نت')) {
+      state.collectedData.paymentTypeId = 2;
+      state.collectedData.paymentTypeName = "KNet";
+      state.phase = 'confirmation';
+      
+      const response = state.language === 'ar'
+        ? "اخترت الدفع بالبطاقة (كي نت). سأرسل لك رابط الدفع بعد تأكيد الحجز."
+        : "You chose Card Payment (KNet). I'll send you a payment link after confirming your booking.";
+      
+      return this.createResponse(state, response);
+    } else if (lowerMessage.includes('3') || lowerMessage.includes('apple') || lowerMessage.includes('آبل')) {
+      state.collectedData.paymentTypeId = 7;
+      state.collectedData.paymentTypeName = "Apple Pay";
+      state.phase = 'confirmation';
+      
+      const response = state.language === 'ar'
+        ? "اخترت Apple Pay. سأرسل لك رابط الدفع بعد تأكيد الحجز."
+        : "You chose Apple Pay. I'll send you a payment link after confirming your booking.";
+      
+      return this.createResponse(state, response);
+    }
+    
+    // Get payment types from NailIt API
     const paymentTypes = await nailItAPI.getPaymentTypes();
     
     // Show payment options
@@ -860,43 +929,114 @@ How can I help you today?`;
     });
 
     response += state.language === 'ar'
-      ? "\nأي طريقة دفع تفضل؟"
-      : "\nWhich payment method do you prefer?";
+      ? "\nأي طريقة دفع تفضل؟ (اكتب الرقم)"
+      : "\nWhich payment method do you prefer? (Type the number)";
 
-    state.phase = 'confirmation';
     return this.createResponse(state, response);
   }
 
   private async handleConfirmation(message: string, state: ConversationState, customer: Customer): Promise<AIResponse> {
+    // Calculate total amount
+    const totalAmount = state.collectedData.selectedServices.reduce((sum, service) => sum + service.price, 0);
+    state.collectedData.totalAmount = totalAmount;
+    
     // Show booking summary and confirm
-    const response = state.language === 'ar'
-      ? `ملخص حجزك:
-الخدمة: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}
-الفرع: ${state.collectedData.locationName}
-الاسم: ${state.collectedData.customerName}
-الإيميل: ${state.collectedData.customerEmail}
+    const serviceSummary = state.collectedData.selectedServices.map(s => `${s.itemName} - ${s.price} KWD`).join(', ');
+    const paymentInfo = state.collectedData.paymentTypeName || "Cash on Arrival";
+    
+    if (!message.toLowerCase().includes('yes') && !message.toLowerCase().includes('نعم') && !message.toLowerCase().includes('confirm')) {
+      const response = state.language === 'ar'
+        ? `📋 ملخص حجزك:
+
+🔸 الخدمة: ${serviceSummary}
+🔸 الفرع: ${state.collectedData.locationName}
+🔸 الاسم: ${state.collectedData.customerName}
+🔸 الإيميل: ${state.collectedData.customerEmail}
+🔸 طريقة الدفع: ${paymentInfo}
+🔸 المبلغ الإجمالي: ${totalAmount} دينار كويتي
 
 هل تريد تأكيد الحجز؟ (اكتب "نعم" للتأكيد)`
-      : `Booking Summary:
-Service: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}
-Location: ${state.collectedData.locationName}
-Name: ${state.collectedData.customerName}
-Email: ${state.collectedData.customerEmail}
+        : `📋 Booking Summary:
+
+🔸 Service: ${serviceSummary}
+🔸 Location: ${state.collectedData.locationName}
+🔸 Name: ${state.collectedData.customerName}
+🔸 Email: ${state.collectedData.customerEmail}
+🔸 Payment: ${paymentInfo}
+🔸 Total Amount: ${totalAmount} KWD
 
 Do you want to confirm the booking? (Type "yes" to confirm)`;
 
-    if (message.toLowerCase().includes('yes') || message.toLowerCase().includes('نعم')) {
-      // Create the actual booking
-      state.phase = 'completed';
-      
-      const successResponse = state.language === 'ar'
-        ? "تم تأكيد حجزك بنجاح! سنرسل لك رسالة تأكيد قريباً."
-        : "Your booking has been confirmed successfully! We'll send you a confirmation message soon.";
-      
-      return this.createResponse(state, successResponse);
+      return this.createResponse(state, response);
     }
 
-    return this.createResponse(state, response);
+    // User confirmed - create the actual booking in NailIt POS
+    try {
+      console.log('🎯 Creating confirmed booking in NailIt POS system...');
+      
+      const bookingResult = await this.createBooking(state, customer);
+      
+      if (bookingResult.success && bookingResult.orderId) {
+        state.phase = 'completed';
+        
+        // Get detailed order information using V2.1 API
+        console.log('📊 Fetching order details from NailIt POS...');
+        const orderDetails = await nailItAPI.getOrderPaymentDetail(bookingResult.orderId);
+        
+        let response = state.language === 'ar'
+          ? `✅ تم تأكيد حجزك بنجاح!\n\n📋 تفاصيل الطلب:\nرقم الطلب: ${bookingResult.orderId}\nحالة الطلب: مؤكد`
+          : `✅ Your booking has been confirmed!\n\n📋 Order Details:\nOrder ID: ${bookingResult.orderId}\nStatus: Confirmed`;
+        
+        // Add order details if available from V2.1 API
+        if (orderDetails) {
+          const orderInfo = state.language === 'ar'
+            ? `\nالعميل: ${orderDetails.Customer_Name}\nالفرع: ${orderDetails.Location_Name}\nطريقة الدفع: ${orderDetails.PayType}\nالمبلغ: ${orderDetails.PayAmount} دينار كويتي`
+            : `\nCustomer: ${orderDetails.Customer_Name}\nLocation: ${orderDetails.Location_Name}\nPayment: ${orderDetails.PayType}\nAmount: ${orderDetails.PayAmount} KWD`;
+          
+          response += orderInfo;
+          
+          // Add staff information if available
+          if (orderDetails.Services && orderDetails.Services.length > 0) {
+            const staffInfo = orderDetails.Services.map(service => 
+              state.language === 'ar' 
+                ? `المختص: ${service.Staff_Name}`
+                : `Specialist: ${service.Staff_Name}`
+            ).join('\n');
+            response += `\n${staffInfo}`;
+          }
+        }
+        
+        // Add payment link for card payments
+        if (state.collectedData.paymentTypeId === 2 || state.collectedData.paymentTypeId === 7) {
+          const paymentLinkText = state.language === 'ar'
+            ? `\n\n💳 رابط الدفع:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}\n\n⚠️ انتباه: استخدم البيانات التجريبية للاختبار:\nرقم البطاقة: 0000000001\nتاريخ الانتهاء: 09/25\nرمز الحماية: 1234`
+            : `\n\n💳 Payment Link:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}\n\n⚠️ Note: Use test credentials:\nCard: 0000000001\nExpiry: 09/25\nPIN: 1234`;
+          
+          response += paymentLinkText;
+        }
+        
+        response += state.language === 'ar'
+          ? "\n\nشكراً لاختيارك نيل إت! سنراك قريباً 🌟"
+          : "\n\nThank you for choosing NailIt! See you soon 🌟";
+        
+        return this.createResponse(state, response);
+      } else {
+        // Booking failed
+        const errorResponse = state.language === 'ar'
+          ? `❌ عذراً، حدث خطأ في تأكيد حجزك. ${bookingResult.message || ''}\n\nيرجى المحاولة مرة أخرى أو الاتصال بنا مباشرة.`
+          : `❌ Sorry, there was an error confirming your booking. ${bookingResult.message || ''}\n\nPlease try again or contact us directly.`;
+        
+        return this.createResponse(state, errorResponse);
+      }
+    } catch (error) {
+      console.error('❌ Error in confirmation process:', error);
+      
+      const errorResponse = state.language === 'ar'
+        ? "❌ عذراً، حدث خطأ تقني. يرجى المحاولة مرة أخرى لاحقاً."
+        : "❌ Sorry, there was a technical error. Please try again later.";
+      
+      return this.createResponse(state, errorResponse);
+    }
   }
 
   private parseLocationSelection(message: string, language: 'en' | 'ar'): number | null {
@@ -914,20 +1054,34 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
   }
 
   private extractName(message: string): string | null {
-    // Don't extract email as name
-    if (message.includes('@')) {
-      return null;
+    // Enhanced name extraction patterns
+    const patterns = [
+      /(?:my name is|i'm|i am|call me|it's|its)\s+([a-zA-Z][a-zA-Z\s]{1,30})/i,
+      /(?:sure\s+)?(?:it's|its)\s+([a-zA-Z][a-zA-Z\s]{1,30})/i,
+      /([a-zA-Z][a-zA-Z\s]{2,20})\s+and\s+my\s+email/i,
+      /([a-zA-Z][a-zA-Z\s]{2,20})\s+here/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = message.match(pattern);
+      if (match) {
+        const name = match[1].trim();
+        // Don't extract if it looks like an email domain or has @ symbol
+        if (!name.includes('@') && !name.includes('.com') && name.length > 2) {
+          return name;
+        }
+      }
     }
     
-    // Extract full name or first name
-    const nameMatch = message.match(/(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+)/i);
-    if (nameMatch) {
-      return nameMatch[1].trim();
-    }
+    // Fallback: look for standalone names (but not emails)
+    const words = message.split(' ').filter(word => 
+      word.length > 2 && 
+      !word.includes('@') && 
+      !word.includes('.com') && 
+      /^[a-zA-Z]+$/.test(word)
+    );
     
-    // Simple name extraction - at least 2 characters and not an email
-    const words = message.split(' ').filter(word => word.length > 1);
-    if (words.length >= 1 && words[0].length > 2 && !words[0].includes('@')) {
+    if (words.length >= 1) {
       return words.length > 1 ? words.slice(0, 2).join(' ') : words[0];
     }
     
