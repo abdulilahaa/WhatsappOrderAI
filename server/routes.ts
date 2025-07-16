@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
-import { aiAgent } from "./ai";
 import { freshAI } from "./ai-fresh";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
@@ -81,9 +80,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(validatedData);
       
-      // Reload AI agent with updated product catalog
-      await aiAgent.reloadConfiguration();
-      
       res.status(201).json(product);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -101,9 +97,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
-      
-      // Reload AI agent with updated product catalog
-      await aiAgent.reloadConfiguration();
       
       res.json(product);
     } catch (error: any) {
@@ -138,9 +131,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deleted) {
         return res.status(404).json({ message: "Product not found" });
       }
-      
-      // Reload AI agent with updated product catalog
-      await aiAgent.reloadConfiguration();
       
       res.status(204).send();
     } catch (error: any) {
@@ -212,9 +202,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-
-      // Reload AI agent with updated product catalog
-      await aiAgent.reloadConfiguration();
 
       res.json({
         success: true,
@@ -423,9 +410,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertAISettingsSchema.partial().parse(req.body);
       const settings = await storage.updateAISettings(validatedData);
       
-      // Reload AI agent configuration with new settings
-      await aiAgent.reloadConfiguration();
-      
       res.json(settings);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -548,8 +532,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const welcomeMessage = await aiAgent.generateWelcomeMessage(dbCustomer);
-      res.json({ message: welcomeMessage });
+      // AI welcome message functionality moved to Fresh AI
+      res.json({ message: "Hello! Welcome to our service. How can I help you today?" });
     } catch (error: any) {
       console.error("AI welcome message error:", error);
       res.status(500).json({ message: "Error generating welcome message: " + error.message });
@@ -602,8 +586,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isFromAI: false,
       });
 
-      // Process the message with AI
-      const response = await aiAgent.processMessage(message, dbCustomer, conversationHistory);
+      // Old AI agent removed - redirect to Fresh AI
+      return res.status(400).json({ message: "Please use the Fresh AI test route at /api/fresh-ai/test instead" });
 
       // Save the AI's response
       await storage.createMessage({
@@ -874,17 +858,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // NailIt API Integration Routes
   app.post("/api/nailit/sync-services", async (req, res) => {
     try {
-      await aiAgent.syncServicesFromNailItAPI();
+      // Service sync functionality moved to Fresh AI system
       const products = await storage.getProducts();
       res.json({ 
         success: true,
-        message: "Services synced successfully from NailIt API",
+        message: "Services available from database",
         count: products.length,
         timestamp: new Date().toISOString()
       });
     } catch (error: any) {
-      console.error("Error syncing NailIt services:", error);
-      res.status(500).json({ message: "Error syncing services: " + error.message });
+      console.error("Error fetching services:", error);
+      res.status(500).json({ message: "Error fetching services: " + error.message });
     }
   });
 
@@ -990,22 +974,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/ai/sync-services", async (req, res) => {
     try {
-      await aiAgent.syncServicesFromNailItAPI();
+      // Service sync functionality moved to Fresh AI system
       const products = await storage.getProducts();
       res.json({ 
         success: true, 
-        message: "Services synced from NailIt API", 
+        message: "Services available from database", 
         count: products.length,
         timestamp: new Date().toISOString()
       });
     } catch (error: any) {
-      res.status(500).json({ message: "Error syncing services: " + error.message });
+      res.status(500).json({ message: "Error fetching services: " + error.message });
     }
   });
 
   app.get("/api/nailit/locations", async (req, res) => {
     try {
-      const locations = await aiAgent.getNailItLocations();
+      const locations = await nailItAPI.getLocations('E');
       res.json(locations);
     } catch (error: any) {
       console.error("Error fetching NailIt locations:", error);
@@ -1398,9 +1382,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Step 1: Check service availability
         step = "availability_check";
         console.log("1️⃣ Checking service availability...");
-        const availability = await aiAgent.getNailItServiceAvailability(
+        // Get service staff directly from NailIt API
+        const availability = await nailItAPI.getServiceStaff(
           Number(serviceId),
           Number(locationId),
+          'E',
           appointmentDate
         );
         
@@ -1511,7 +1497,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Search query is required" });
       }
 
-      const services = await aiAgent.searchNailItServices(query, date as string);
+      // Service search functionality moved to Fresh AI system
+      const services = await nailItAPI.searchServices(query, date as string);
       res.json(services);
     } catch (error: any) {
       console.error("Error searching NailIt services:", error);
@@ -1528,9 +1515,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Location ID and date are required" });
       }
 
-      const availability = await aiAgent.getNailItServiceAvailability(
+      // Get service staff directly from NailIt API
+      const availability = await nailItAPI.getServiceStaff(
         parseInt(serviceId),
         parseInt(locationId as string),
+        'E',
         date as string
       );
 
@@ -1543,7 +1532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/nailit/payment-types", async (req, res) => {
     try {
-      const paymentTypes = await aiAgent.getNailItPaymentTypes();
+      const paymentTypes = await nailItAPI.getPaymentTypes('E');
       res.json(paymentTypes);
     } catch (error: any) {
       console.error("Error fetching payment types:", error);
@@ -1562,7 +1551,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const result = await aiAgent.createNailItOrder(orderData);
+      // Order creation functionality moved to Fresh AI system
+      const result = await nailItAPI.createOrderWithUser(orderData);
       
       if (result.success) {
         res.status(201).json(result);
@@ -1990,10 +1980,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (deviceRegistered) {
         console.log("✅ NailIt device registered successfully");
         
-        // Sync services from NailIt API on startup
-        console.log("Syncing services from NailIt API...");
-        await aiAgent.syncServicesFromNailItAPI();
-        console.log("✅ NailIt services synced successfully");
+        // Service sync functionality moved to Fresh AI system
+        console.log("✅ NailIt services available through Fresh AI");
       } else {
         console.warn("⚠️  Failed to register device with NailIt API");
       }

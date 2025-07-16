@@ -20,7 +20,6 @@ const navigation = [
   { name: "Integration Hub", href: "/integration-dashboard", icon: Activity },
   { name: "Integrations", href: "/integrations", icon: Settings },
   { name: "AI Settings", href: "/ai-settings", icon: Bot },
-  { name: "AI Testing", href: "/ai-test", icon: TestTube },
   { name: "Fresh AI Test", href: "/fresh-ai-test", icon: Bot },
   { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: MessageSquare },
 ];
