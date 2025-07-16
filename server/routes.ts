@@ -512,6 +512,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fresh AI Test Route
+  app.post("/api/fresh-ai/test", async (req, res) => {
+    const { testFreshAI } = await import("./routes/fresh-ai");
+    await testFreshAI(req, res);
+  });
+
+  // Fresh AI Conversation Management
+  app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      freshAI.clearConversationState(customerId);
+      res.json({ success: true, message: "Conversation cleared" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Error clearing conversation: " + error.message });
+    }
+  });
+
   // AI Welcome Message Test
   app.post("/api/ai/welcome", async (req, res) => {
     try {

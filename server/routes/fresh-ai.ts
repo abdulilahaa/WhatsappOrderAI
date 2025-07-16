@@ -11,35 +11,36 @@ export async function testFreshAI(req: Request, res: Response) {
       return res.status(400).json({ error: 'Message and customerId are required' });
     }
 
-    // Get or create customer
-    const customerIdNum = parseInt(customerId);
-    if (isNaN(customerIdNum)) {
-      return res.status(400).json({ error: "Invalid customer ID format" });
-    }
+    // Get or create customer by phone number (for WhatsApp compatibility)
+    let customer;
     
-    let customer = await storage.getCustomer(customerIdNum);
-    if (!customer) {
-      // Always check if customer exists by phone number to avoid duplicates
-      const testPhoneNumber = '+96500000000';
-      try {
-        const existingCustomer = await storage.getCustomerByPhoneNumber(testPhoneNumber);
-        if (existingCustomer) {
-          customer = existingCustomer;
-        } else {
-          customer = await storage.createCustomer({
-            name: 'Test Customer',
-            phoneNumber: testPhoneNumber,
-            email: 'test@example.com'
-          });
-        }
-      } catch (createError) {
-        // If creation fails due to duplicate, try to get the existing customer again
-        const existingCustomer = await storage.getCustomerByPhoneNumber(testPhoneNumber);
-        if (existingCustomer) {
-          customer = existingCustomer;
-        } else {
-          throw createError;
-        }
+    // Check if customerId is actually a phone number
+    if (customerId.startsWith('+') || customerId.length > 10) {
+      // It's a phone number, find by phone number
+      customer = await storage.getCustomerByPhoneNumber(customerId);
+      if (!customer) {
+        customer = await storage.createCustomer({
+          name: 'Test Customer',
+          phoneNumber: customerId,
+          email: 'test@example.com'
+        });
+      }
+    } else {
+      // It's a regular customer ID
+      const customerIdNum = parseInt(customerId);
+      if (isNaN(customerIdNum)) {
+        return res.status(400).json({ error: "Invalid customer ID format" });
+      }
+      
+      customer = await storage.getCustomer(customerIdNum);
+      if (!customer) {
+        // Create a test customer with a proper phone number
+        const testPhoneNumber = `+965${Math.floor(Math.random() * 100000000)}`;
+        customer = await storage.createCustomer({
+          name: 'Test Customer',
+          phoneNumber: testPhoneNumber,
+          email: 'test@example.com'
+        });
       }
     }
 

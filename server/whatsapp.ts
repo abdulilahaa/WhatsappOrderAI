@@ -1,5 +1,4 @@
 import { storage } from "./storage";
-import { aiAgent } from "./ai";
 import { freshAI } from "./ai-fresh";
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
@@ -126,16 +125,6 @@ export class WhatsAppService {
         conversationHistory
       );
 
-      // Handle order intent (if using old AI)
-      if (aiResponse.orderIntent) {
-        await this.handleOrderIntent(customer, aiResponse.orderIntent);
-      }
-
-      // Handle appointment intent (if using old AI)
-      if (aiResponse.appointmentIntent) {
-        await this.handleAppointmentIntent(customer, aiResponse.appointmentIntent);
-      }
-
       // Handle Fresh AI completion (if order is ready for booking)
       if (aiResponse.collectedData?.readyForBooking) {
         await this.handleFreshAIBooking(customer, aiResponse.collectedData);
@@ -151,16 +140,18 @@ export class WhatsAppService {
         isFromAI: true,
       });
 
-      // Send suggested services if any
+      // Send suggested services if any (only for Fresh AI format)
       if (aiResponse.suggestedServices && aiResponse.suggestedServices.length > 0) {
-        const serviceMessage = this.formatServiceSuggestions(aiResponse.suggestedServices);
-        await this.sendMessage(customer.phoneNumber, serviceMessage);
-        
-        await storage.createMessage({
-          conversationId: conversation.id,
-          content: serviceMessage,
-          isFromAI: true,
-        });
+        const serviceMessage = this.formatNailItServiceSuggestions(aiResponse.suggestedServices);
+        if (serviceMessage) {
+          await this.sendMessage(customer.phoneNumber, serviceMessage);
+          
+          await storage.createMessage({
+            conversationId: conversation.id,
+            content: serviceMessage,
+            isFromAI: true,
+          });
+        }
       }
 
     } catch (error) {
@@ -580,10 +571,21 @@ export class WhatsAppService {
     }
   }
 
+  private formatNailItServiceSuggestions(services: any[]): string {
+    if (!services || services.length === 0) return "";
+    
+    const suggestions = services.slice(0, 3).map((service, index) => {
+      const price = service.Special_Price || service.Primary_Price || 0;
+      return `${index + 1}. ${service.Item_Name} - ${price} KWD`;
+    }).join('\n');
+    
+    return `Here are some service suggestions:\n\n${suggestions}\n\nWhich service would you like to book?`;
+  }
+
   async sendWelcomeMessage(phoneNumber: string): Promise<void> {
     const customer = await storage.getCustomerByPhoneNumber(phoneNumber);
     if (customer) {
-      const welcomeMessage = await aiAgent.generateWelcomeMessage(customer);
+      const welcomeMessage = "Welcome to NailIt! I'm here to help you book your nail care appointment. What service would you like today?";
       await this.sendMessage(phoneNumber, welcomeMessage);
     }
   }
