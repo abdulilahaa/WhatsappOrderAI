@@ -514,6 +514,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Detailed booking flow test with all API responses
+  app.get("/api/fresh-ai/test-detailed-booking", async (req, res) => {
+    try {
+      const { testDetailedBookingFlow } = await import('./test-detailed-booking');
+      const result = await testDetailedBookingFlow();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Detailed booking test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fresh AI Conversation Management
   app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
     try {
