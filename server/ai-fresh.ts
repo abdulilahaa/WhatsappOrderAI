@@ -1,6 +1,7 @@
 import { OpenAI } from 'openai';
 import { storage } from './storage';
 import { nailItAPI } from './nailit-api';
+import { nailItValidator } from './nailit-validator';
 import type { Customer, Product, FreshAISettings } from '@shared/schema';
 import type { NailItItem, NailItStaff, NailItTimeSlot, NailItPaymentType } from './nailit-api';
 
@@ -523,16 +524,17 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
     }
   }
 
-  async createBooking(state: ConversationState, customer: Customer): Promise<{ success: boolean; orderId?: number; message?: string }> {
+  async createBooking(state: ConversationState, customer: Customer): Promise<{ success: boolean; orderId?: number; message?: string; orderDetails?: any }> {
     try {
-      if (!state.collectedData.selectedServices.length || 
-          !state.collectedData.locationId || 
-          !state.collectedData.customerName || 
-          !state.collectedData.customerEmail) {
-        return { success: false, message: 'Missing required booking information' };
+      // Validate booking data using NailIt validator
+      const validationResult = await nailItValidator.validateBookingData(state.collectedData);
+      
+      if (!validationResult.isValid) {
+        console.log('❌ Booking validation failed:', validationResult.message);
+        return { success: false, message: validationResult.message };
       }
 
-      console.log('🎯 Creating real NailIt order with collected data:', state.collectedData);
+      console.log('🎯 Creating real NailIt order with validated data:', state.collectedData);
       
       // Register or get customer in NailIt system
       const customerData = {
@@ -594,13 +596,18 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       if (orderResult && orderResult.Status === 0) {
         console.log(`🎉 Order created successfully in NailIt POS! Order ID: ${orderResult.OrderId}`);
         
+        // Get detailed order information using V2.1 API
+        console.log('📊 Fetching complete order details from NailIt POS...');
+        const orderPaymentDetails = await nailItAPI.getOrderPaymentDetail(orderResult.OrderId);
+        
         // Mark the conversation as completed
         state.collectedData.readyForBooking = true;
         
         return { 
           success: true, 
           orderId: orderResult.OrderId,
-          message: `Order confirmed in NailIt POS system with Order ID: ${orderResult.OrderId}`
+          message: `Order confirmed in NailIt POS system with Order ID: ${orderResult.OrderId}`,
+          orderDetails: orderPaymentDetails
         };
       } else {
         console.log('❌ Failed to create order in NailIt POS:', orderResult);
@@ -833,7 +840,7 @@ How can I help you today?`;
     const formattedDate = selectedDate.toLocaleDateString('en-GB').replace(/\//g, '-');
     state.collectedData.appointmentDate = formattedDate;
     
-    // Check time availability for the selected date
+    // Check time availability for the selected date with business hours validation
     try {
       console.log(`🕐 Checking time slots for ${formattedDate} at location ${state.collectedData.locationId}`);
       
@@ -852,13 +859,25 @@ How can I help you today?`;
         return this.createResponse(state, response);
       }
       
-      // Show available times
+      // Get business hours for the location
+      const locations = await nailItAPI.getLocations();
+      const location = locations.find(loc => loc.Location_Id === state.collectedData.locationId);
+      
+      // Show available times with business hours information
       state.collectedData.availableTimeSlots = timeSlots;
       state.phase = 'time_selection';
       
       let response = state.language === 'ar'
         ? `الأوقات المتاحة في ${formattedDate}:\n\n`
         : `Available times on ${formattedDate}:\n\n`;
+      
+      // Add business hours information
+      if (location && location.From_Time && location.To_Time) {
+        const businessHours = state.language === 'ar'
+          ? `⏰ ساعات العمل: ${location.From_Time} - ${location.To_Time}\n\n`
+          : `⏰ Business hours: ${location.From_Time} - ${location.To_Time}\n\n`;
+        response += businessHours;
+      }
       
       timeSlots.slice(0, 5).forEach((slot, index) => {
         response += `${index + 1}. ${slot.TimeFrame_Name}\n`;
@@ -934,6 +953,21 @@ How can I help you today?`;
       const selectedSlot = state.collectedData.availableTimeSlots[selectedNum - 1];
       
       if (selectedSlot) {
+        // Validate the selected time slot against business hours
+        const validationResult = await nailItValidator.validateTimeSlot(
+          state.collectedData.locationId!,
+          selectedSlot.TimeFrame_Name,
+          state.collectedData.appointmentDate!
+        );
+        
+        if (!validationResult.isValid) {
+          const response = state.language === 'ar'
+            ? `❌ عذراً، ${validationResult.message}\n\n${validationResult.suggestions ? validationResult.suggestions.join('\n') : ''}`
+            : `❌ Sorry, ${validationResult.message}\n\n${validationResult.suggestions ? validationResult.suggestions.join('\n') : ''}`;
+          
+          return this.createResponse(state, response);
+        }
+        
         state.collectedData.timeSlotIds = [selectedSlot.TimeFrame_Id];
         state.collectedData.timeSlotNames = [selectedSlot.TimeFrame_Name];
         
@@ -943,6 +977,30 @@ How can I help you today?`;
         const response = state.language === 'ar'
           ? `تم اختيار الوقت: ${selectedSlot.TimeFrame_Name}\n\nدعني أتحقق من المختصين المتاحين...`
           : `Time selected: ${selectedSlot.TimeFrame_Name}\n\nLet me check available specialists...`;
+        
+        return this.createResponse(state, response);
+      }
+    }
+    
+    // Check if user mentioned a specific time (e.g., "8AM", "8:00 AM")
+    const timeMatch = lowerMessage.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)/);
+    if (timeMatch) {
+      const hour = timeMatch[1];
+      const minute = timeMatch[2] || '00';
+      const period = timeMatch[3];
+      const requestedTime = `${hour}:${minute} ${period.toUpperCase()}`;
+      
+      // Validate the requested time against business hours
+      const validationResult = await nailItValidator.validateTimeSlot(
+        state.collectedData.locationId!,
+        requestedTime,
+        state.collectedData.appointmentDate!
+      );
+      
+      if (!validationResult.isValid) {
+        const response = state.language === 'ar'
+          ? `❌ عذراً، ${validationResult.message}\n\n${validationResult.suggestions ? validationResult.suggestions.join('\n') : ''}`
+          : `❌ Sorry, ${validationResult.message}\n\n${validationResult.suggestions ? validationResult.suggestions.join('\n') : ''}`;
         
         return this.createResponse(state, response);
       }
@@ -1200,31 +1258,42 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
       if (bookingResult.success && bookingResult.orderId) {
         state.phase = 'completed';
         
-        // Get detailed order information using V2.1 API
-        console.log('📊 Fetching order details from NailIt POS...');
-        const orderDetails = await nailItAPI.getOrderPaymentDetail(bookingResult.orderId);
+        // Use order details from booking result
+        const orderDetails = bookingResult.orderDetails;
         
         let response = state.language === 'ar'
           ? `✅ تم تأكيد حجزك بنجاح!\n\n📋 تفاصيل الطلب:\nرقم الطلب: ${bookingResult.orderId}\nحالة الطلب: مؤكد`
           : `✅ Your booking has been confirmed!\n\n📋 Order Details:\nOrder ID: ${bookingResult.orderId}\nStatus: Confirmed`;
         
-        // Add order details if available from V2.1 API
+        // Add comprehensive order details
         if (orderDetails) {
           const orderInfo = state.language === 'ar'
-            ? `\nالعميل: ${orderDetails.Customer_Name}\nالفرع: ${orderDetails.Location_Name}\nطريقة الدفع: ${orderDetails.PayType}\nالمبلغ: ${orderDetails.PayAmount} دينار كويتي`
-            : `\nCustomer: ${orderDetails.Customer_Name}\nLocation: ${orderDetails.Location_Name}\nPayment: ${orderDetails.PayType}\nAmount: ${orderDetails.PayAmount} KWD`;
+            ? `\n\n👤 العميل: ${orderDetails.Customer_Name}\n📍 الفرع: ${orderDetails.Location_Name}\n📅 التاريخ: ${orderDetails.Date}\n⏰ الوقت: ${orderDetails.Time}\n💳 طريقة الدفع: ${orderDetails.PayType}\n💰 المبلغ: ${orderDetails.PayAmount} دينار كويتي`
+            : `\n\n👤 Customer: ${orderDetails.Customer_Name}\n📍 Location: ${orderDetails.Location_Name}\n📅 Date: ${orderDetails.Date}\n⏰ Time: ${orderDetails.Time}\n💳 Payment: ${orderDetails.PayType}\n💰 Amount: ${orderDetails.PayAmount} KWD`;
           
           response += orderInfo;
           
-          // Add staff information if available
+          // Add service and staff information
           if (orderDetails.Services && orderDetails.Services.length > 0) {
-            const staffInfo = orderDetails.Services.map(service => 
+            const serviceInfo = orderDetails.Services.map(service => 
               state.language === 'ar' 
-                ? `المختص: ${service.Staff_Name}`
-                : `Specialist: ${service.Staff_Name}`
-            ).join('\n');
-            response += `\n${staffInfo}`;
+                ? `🔸 ${service.Service_Name} - ${service.Price} دينار كويتي\n   👨‍💼 المختص: ${service.Staff_Name}\n   📅 موعد الخدمة: ${service.Service_Date}\n   ⏰ وقت الخدمة: ${service.Service_Time_Slots}`
+                : `🔸 ${service.Service_Name} - ${service.Price} KWD\n   👨‍💼 Specialist: ${service.Staff_Name}\n   📅 Service Date: ${service.Service_Date}\n   ⏰ Service Time: ${service.Service_Time_Slots}`
+            ).join('\n\n');
+            
+            response += `\n\n🎯 خدماتك:\n${serviceInfo}`;
           }
+        } else {
+          // Fallback order details from state
+          const servicesList = state.collectedData.selectedServices.map(service => 
+            `🔸 ${service.itemName} - ${service.price} KWD`
+          ).join('\n');
+          
+          const fallbackDetails = state.language === 'ar'
+            ? `\n\n👤 العميل: ${state.collectedData.customerName}\n📍 الفرع: ${state.collectedData.locationName}\n📅 التاريخ: ${state.collectedData.appointmentDate}\n⏰ الوقت: ${state.collectedData.timeSlotNames?.join(', ')}\n💰 المبلغ الإجمالي: ${state.collectedData.totalAmount} دينار كويتي\n\n🎯 الخدمات:\n${servicesList}`
+            : `\n\n👤 Customer: ${state.collectedData.customerName}\n📍 Location: ${state.collectedData.locationName}\n📅 Date: ${state.collectedData.appointmentDate}\n⏰ Time: ${state.collectedData.timeSlotNames?.join(', ')}\n💰 Total Amount: ${state.collectedData.totalAmount} KWD\n\n🎯 Services:\n${servicesList}`;
+          
+          response += fallbackDetails;
         }
         
         // Add payment link for card payments
@@ -1237,8 +1306,8 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
         }
         
         response += state.language === 'ar'
-          ? "\n\nشكراً لاختيارك نيل إت! سنراك قريباً 🌟"
-          : "\n\nThank you for choosing NailIt! See you soon 🌟";
+          ? "\n\n🌟 شكراً لاختيارك نيل إت! سنراك قريباً"
+          : "\n\n🌟 Thank you for choosing NailIt! See you soon";
         
         return this.createResponse(state, response);
       } else {
@@ -1249,6 +1318,7 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
         
         return this.createResponse(state, errorResponse);
       }
+
     } catch (error) {
       console.error('❌ Error in confirmation process:', error);
       

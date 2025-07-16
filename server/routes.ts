@@ -502,6 +502,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await testFreshAI(req, res);
   });
 
+  // Comprehensive AI booking flow test
+  app.get("/api/fresh-ai/test-booking-flow", async (req, res) => {
+    try {
+      const { testAIBookingFlow } = await import('./test-ai-booking-clean');
+      const result = await testAIBookingFlow();
+      res.json(result);
+    } catch (error: any) {
+      console.error('AI booking flow test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fresh AI Conversation Management
   app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
     try {
