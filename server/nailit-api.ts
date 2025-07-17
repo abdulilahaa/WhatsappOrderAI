@@ -952,6 +952,12 @@ export class NailItAPIService {
       if (response.data && response.data.Status === 0) {
         console.log(`✅ Order payment details retrieved successfully for Order ID: ${orderId}`);
         console.log(`📊 Order Status: ${response.data.OrderStatus}, Payment: ${response.data.PayType}, Amount: ${response.data.PayAmount} KWD`);
+        
+        // Enhanced payment verification logging
+        if (response.data.PayType === 'Knet' && response.data.KNetResult) {
+          console.log(`💳 KNet Payment Status: ${response.data.KNetResult}, Reference: ${response.data.KNetReference}`);
+        }
+        
         return response.data;
       } else {
         console.error(`❌ Failed to get order payment details: ${response.data?.Message || 'Unknown error'}`);
@@ -960,6 +966,94 @@ export class NailItAPIService {
     } catch (error: any) {
       console.error(`❌ Error getting order payment details for Order ID ${orderId}:`, error.response?.data || error.message);
       return null;
+    }
+  }
+
+  // Enhanced payment verification method
+  async verifyPaymentStatus(orderId: number): Promise<{
+    isPaymentSuccessful: boolean;
+    orderStatus: string;
+    paymentType: string;
+    paymentAmount: number;
+    paymentDetails: NailItOrderPaymentDetail | null;
+    confirmationMessage: string;
+  }> {
+    try {
+      console.log(`🔍 Verifying payment status for Order ID: ${orderId}`);
+      
+      const paymentDetails = await this.getOrderPaymentDetail(orderId);
+      
+      if (!paymentDetails) {
+        return {
+          isPaymentSuccessful: false,
+          orderStatus: 'Unknown',
+          paymentType: 'Unknown',
+          paymentAmount: 0,
+          paymentDetails: null,
+          confirmationMessage: 'Unable to retrieve payment details'
+        };
+      }
+
+      // Check if payment is successful based on multiple criteria
+      let isPaymentSuccessful = false;
+      let confirmationMessage = '';
+
+      // Case 1: KNet Payment
+      if (paymentDetails.PayType === 'Knet') {
+        isPaymentSuccessful = paymentDetails.KNetResult === 'CAPTURED' && 
+                            paymentDetails.OrderStatus === 'Order Paid';
+        
+        if (isPaymentSuccessful) {
+          confirmationMessage = `KNet payment of ${paymentDetails.PayAmount} KWD completed successfully. Reference: ${paymentDetails.KNetReference}`;
+        } else {
+          confirmationMessage = `KNet payment failed. Status: ${paymentDetails.KNetResult || 'Unknown'}`;
+        }
+      }
+      // Case 2: Cash on Arrival (immediate confirmation)
+      else if (paymentDetails.PayType === 'Cash') {
+        isPaymentSuccessful = paymentDetails.OrderStatus === 'Order Paid' || 
+                            paymentDetails.OrderStatus === 'Order Confirmed';
+        
+        if (isPaymentSuccessful) {
+          confirmationMessage = `Cash on Arrival order confirmed. Amount: ${paymentDetails.PayAmount} KWD`;
+        } else {
+          confirmationMessage = `Cash on Arrival order pending confirmation`;
+        }
+      }
+      // Case 3: Other payment types
+      else {
+        isPaymentSuccessful = paymentDetails.OrderStatus === 'Order Paid';
+        
+        if (isPaymentSuccessful) {
+          confirmationMessage = `Payment of ${paymentDetails.PayAmount} KWD completed via ${paymentDetails.PayType}`;
+        } else {
+          confirmationMessage = `Payment via ${paymentDetails.PayType} is pending`;
+        }
+      }
+
+      console.log(`💳 Payment verification result: ${isPaymentSuccessful ? 'SUCCESS' : 'PENDING'}`);
+      console.log(`📊 Payment Type: ${paymentDetails.PayType}, Amount: ${paymentDetails.PayAmount} KWD`);
+      console.log(`📋 Order Status: ${paymentDetails.OrderStatus}`);
+
+      return {
+        isPaymentSuccessful,
+        orderStatus: paymentDetails.OrderStatus,
+        paymentType: paymentDetails.PayType,
+        paymentAmount: paymentDetails.PayAmount,
+        paymentDetails,
+        confirmationMessage
+      };
+
+    } catch (error: any) {
+      console.error(`❌ Error verifying payment status for Order ID ${orderId}:`, error.message);
+      return {
+        isPaymentSuccessful: false,
+        orderStatus: 'Error',
+        paymentType: 'Unknown',
+        paymentAmount: 0,
+        paymentDetails: null,
+        confirmationMessage: 'Payment verification failed due to system error'
+      };
     }
   }
 

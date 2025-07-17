@@ -2408,6 +2408,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Payment verification endpoints
+  app.post('/api/nailit/verify-payment', async (req, res) => {
+    try {
+      const { orderId } = req.body;
+      
+      if (!orderId) {
+        return res.status(400).json({ error: 'Order ID is required' });
+      }
+      
+      console.log(`🔍 Verifying payment for Order ID: ${orderId}`);
+      const verificationResult = await nailItAPI.verifyPaymentStatus(orderId);
+      
+      res.json(verificationResult);
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      res.status(500).json({ error: 'Failed to verify payment status' });
+    }
+  });
+
   // Initialize NailIt device registration on server startup
   (async () => {
     try {

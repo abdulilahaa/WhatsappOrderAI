@@ -1,0 +1,73 @@
+Get Order Payment Detail
+Type : GET
+Url – http://nailit.innovasolution.net/GetOrderPaymentDetail/{orderId}
+Example - http://nailit.innovasolution.net/GetOrderPaymentDetail/166387
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "OrderId": 166387,
+    "PaymentId": 20955,
+    "PayDate": "03/03/2025 15:18",
+    "Date": "03/03/2025",
+    "Time": "15:18",
+    "ChannelId": 2,
+    "PayAmount": 55.500,
+    "Delivery_Charges": 0.000,
+    "CustomerId": 9589,
+    "PayType": "Knet",
+    "KNetPayId": "100506210000010219",
+    "KNetAuth": "B07397",
+    "KNetResult": "CAPTURED",
+    "KNetReference": "506210000721",
+    "KNetTransId": "506210000961387",
+    "RedeemPoints": 0,
+    "RedeemAmount": 0.0000,
+    "WalletAmount": 0.000,
+    "EarnedPoints": 610,
+    "Customer_Name": "mustafa k  ",
+    "Location_Name": "Al-Plaza Mall",
+    "Booking_Datetime": "03/03/2025 03:16 PM",
+    "Address": "",
+    "Order_Type": 2,
+    "Order_Status_Id": 3,
+    "OrderStatus": "Order Paid",
+    "MinBookingDate": "06/03/2025 11:00 AM",
+    "PayNowExpireDate": "06/03/2025 06:30 PM",
+    "Tip": 0.000,
+    "Services": [
+        {
+            "Service_Id": 205,
+            "Service_Name": "Dry manicure with polish",
+            "Service_Date": "06/03/2025",
+            "Service_Time_Slots": "11:00 AM,11:30 AM",
+            "Price": 3.000,
+            "Qty": 1,
+            "Image_URL": "Uploads/ProductImage/be4c561f3e70_Dry manicure with polish.jpg",
+            "Staff_Name": "Roselyn"
+        },
+        {
+            "Service_Id": 51355,
+            "Service_Name": "Erayba Smooth Organic Straightening",
+            "Service_Date": "06/03/2025",
+            "Service_Time_Slots": "12:00 PM,12:30 PM,01:00 PM,01:30 PM,02:00 PM,02:30 PM,03:00 PM,03:30 PM",
+            "Price": 40.000,
+            "Qty": 1,
+            "Image_URL": "Uploads/ProductImage/8d4743702852_WhatsApp Image 2023-12-03 at 8.20.36 PM.jpeg",
+            "Staff_Name": "Sandya"
+        },
+        {
+            "Service_Id": 10867,
+            "Service_Name": "Soft Gel Nail Extension",
+            "Service_Date": "06/03/2025",
+            "Service_Time_Slots": "04:00 PM,04:30 PM,05:00 PM,05:30 PM",
+            "Price": 12.500,
+            "Qty": 1,
+            "Image_URL": "Uploads/ProductImage/e0f34afcf8e6_Softgel  Nails.jpg",
+            "Staff_Name": "Elvira"
+        }
+    ]
+}

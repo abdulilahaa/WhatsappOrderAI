@@ -596,9 +596,9 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       if (orderResult && orderResult.Status === 0) {
         console.log(`🎉 Order created successfully in NailIt POS! Order ID: ${orderResult.OrderId}`);
         
-        // Get detailed order information using V2.1 API
-        console.log('📊 Fetching complete order details from NailIt POS...');
-        const orderPaymentDetails = await nailItAPI.getOrderPaymentDetail(orderResult.OrderId);
+        // Enhanced payment verification using V2.1 API
+        console.log('💳 Verifying payment status for Order ID:', orderResult.OrderId);
+        const paymentVerification = await nailItAPI.verifyPaymentStatus(orderResult.OrderId);
         
         // Mark the conversation as completed
         state.collectedData.readyForBooking = true;
@@ -607,7 +607,8 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
           success: true, 
           orderId: orderResult.OrderId,
           message: `Order confirmed in NailIt POS system with Order ID: ${orderResult.OrderId}`,
-          orderDetails: orderPaymentDetails
+          orderDetails: paymentVerification.paymentDetails,
+          paymentVerification
         };
       } else {
         console.log('❌ Failed to create order in NailIt POS:', orderResult);
@@ -1258,30 +1259,64 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
       if (bookingResult.success && bookingResult.orderId) {
         state.phase = 'completed';
         
+        // Enhanced confirmation message with payment verification
+        const paymentVerification = bookingResult.paymentVerification;
+        
+        let response = '';
+        
+        // Create confirmation message based on payment status
+        if (paymentVerification && paymentVerification.isPaymentSuccessful) {
+          // Payment successful confirmation
+          response = state.language === 'ar'
+            ? `🎉 تم تأكيد حجزك وتم الدفع بنجاح!\n\n📋 رقم الطلب: ${bookingResult.orderId}\n💳 ${paymentVerification.confirmationMessage}\n\n🎯 تفاصيل الحجز المؤكد:`
+            : `🎉 Your booking is confirmed and payment approved!\n\n📋 Order ID: ${bookingResult.orderId}\n💳 ${paymentVerification.confirmationMessage}\n\n🎯 Confirmed Booking Details:`;
+        } else {
+          // Payment pending or failed
+          response = state.language === 'ar'
+            ? `📋 تم إنشاء طلب الحجز رقم: ${bookingResult.orderId}\n💳 ${paymentVerification?.confirmationMessage || 'جاري التحقق من الدفع'}\n\n🎯 تفاصيل الحجز:`
+            : `📋 Booking order created: ${bookingResult.orderId}\n💳 ${paymentVerification?.confirmationMessage || 'Payment verification in progress'}\n\n🎯 Booking Details:`;
+        }
+        
         // Use order details from booking result
         const orderDetails = bookingResult.orderDetails;
-        
-        let response = state.language === 'ar'
-          ? `✅ تم تأكيد حجزك بنجاح!\n\n📋 تفاصيل الطلب:\nرقم الطلب: ${bookingResult.orderId}\nحالة الطلب: مؤكد`
-          : `✅ Your booking has been confirmed!\n\n📋 Order Details:\nOrder ID: ${bookingResult.orderId}\nStatus: Confirmed`;
         
         // Add comprehensive order details
         if (orderDetails) {
           const orderInfo = state.language === 'ar'
-            ? `\n\n👤 العميل: ${orderDetails.Customer_Name}\n📍 الفرع: ${orderDetails.Location_Name}\n📅 التاريخ: ${orderDetails.Date}\n⏰ الوقت: ${orderDetails.Time}\n💳 طريقة الدفع: ${orderDetails.PayType}\n💰 المبلغ: ${orderDetails.PayAmount} دينار كويتي`
-            : `\n\n👤 Customer: ${orderDetails.Customer_Name}\n📍 Location: ${orderDetails.Location_Name}\n📅 Date: ${orderDetails.Date}\n⏰ Time: ${orderDetails.Time}\n💳 Payment: ${orderDetails.PayType}\n💰 Amount: ${orderDetails.PayAmount} KWD`;
+            ? `\n👤 العميل: ${orderDetails.Customer_Name}\n📍 الفرع: ${orderDetails.Location_Name}\n📅 تاريخ الحجز: ${orderDetails.Booking_Datetime}\n💰 المبلغ الإجمالي: ${orderDetails.PayAmount} دينار كويتي`
+            : `\n👤 Customer: ${orderDetails.Customer_Name}\n📍 Location: ${orderDetails.Location_Name}\n📅 Booking Date: ${orderDetails.Booking_Datetime}\n💰 Total Amount: ${orderDetails.PayAmount} KWD`;
           
           response += orderInfo;
           
           // Add service and staff information
           if (orderDetails.Services && orderDetails.Services.length > 0) {
+            const servicesHeader = state.language === 'ar' ? '\n\n🎯 خدماتك المحجوزة:' : '\n\n🎯 Your Booked Services:';
+            response += servicesHeader;
+            
             const serviceInfo = orderDetails.Services.map(service => 
               state.language === 'ar' 
-                ? `🔸 ${service.Service_Name} - ${service.Price} دينار كويتي\n   👨‍💼 المختص: ${service.Staff_Name}\n   📅 موعد الخدمة: ${service.Service_Date}\n   ⏰ وقت الخدمة: ${service.Service_Time_Slots}`
-                : `🔸 ${service.Service_Name} - ${service.Price} KWD\n   👨‍💼 Specialist: ${service.Staff_Name}\n   📅 Service Date: ${service.Service_Date}\n   ⏰ Service Time: ${service.Service_Time_Slots}`
-            ).join('\n\n');
+                ? `\n🔸 ${service.Service_Name} - ${service.Price} دينار كويتي\n   👨‍💼 المختص: ${service.Staff_Name}\n   📅 موعد الخدمة: ${service.Service_Date}\n   ⏰ وقت الخدمة: ${service.Service_Time_Slots}`
+                : `\n🔸 ${service.Service_Name} - ${service.Price} KWD\n   👨‍💼 Specialist: ${service.Staff_Name}\n   📅 Service Date: ${service.Service_Date}\n   ⏰ Service Time: ${service.Service_Time_Slots}`
+            ).join('\n');
             
-            response += `\n\n🎯 خدماتك:\n${serviceInfo}`;
+            response += serviceInfo;
+          }
+          
+          // Add payment-specific information
+          if (paymentVerification && paymentVerification.paymentType === 'Knet') {
+            if (paymentVerification.isPaymentSuccessful) {
+              const knetSuccess = state.language === 'ar'
+                ? `\n\n✅ تم الدفع بنجاح عبر كي نت\n📋 رقم المرجع: ${orderDetails.KNetReference}\n🔐 رقم التفويض: ${orderDetails.KNetAuth}`
+                : `\n\n✅ KNet payment successful\n📋 Reference: ${orderDetails.KNetReference}\n🔐 Authorization: ${orderDetails.KNetAuth}`;
+              
+              response += knetSuccess;
+            } else {
+              const knetPending = state.language === 'ar'
+                ? `\n\n⏳ الدفع عبر كي نت قيد المعالجة\n🔗 رابط الدفع: http://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}`
+                : `\n\n⏳ KNet payment processing\n🔗 Payment Link: http://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}`;
+              
+              response += knetPending;
+            }
           }
         } else {
           // Fallback order details from state
@@ -1294,20 +1329,27 @@ Do you want to confirm the booking? (Type "yes" to confirm)`;
             : `\n\n👤 Customer: ${state.collectedData.customerName}\n📍 Location: ${state.collectedData.locationName}\n📅 Date: ${state.collectedData.appointmentDate}\n⏰ Time: ${state.collectedData.timeSlotNames?.join(', ')}\n💰 Total Amount: ${state.collectedData.totalAmount} KWD\n\n🎯 Services:\n${servicesList}`;
           
           response += fallbackDetails;
-        }
-        
-        // Add payment link for card payments
-        if (state.collectedData.paymentTypeId === 2 || state.collectedData.paymentTypeId === 7) {
-          const paymentLinkText = state.language === 'ar'
-            ? `\n\n💳 رابط الدفع:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}\n\n⚠️ انتباه: استخدم البيانات التجريبية للاختبار:\nرقم البطاقة: 0000000001\nتاريخ الانتهاء: 09/25\nرمز الحماية: 1234`
-            : `\n\n💳 Payment Link:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}\n\n⚠️ Note: Use test credentials:\nCard: 0000000001\nExpiry: 09/25\nPIN: 1234`;
           
-          response += paymentLinkText;
+          // Add payment link for KNet payments if not already processed
+          if (state.collectedData.paymentTypeId === 2 || state.collectedData.paymentTypeId === 7) {
+            const paymentLinkText = state.language === 'ar'
+              ? `\n\n💳 رابط الدفع:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}\n\n⚠️ انتباه: استخدم البيانات التجريبية للاختبار:\nرقم البطاقة: 0000000001\nتاريخ الانتهاء: 09/25\nرمز الحماية: 1234`
+              : `\n\n💳 Payment Link:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${bookingResult.orderId}\n\n⚠️ Note: Use test credentials:\nCard: 0000000001\nExpiry: 09/25\nPIN: 1234`;
+            
+            response += paymentLinkText;
+          }
         }
         
-        response += state.language === 'ar'
-          ? "\n\n🌟 شكراً لاختيارك نيل إت! سنراك قريباً"
-          : "\n\n🌟 Thank you for choosing NailIt! See you soon";
+        // Add final message based on payment status
+        if (paymentVerification && paymentVerification.isPaymentSuccessful) {
+          response += state.language === 'ar'
+            ? "\n\n🌟 شكراً لاختيارك نيل إت! حجزك مؤكد ومدفوع. سنراك قريباً!"
+            : "\n\n🌟 Thank you for choosing NailIt! Your booking is confirmed and paid. See you soon!";
+        } else {
+          response += state.language === 'ar'
+            ? "\n\n🌟 شكراً لاختيارك نيل إت! يرجى إكمال الدفع لتأكيد حجزك."
+            : "\n\n🌟 Thank you for choosing NailIt! Please complete payment to confirm your booking.";
+        }
         
         return this.createResponse(state, response);
       } else {
