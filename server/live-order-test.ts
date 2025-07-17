@@ -22,8 +22,7 @@ export class LiveOrderTester {
    * Create a comprehensive live order with all required parameters
    */
   async createLiveOrder(): Promise<any> {
-    const testDate = new Date();
-    testDate.setDate(testDate.getDate() + 1); // Tomorrow
+    const testDate = new Date(); // Use today's date for better staff availability
 
     console.log('\n🔥 LIVE ORDER CREATION TEST - ALL PARAMETERS');
     console.log('=============================================');
@@ -39,14 +38,29 @@ export class LiveOrderTester {
       const selectedLocation = locations[0]; // Use Al-Plaza Mall
       console.log(`✅ Selected Location: ${selectedLocation.Location_Name} (ID: ${selectedLocation.Location_Id})`);
 
-      // Step 2: Get staff availability for a popular service
+      // Step 2: Get staff availability for multiple services until we find one with available staff
       console.log('\n👥 Step 2: Getting available staff...');
-      const serviceId = 279; // French Manicure - confirmed working service
+      const popularServices = [279, 203, 245, 189, 156]; // Try multiple popular services
       const formattedDate = testDate.toLocaleDateString('en-GB').replace(/\//g, '-');
-      const staffResponse = await this.nailItAPI.getServiceStaff(serviceId, selectedLocation.Location_Id, 'E', formattedDate);
+      console.log(`🗓️ Using date: ${formattedDate} (today)`);
+      
+      let serviceId: number;
+      let staffResponse: any = null;
+      
+      for (const testServiceId of popularServices) {
+        console.log(`🔍 Checking staff availability for service ${testServiceId}...`);
+        const testStaffResponse = await this.nailItAPI.getServiceStaff(testServiceId, selectedLocation.Location_Id, 'E', formattedDate);
+        
+        if (testStaffResponse && testStaffResponse.length > 0) {
+          serviceId = testServiceId;
+          staffResponse = testStaffResponse;
+          console.log(`✅ Found available staff for service ${testServiceId}`);
+          break;
+        }
+      }
       
       if (!staffResponse || staffResponse.length === 0) {
-        throw new Error('No staff available for this service');
+        throw new Error('No staff available for any of the popular services');
       }
       
       const selectedStaff = staffResponse[0];
@@ -65,10 +79,18 @@ export class LiveOrderTester {
 
       // Step 4: Get service details
       console.log('\n🛍️ Step 4: Getting service details...');
+      const serviceNameMap: { [key: number]: { name: string; price: number } } = {
+        279: { name: 'French Manicure', price: 15.0 },
+        203: { name: 'Dry Manicure Without Polish', price: 5.0 },
+        245: { name: 'Nail Art Service', price: 8.0 },
+        189: { name: 'Basic Manicure', price: 7.0 },
+        156: { name: 'Gel Polish', price: 6.0 }
+      };
+      
       const serviceDetails = {
-        id: serviceId,
-        name: 'French Manicure',
-        price: 15.0 // Known price from previous tests
+        id: serviceId!,
+        name: serviceNameMap[serviceId!]?.name || `Service ${serviceId}`,
+        price: serviceNameMap[serviceId!]?.price || 10.0
       };
       console.log(`✅ Service: ${serviceDetails.name} - ${serviceDetails.price} KWD`);
 

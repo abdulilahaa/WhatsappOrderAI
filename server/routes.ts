@@ -1590,6 +1590,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SaveOrder API Parameters Demonstration
+  app.post("/api/nailit/demo-save-order-params", async (req, res) => {
+    try {
+      const { demonstrateSaveOrderParameters } = await import('./order-demo.js');
+      
+      const result = demonstrateSaveOrderParameters();
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ SaveOrder demo error:', error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: error
+      });
+    }
+  });
+
   // Comprehensive Live Order Test endpoint
   app.post("/api/nailit/live-order-test", async (req, res) => {
     try {
