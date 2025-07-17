@@ -315,6 +315,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create Order API  
+  app.post("/api/orders", async (req, res) => {
+    try {
+      const { customerId, total, items, status = "pending", notes } = req.body;
+      
+      if (!customerId || !total || !items) {
+        return res.status(400).json({ message: "Customer ID, total, and items are required" });
+      }
+
+      const order = await storage.createOrder({
+        customerId,
+        total: total.toString(),
+        items,
+        status,
+        notes
+      });
+      
+      res.status(201).json(order);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error creating order: " + error.message });
+    }
+  });
+
+  // Create Appointment API
+  app.post("/api/appointments", async (req, res) => {
+    try {
+      const { 
+        customerId, 
+        serviceId, 
+        appointmentDate, 
+        appointmentTime, 
+        duration = 60,
+        locationId,
+        locationName,
+        status = "pending",
+        paymentMethod,
+        paymentStatus = "pending",
+        totalPrice,
+        notes
+      } = req.body;
+      
+      if (!customerId || !appointmentDate || !appointmentTime) {
+        return res.status(400).json({ message: "Customer ID, appointment date, and time are required" });
+      }
+
+      const appointment = await storage.createAppointment({
+        customerId,
+        serviceId,
+        appointmentDate,
+        appointmentTime,
+        duration,
+        locationId,
+        locationName,
+        status,
+        paymentMethod,
+        paymentStatus,
+        totalPrice: totalPrice?.toString(),
+        notes
+      });
+      
+      res.status(201).json(appointment);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error creating appointment: " + error.message });
+    }
+  });
+
   // Order analytics
   app.get("/api/orders/analytics", async (req, res) => {
     try {
