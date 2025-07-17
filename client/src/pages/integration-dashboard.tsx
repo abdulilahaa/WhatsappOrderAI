@@ -43,7 +43,7 @@ export default function IntegrationDashboard() {
     serviceName: "Basic Manicure Service",
     locationId: 1,
     appointmentDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit', year: 'numeric'}), // Tomorrow
-    paymentTypeId: 1,
+    paymentTypeId: 2,  // KNet payment
     customerInfo: {
       name: "Sarah Ahmed",
       mobile: "96512345678",

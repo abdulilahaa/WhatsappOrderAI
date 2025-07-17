@@ -578,7 +578,7 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       // Create NailIt order
       const orderData = {
         Gross_Amount: totalAmount,
-        Payment_Type_Id: state.collectedData.paymentTypeId || 1,
+        Payment_Type_Id: state.collectedData.paymentTypeId || 2,  // Default to KNet payment
         Order_Type: 1,
         UserId: nailItCustomerId,
         FirstName: state.collectedData.customerName || customer.name || 'Customer',

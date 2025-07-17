@@ -1769,7 +1769,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           price: 15.0,
           locationId: 1,
           appointmentDate: nailItAPI.formatDateForAPI(new Date()),
-          paymentTypeId: 1, // Cash on Arrival
+          paymentTypeId: 2, // KNet payment
           staffId: 48,
           timeFrameIds: [5, 6] // Available time slots
         }
@@ -1875,7 +1875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             price: 15.0,
             locationId: Number(locationId),
             appointmentDate: appointmentDate,
-            paymentTypeId: 1, // Cash on Arrival
+            paymentTypeId: 2, // KNet payment
             staffId: availability.staff[0].Id, // Use first available staff
             timeFrameIds: slots.slice(0, 2).map((slot: any) => slot.TimeFrame_Id) // Use first 2 slots
           }
