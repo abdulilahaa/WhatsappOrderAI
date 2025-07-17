@@ -586,6 +586,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // API testing analysis
+  app.get("/api/analyze-testing-issues", async (req, res) => {
+    try {
+      const { analyzeCurrentAPITestingIssues } = await import('./api-testing-analysis');
+      const result = analyzeCurrentAPITestingIssues();
+      res.json(result);
+    } catch (error: any) {
+      console.error('API analysis error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Improved comprehensive API testing
+  app.get("/api/comprehensive-testing", async (req, res) => {
+    try {
+      const { improvedAPITesting } = await import('./improved-api-testing');
+      const result = await improvedAPITesting.runComprehensiveTests();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Comprehensive testing error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fresh AI Conversation Management
   app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
     try {
