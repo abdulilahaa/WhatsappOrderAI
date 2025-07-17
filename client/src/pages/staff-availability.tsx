@@ -43,7 +43,7 @@ interface Service {
 }
 
 export default function StaffAvailabilityPage() {
-  const [selectedLocation, setSelectedLocation] = useState<string>("52"); // Default to Zahra Complex for testing
+  const [selectedLocation, setSelectedLocation] = useState<string>("53"); // Default to Arraya Mall for testing comprehensive services
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedService, setSelectedService] = useState<string>("all");
 
@@ -334,7 +334,8 @@ export default function StaffAvailabilityPage() {
                             </p>
                             {staff.services && (
                               <p className="text-xs text-blue-600 mt-1">
-                                {staff.services.length} service{staff.services.length > 1 ? 's' : ''} qualified
+                                Qualified for {staff.services.length} service{staff.services.length > 1 ? 's' : ''} 
+                                {staff.services.length > 5 && <span className="font-medium"> (Multi-skilled)</span>}
                               </p>
                             )}
                           </div>
@@ -371,6 +372,24 @@ export default function StaffAvailabilityPage() {
                             )}
                           </div>
                         </div>
+
+                        {staff.services && staff.services.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-600 mb-1">Service Specializations</p>
+                            <div className="flex flex-wrap gap-1">
+                              {staff.services.slice(0, 3).map((serviceId, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  Service {serviceId}
+                                </Badge>
+                              ))}
+                              {staff.services.length > 3 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{staff.services.length - 3} more specializations
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {staff.Image_URL && (
                           <div className="mt-3 pt-3 border-t border-gray-200">
