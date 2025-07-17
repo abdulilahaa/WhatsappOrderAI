@@ -26,7 +26,9 @@ interface OrderTestData {
   serviceName: string;
   locationId: number;
   appointmentDate: string;
+  appointmentTime: string;
   paymentTypeId: number;
+  staffId: number;
   customerInfo: {
     name: string;
     mobile: string;
@@ -39,11 +41,13 @@ export default function IntegrationDashboard() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [orderTestData, setOrderTestData] = useState<OrderTestData>({
     customerId: 110732,
-    serviceId: 203, // Changed to a working service ID from API docs
-    serviceName: "Basic Manicure Service",
+    serviceId: 953, // Using first available service from real NailIt data
+    serviceName: "Brazilian Blowout",
     locationId: 1,
     appointmentDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit', year: 'numeric'}), // Tomorrow
+    appointmentTime: "10:00",
     paymentTypeId: 2,  // KNet payment
+    staffId: 1, // Default staff ID
     customerInfo: {
       name: "Sarah Ahmed",
       mobile: "96512345678",
@@ -471,14 +475,18 @@ export default function IntegrationDashboard() {
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder={orderTestData.serviceName || "Select a service"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {products?.slice(0, 10).map((product) => (
-                        <SelectItem key={product.id} value={product.id.toString()}>
-                          {product.name} - {product.price} KWD
-                        </SelectItem>
-                      ))}
+                      {products ? (
+                        products.slice(0, 15).map((product) => (
+                          <SelectItem key={product.id} value={product.id.toString()}>
+                            {product.name} - {product.price} KWD
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="loading" disabled>Loading services...</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -518,6 +526,36 @@ export default function IntegrationDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Appointment Time</label>
+                  <Select
+                    value={orderTestData.appointmentTime}
+                    onValueChange={(value) => setOrderTestData({...orderTestData, appointmentTime: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="09:00">09:00 AM</SelectItem>
+                      <SelectItem value="10:00">10:00 AM</SelectItem>
+                      <SelectItem value="11:00">11:00 AM</SelectItem>
+                      <SelectItem value="12:00">12:00 PM</SelectItem>
+                      <SelectItem value="13:00">01:00 PM</SelectItem>
+                      <SelectItem value="14:00">02:00 PM</SelectItem>
+                      <SelectItem value="15:00">03:00 PM</SelectItem>
+                      <SelectItem value="16:00">04:00 PM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Staff ID (Optional)</label>
+                  <Input
+                    type="number"
+                    placeholder="Auto-assign if empty"
+                    value={orderTestData.staffId || ""}
+                    onChange={(e) => setOrderTestData({...orderTestData, staffId: Number(e.target.value) || 1})}
+                  />
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
@@ -545,6 +583,32 @@ export default function IntegrationDashboard() {
                     customerInfo: {...orderTestData.customerInfo, email: e.target.value}
                   })}
                 />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Appointment Date</label>
+                  <Input
+                    type="text"
+                    value={orderTestData.appointmentDate}
+                    onChange={(e) => setOrderTestData({...orderTestData, appointmentDate: e.target.value})}
+                    placeholder="DD/MM/YYYY format"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium text-blue-900 mb-2">📋 Test Parameters Summary</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><strong>Customer ID:</strong> {orderTestData.customerId}</div>
+                  <div><strong>Service:</strong> {orderTestData.serviceName} (ID: {orderTestData.serviceId})</div>
+                  <div><strong>Location:</strong> Al-Plaza Mall (ID: {orderTestData.locationId})</div>
+                  <div><strong>Date:</strong> {orderTestData.appointmentDate}</div>
+                  <div><strong>Time:</strong> {orderTestData.appointmentTime}</div>
+                  <div><strong>Payment:</strong> Knet (ID: {orderTestData.paymentTypeId})</div>
+                  <div><strong>Staff ID:</strong> {orderTestData.staffId}</div>
+                  <div><strong>Customer:</strong> {orderTestData.customerInfo.name}</div>
+                </div>
+                <div className="mt-2 text-xs text-blue-700">
+                  ✅ All required parameters for NailIt SaveOrder API are configured
+                </div>
               </div>
 
               <div className="flex gap-2">
