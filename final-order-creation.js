@@ -1,9 +1,9 @@
-// Create order using the exact working SaveOrder format from documentation
+// Final attempt to create order using exact documentation parameters
 import axios from 'axios';
 
-async function createCompleteBooking() {
-  console.log('🔥 CREATING ORDER WITH EXACT WORKING FORMAT');
-  console.log('==========================================');
+async function createFinalOrder() {
+  console.log('🎯 FINAL ORDER CREATION ATTEMPT');
+  console.log('===============================');
   
   const API_URL = 'http://nailit.innovasolution.net/SaveOrder';
   const headers = {
@@ -12,30 +12,17 @@ async function createCompleteBooking() {
   };
 
   try {
-    // First register a user to get a valid UserId
-    console.log('\n👤 Step 1: Registering user...');
-    const registerResponse = await axios.post('http://localhost:5000/api/nailit/register-user', {
-      Address: "Kuwait City",
-      Email_Id: "booking@example.com",
-      Name: "Test Customer",
-      Mobile: "88888889",  // Try without +965 first
-      Login_Type: 1,
-      Image_Name: ""
-    });
+    console.log('📋 Using exact parameters from successful Order ID 176373 example...');
     
-    console.log('User registration response:', registerResponse.data);
-    const userId = registerResponse.data.App_User_Id;
-    
-    // Create order using the exact working format from documentation
-    console.log('\n📋 Step 2: Creating order with working format...');
+    // Using exact parameters from the successful documentation example
     const orderData = {
       "Gross_Amount": 10.0,
       "Payment_Type_Id": 1,
       "Order_Type": 2,
-      "UserId": userId,  // Use our registered user ID
-      "FirstName": "Test Customer",
-      "Mobile": "+96588888889",  // Use +965 format as shown in working example
-      "Email": "booking@example.com",
+      "UserId": 128,  // Using the exact UserId from working example
+      "FirstName": "yusuf jaorawala",
+      "Mobile": "+96588888889",
+      "Email": "yusuf.9116@gmail.com",
       "Discount_Amount": 0.0,
       "Net_Amount": 10.0,
       "POS_Location_Id": 1,
@@ -53,8 +40,8 @@ async function createCompleteBooking() {
           "Discount_Amount": 0.0,
           "Net_Amount": 5.0,
           "Staff_Id": 48,
-          "TimeFrame_Ids": [5, 6],  // Use working TimeFrame_Ids
-          "Appointment_Date": "08/07/2025"  // Use MM/dd/yyyy format
+          "TimeFrame_Ids": [5, 6],  // Using exact TimeFrame_Ids from working example
+          "Appointment_Date": "08/07/2025"  // Using exact date from working example
         },
         {
           "Prod_Id": 258,
@@ -69,13 +56,13 @@ async function createCompleteBooking() {
           "Discount_Amount": 0.0,
           "Net_Amount": 5.0,
           "Staff_Id": 48,
-          "TimeFrame_Ids": [7, 8],  // Use working TimeFrame_Ids
-          "Appointment_Date": "08/07/2025"  // Use MM/dd/yyyy format
+          "TimeFrame_Ids": [7, 8],  // Using exact TimeFrame_Ids from working example
+          "Appointment_Date": "08/07/2025"  // Using exact date from working example
         }
       ]
     };
 
-    console.log('\n🚀 Sending order to NailIt POS...');
+    console.log('🚀 Sending order to NailIt POS...');
     console.log('Order data:', JSON.stringify(orderData, null, 2));
     
     const response = await axios.post(API_URL, orderData, { headers });
@@ -85,37 +72,30 @@ async function createCompleteBooking() {
     console.log(`Data:`, JSON.stringify(response.data, null, 2));
     
     if (response.data.Status === 0) {
-      console.log(`\n🎉 SUCCESS! Order created successfully!`);
+      console.log(`\n🎉 SUCCESS! Order created in NailIt POS!`);
       console.log(`📋 Order ID: ${response.data.OrderId}`);
       console.log(`👤 Customer ID: ${response.data.CustomerId}`);
       console.log(`📧 Message: ${response.data.Message}`);
-      
-      // Get order payment details
-      console.log('\n📋 Step 3: Getting order payment details...');
-      try {
-        const paymentResponse = await axios.get(`http://localhost:5000/api/nailit/get-order-payment-detail/${response.data.OrderId}`);
-        console.log('Order payment details:', JSON.stringify(paymentResponse.data, null, 2));
-      } catch (paymentError) {
-        console.log('Could not fetch payment details:', paymentError.message);
-      }
       
       return {
         success: true,
         orderId: response.data.OrderId,
         customerId: response.data.CustomerId,
-        message: response.data.Message,
-        userId: userId
+        message: response.data.Message
       };
     } else {
       console.log(`\n❌ Order creation failed:`);
       console.log(`Status: ${response.data.Status}`);
       console.log(`Message: ${response.data.Message}`);
+      console.log(`Order ID: ${response.data.OrderId}`);
+      console.log(`Customer ID: ${response.data.CustomerId}`);
+      
       return {
         success: false,
         status: response.data.Status,
         message: response.data.Message,
         orderId: response.data.OrderId,
-        userId: userId
+        customerId: response.data.CustomerId
       };
     }
     
@@ -133,24 +113,42 @@ async function createCompleteBooking() {
   }
 }
 
-// Execute the complete booking test
-createCompleteBooking()
+// Execute the final order creation
+createFinalOrder()
   .then(result => {
-    console.log('\n🏁 COMPLETE BOOKING TEST RESULT:');
-    console.log('================================');
+    console.log('\n🏁 FINAL ORDER CREATION RESULT:');
+    console.log('===============================');
     if (result.success) {
       console.log(`✅ ORDER CREATED SUCCESSFULLY!`);
       console.log(`📋 Order ID: ${result.orderId}`);
       console.log(`👤 Customer ID: ${result.customerId}`);
-      console.log(`👤 User ID: ${result.userId}`);
       console.log(`📧 Message: ${result.message}`);
+      
+      console.log('\n📋 ORDER SUMMARY:');
+      console.log('- Order successfully created in NailIt POS system');
+      console.log(`- Order ID: ${result.orderId}`);
+      console.log(`- Customer ID: ${result.customerId}`);
+      console.log('- Services: Dry manicure without polish + Gelish hand polish');
+      console.log('- Total: 10.0 KWD');
+      console.log('- Payment: Cash on Arrival');
+      console.log('- Location: Al-Plaza Mall (ID: 1)');
+      console.log('- Staff: ID 48');
+      console.log('- Date: 08/07/2025');
+      
     } else {
       console.log(`❌ ORDER FAILED: ${result.message || result.error}`);
       console.log(`Status: ${result.status || 'Unknown'}`);
       console.log(`Order ID: ${result.orderId || 'N/A'}`);
-      console.log(`User ID: ${result.userId || 'N/A'}`);
+      console.log(`Customer ID: ${result.customerId || 'N/A'}`);
+      
+      console.log('\n🔍 TROUBLESHOOTING NOTES:');
+      console.log('- User registration working (User ID: 110741, Customer ID: 11027)');
+      console.log('- All other NailIt API endpoints successful');
+      console.log('- SaveOrder API consistently returns "Server Error" (Status: 1)');
+      console.log('- Issue appears to be parameter validation or availability constraints');
+      console.log('- Using exact parameters from successful Order ID 176373 example');
     }
   })
   .catch(error => {
-    console.error('💥 Test failed:', error.message);
+    console.error('💥 Critical error:', error.message);
   });

@@ -1,89 +1,108 @@
-// Direct test of NailIt Save Order API
+// Direct test of successful order creation using working parameters
 import axios from 'axios';
 
-const API_BASE_URL = 'http://nailit.innovasolution.net';
-
-// Create a test order directly
-async function createDirectOrder() {
-  console.log('🔥 CREATING DIRECT ORDER IN NAILIT POS');
-  console.log('======================================');
+async function testDirectOrder() {
+  console.log('🎯 DIRECT ORDER TEST - GET ORDER ID');
+  console.log('===================================');
   
-  // Order data with known working parameters
-  const orderData = {
-    Gross_Amount: 15.0,
-    Payment_Type_Id: 1,  // Cash on Arrival
-    Order_Type: 2,       // Service appointment
-    UserId: 17,          // Known working user ID
-    FirstName: "Test Customer",
-    Mobile: "+96500000000",  // Valid Kuwait format
-    Email: "test@example.com",
-    Discount_Amount: 0.0,
-    Net_Amount: 15.0,
-    POS_Location_Id: 1,  // Al-Plaza Mall
-    OrderDetails: [
-      {
-        Prod_Id: 279,                    // French Manicure
-        Prod_Name: "French Manicure",
-        Qty: 1,
-        Rate: 15.0,
-        Amount: 15.0,
-        Size_Id: null,
-        Size_Name: "",
-        Promotion_Id: 0,
-        Promo_Code: "",
-        Discount_Amount: 0.0,
-        Net_Amount: 15.0,
-        Staff_Id: 48,                    // Known working staff
-        TimeFrame_Ids: [1, 2],           // Time slots
-        Appointment_Date: "07/18/2025"   // MM/dd/yyyy
-      }
-    ]
-  };
-
   try {
-    console.log('\n📋 SENDING ORDER DATA:');
+    // First, let's get the latest working parameters from the live order test
+    console.log('\n🧪 Testing live order endpoint...');
+    const liveResponse = await axios.post('http://localhost:5000/api/nailit/live-order-test', {});
+    console.log('Live order test response:', liveResponse.data);
+    
+    // Now let's test the SaveOrder with a known working user
+    console.log('\n📋 Testing SaveOrder with User ID 110739...');
+    const orderData = {
+      Gross_Amount: 15.0,
+      Payment_Type_Id: 1,
+      Order_Type: 2,
+      UserId: 110739,  // Recently registered user that works
+      FirstName: "Direct Order Test",
+      Mobile: "65991234",
+      Email: "directorder@example.com",
+      Discount_Amount: 0.0,
+      Net_Amount: 15.0,
+      POS_Location_Id: 1,
+      OrderDetails: [
+        {
+          Prod_Id: 279,  // Try French Manicure (known working service)
+          Prod_Name: "French Manicure",
+          Qty: 1,
+          Rate: 15.0,
+          Amount: 15.0,
+          Size_Id: null,
+          Size_Name: "",
+          Promotion_Id: 0,
+          Promo_Code: "",
+          Discount_Amount: 0.0,
+          Net_Amount: 15.0,
+          Staff_Id: 48,
+          TimeFrame_Ids: [1, 2],
+          Appointment_Date: "07/18/2025"
+        }
+      ]
+    };
+
+    console.log('\n🚀 Creating order with parameters:');
     console.log(JSON.stringify(orderData, null, 2));
     
-    const response = await axios.post(`${API_BASE_URL}/SaveOrder`, orderData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh',
-        'UniqueDeviceId': 'whatsapp-bot-device-id'
-      },
-      timeout: 15000
-    });
+    const orderResponse = await axios.post('http://localhost:5000/api/nailit/save-order', orderData);
+    console.log('\n✅ Order Response:', orderResponse.data);
     
-    console.log('\n✅ NAILIT RESPONSE:');
-    console.log(`Status: ${response.status}`);
-    console.log(`Data:`, JSON.stringify(response.data, null, 2));
-    
-    if (response.data && response.data.Status === 0) {
-      console.log(`\n🎉 SUCCESS! Order created with ID: ${response.data.OrderId}`);
-      console.log(`Customer ID: ${response.data.CustomerId}`);
-      return response.data;
+    if (orderResponse.data.Status === 0) {
+      console.log(`\n🎉 SUCCESS! Order ID: ${orderResponse.data.OrderId}`);
+      console.log(`👤 Customer ID: ${orderResponse.data.CustomerId}`);
+      
+      // Get order details
+      try {
+        const detailResponse = await axios.get(`http://localhost:5000/api/nailit/get-order-payment-detail/${orderResponse.data.OrderId}`);
+        console.log('\n📋 Order Details:', detailResponse.data);
+      } catch (detailError) {
+        console.log('Could not fetch order details:', detailError.message);
+      }
+      
+      return {
+        success: true,
+        orderId: orderResponse.data.OrderId,
+        customerId: orderResponse.data.CustomerId
+      };
     } else {
-      console.log(`\n❌ Order failed with Status: ${response.data?.Status || 'Unknown'}`);
-      console.log(`Message: ${response.data?.Message || 'No message'}`);
-      return response.data;
+      console.log(`\n❌ Order failed: Status ${orderResponse.data.Status} - ${orderResponse.data.Message}`);
+      return {
+        success: false,
+        status: orderResponse.data.Status,
+        message: orderResponse.data.Message
+      };
     }
     
   } catch (error) {
-    console.error('❌ Direct order failed:', error.message);
+    console.error('❌ Error during direct order test:', error.message);
     if (error.response) {
       console.error('Response status:', error.response.status);
-      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+      console.error('Response data:', error.response.data);
     }
-    throw error;
+    return {
+      success: false,
+      error: error.message
+    };
   }
 }
 
-// Run the test
-createDirectOrder()
+// Execute the direct order test
+testDirectOrder()
   .then(result => {
-    console.log('\n🏁 Test completed:', result);
-    process.exit(0);
+    console.log('\n🏁 DIRECT ORDER TEST RESULT:');
+    console.log('=============================');
+    if (result.success) {
+      console.log(`✅ ORDER CREATED SUCCESSFULLY!`);
+      console.log(`📋 Order ID: ${result.orderId}`);
+      console.log(`👤 Customer ID: ${result.customerId}`);
+    } else {
+      console.log(`❌ ORDER FAILED: ${result.message || result.error}`);
+      console.log(`Status: ${result.status || 'Unknown'}`);
+    }
   })
   .catch(error => {
-    console.error('\n💥 Test failed:', error.message);
-    process.exit(1);
+    console.error('💥 Test failed:', error.message);
   });

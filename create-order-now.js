@@ -1,86 +1,143 @@
-// Create order in NailIt POS using server endpoint
+// Create order using exact working format from successful example (Order ID: 176373)
 import axios from 'axios';
 
 async function createOrderNow() {
-  console.log('🔥 CREATING ORDER IN NAILIT POS NOW');
-  console.log('==================================');
+  console.log('🎯 CREATING ORDER WITH EXACT WORKING FORMAT');
+  console.log('==========================================');
   
+  const API_URL = 'http://nailit.innovasolution.net/SaveOrder';
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh'
+  };
+
   try {
-    // First, let's register a user with a proper mobile number
-    console.log('\n📱 Step 1: Testing user registration...');
-    const registerResponse = await axios.post('http://localhost:5000/api/nailit/register-user', {
-      Address: "Kuwait City",
-      Email_Id: "liveorder@example.com",
-      Name: "Live Order Customer",
-      Mobile: "99123456",  // Try Kuwait format without +965
-      Login_Type: 1,
-      Image_Name: ""
-    });
-    
-    console.log('User registration response:', registerResponse.data);
-    
-    // Now let's create order with direct API call using proper parameters
-    console.log('\n🛍️ Step 2: Creating order with proper parameters...');
+    // Use the exact working format from the successful example
     const orderData = {
-      Gross_Amount: 20.0,
-      Payment_Type_Id: 1,  // Cash on Arrival
-      Order_Type: 2,       // Service
-      UserId: registerResponse.data.App_User_Id || 17,  // Use registered user ID
-      FirstName: "Live Order Customer",
-      Mobile: "99123456",  // Match registration mobile
-      Email: "liveorder@example.com",
-      Discount_Amount: 0.0,
-      Net_Amount: 20.0,
-      POS_Location_Id: 1,  // Al-Plaza Mall
-      OrderDetails: [
+      "Gross_Amount": 10.0,
+      "Payment_Type_Id": 1,
+      "Order_Type": 2,
+      "UserId": 110741,  // Our successfully registered user
+      "FirstName": "Test Customer",
+      "Mobile": "+96588888889",
+      "Email": "booking@example.com",
+      "Discount_Amount": 0.0,
+      "Net_Amount": 10.0,
+      "POS_Location_Id": 1,
+      "OrderDetails": [
         {
-          Prod_Id: 203,                    // Use working service ID
-          Prod_Name: "Test Service",
-          Qty: 1,
-          Rate: 20.0,
-          Amount: 20.0,
-          Size_Id: null,
-          Size_Name: "",
-          Promotion_Id: 0,
-          Promo_Code: "",
-          Discount_Amount: 0.0,
-          Net_Amount: 20.0,
-          Staff_Id: 48,                    // Known working staff
-          TimeFrame_Ids: [1, 2],           // Simple time slots
-          Appointment_Date: "07/18/2025"   // MM/dd/yyyy format
+          "Prod_Id": 203,
+          "Prod_Name": "Dry manicure without polish",
+          "Qty": 1,
+          "Rate": 5.0,
+          "Amount": 5.0,
+          "Size_Id": null,
+          "Size_Name": "",
+          "Promotion_Id": 0,
+          "Promo_Code": "",
+          "Discount_Amount": 0.0,
+          "Net_Amount": 5.0,
+          "Staff_Id": 48,
+          "TimeFrame_Ids": [5, 6],
+          "Appointment_Date": "07/20/2025"  // Try a future date
+        },
+        {
+          "Prod_Id": 258,
+          "Prod_Name": "Gelish hand polish",
+          "Qty": 1,
+          "Rate": 5.0,
+          "Amount": 5.0,
+          "Size_Id": null,
+          "Size_Name": "",
+          "Promotion_Id": 0,
+          "Promo_Code": "",
+          "Discount_Amount": 0.0,
+          "Net_Amount": 5.0,
+          "Staff_Id": 48,
+          "TimeFrame_Ids": [7, 8],
+          "Appointment_Date": "07/20/2025"  // Try a future date
         }
       ]
     };
+
+    console.log('\n🚀 Sending order to NailIt POS...');
+    console.log('Order data:', JSON.stringify(orderData, null, 2));
     
-    // Create order using the server endpoint
-    console.log('\n📋 Sending order data to server...');
-    const response = await axios.post('http://localhost:5000/api/orders', orderData);
-    console.log('Order creation response:', response.data);
+    const response = await axios.post(API_URL, orderData, { headers });
     
-    // Also try the NailIt save order endpoint
-    console.log('\n🎯 Testing direct NailIt save order endpoint...');
-    const nailItResponse = await axios.post('http://localhost:5000/api/nailit/create-order', orderData);
-    console.log('NailIt order response:', nailItResponse.data);
+    console.log('\n✅ NailIt POS Response:');
+    console.log(`Status: ${response.status}`);
+    console.log(`Data:`, JSON.stringify(response.data, null, 2));
     
-    return { success: true, message: 'Order created successfully' };
+    if (response.data.Status === 0) {
+      console.log(`\n🎉 SUCCESS! Order created in NailIt POS!`);
+      console.log(`📋 Order ID: ${response.data.OrderId}`);
+      console.log(`👤 Customer ID: ${response.data.CustomerId}`);
+      console.log(`📧 Message: ${response.data.Message}`);
+      
+      return {
+        success: true,
+        orderId: response.data.OrderId,
+        customerId: response.data.CustomerId,
+        message: response.data.Message
+      };
+    } else {
+      console.log(`\n❌ Order creation failed:`);
+      console.log(`Status: ${response.data.Status}`);
+      console.log(`Message: ${response.data.Message}`);
+      console.log(`Order ID: ${response.data.OrderId}`);
+      console.log(`Customer ID: ${response.data.CustomerId}`);
+      
+      return {
+        success: false,
+        status: response.data.Status,
+        message: response.data.Message,
+        orderId: response.data.OrderId,
+        customerId: response.data.CustomerId
+      };
+    }
     
   } catch (error) {
-    console.error('❌ Error creating order:', error.message);
+    console.error('❌ Error during order creation:', error.message);
     if (error.response) {
       console.error('Response status:', error.response.status);
       console.error('Response data:', error.response.data);
     }
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+      responseData: error.response?.data
+    };
   }
 }
 
 // Execute the order creation
 createOrderNow()
   .then(result => {
+    console.log('\n🏁 ORDER CREATION FINAL RESULT:');
+    console.log('===============================');
     if (result.success) {
-      console.log('\n🎉 ORDER CREATION COMPLETED!');
+      console.log(`✅ ORDER CREATED SUCCESSFULLY!`);
+      console.log(`📋 Order ID: ${result.orderId}`);
+      console.log(`👤 Customer ID: ${result.customerId}`);
+      console.log(`📧 Message: ${result.message}`);
+      
+      console.log('\n🎯 SUMMARY:');
+      console.log(`- Order successfully created in NailIt POS system`);
+      console.log(`- Order ID: ${result.orderId}`);
+      console.log(`- Customer ID: ${result.customerId}`);
+      console.log(`- Services: Dry manicure without polish + Gelish hand polish`);
+      console.log(`- Total: 10.0 KWD`);
+      console.log(`- Payment: Cash on Arrival`);
+      console.log(`- Location: Al-Plaza Mall (ID: 1)`);
+      console.log(`- Staff: ID 48`);
+      console.log(`- Date: 07/20/2025`);
+      
     } else {
-      console.log('\n❌ ORDER CREATION FAILED:', result.error);
+      console.log(`❌ ORDER FAILED: ${result.message || result.error}`);
+      console.log(`Status: ${result.status || 'Unknown'}`);
+      console.log(`Order ID: ${result.orderId || 'N/A'}`);
+      console.log(`Customer ID: ${result.customerId || 'N/A'}`);
     }
   })
   .catch(error => {

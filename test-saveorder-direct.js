@@ -1,73 +1,63 @@
-// Direct test of SaveOrder API with correct date format
-const axios = require('axios');
+// Test the SaveOrder API directly using the working test endpoint
+import axios from 'axios';
 
 async function testSaveOrderDirect() {
+  console.log('🎯 TESTING SAVEORDER DIRECT - GET ORDER ID');
+  console.log('==========================================');
+  
   try {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Format date as MM/dd/yyyy (required by SaveOrder API)
-    const month = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
-    const day = tomorrow.getDate().toString().padStart(2, '0');
-    const year = tomorrow.getFullYear();
-    const formattedDate = `${month}/${day}/${year}`;
-    
-    console.log(`Testing SaveOrder with date: ${formattedDate}`);
-    
-    const orderData = {
-      Gross_Amount: 15.0,
-      Payment_Type_Id: 1,
-      Order_Type: 2,
-      UserId: 110735,
-      FirstName: "Test Customer Direct",
-      Mobile: "+96599887766",
-      Email: "test.direct@example.com",
-      Discount_Amount: 0.0,
-      Net_Amount: 15.0,
-      POS_Location_Id: 1,
-      OrderDetails: [
-        {
-          Prod_Id: 203,
-          Prod_Name: "Test Service Direct",
-          Qty: 1,
-          Rate: 15.0,
-          Amount: 15.0,
-          Size_Id: null,
-          Size_Name: "",
-          Promotion_Id: 0,
-          Promo_Code: "",
-          Discount_Amount: 0.0,
-          Net_Amount: 15.0,
-          Staff_Id: 48,
-          TimeFrame_Ids: [1, 2],
-          Appointment_Date: formattedDate
-        }
-      ]
-    };
-    
-    console.log('Sending order data:', JSON.stringify(orderData, null, 2));
-    
-    const response = await axios.post('http://nailit.innovasolution.net/SaveOrder', orderData, {
-      headers: {
-        'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh',
-        'Content-Type': 'application/json'
-      }
-    });
-    
+    console.log('\n🧪 Testing SaveOrder direct endpoint...');
+    const response = await axios.post('http://localhost:5000/api/nailit/test-saveorder-direct', {});
     console.log('Response:', response.data);
     
-    if (response.data.Status === 0) {
-      console.log('✅ SUCCESS: Order created with ID:', response.data.OrderId);
-      return true;
+    if (response.data.success && response.data.orderId) {
+      console.log(`\n🎉 SUCCESS! Order ID: ${response.data.orderId}`);
+      console.log(`👤 Customer ID: ${response.data.customerId}`);
+      console.log(`📋 Full Response: ${JSON.stringify(response.data, null, 2)}`);
+      
+      return {
+        success: true,
+        orderId: response.data.orderId,
+        customerId: response.data.customerId,
+        data: response.data
+      };
     } else {
-      console.log('❌ FAILED: Status:', response.data.Status, 'Message:', response.data.Message);
-      return false;
+      console.log(`\n❌ Test failed: ${response.data.message || 'Unknown error'}`);
+      return {
+        success: false,
+        message: response.data.message,
+        data: response.data
+      };
     }
     
   } catch (error) {
-    console.error('❌ ERROR:', error.response?.data || error.message);
-    return false;
+    console.error('❌ Error during SaveOrder direct test:', error.message);
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+    }
+    return {
+      success: false,
+      error: error.message,
+      responseData: error.response?.data
+    };
   }
 }
 
-testSaveOrderDirect();
+// Execute the SaveOrder direct test
+testSaveOrderDirect()
+  .then(result => {
+    console.log('\n🏁 SAVEORDER DIRECT TEST RESULT:');
+    console.log('================================');
+    if (result.success) {
+      console.log(`✅ ORDER CREATED SUCCESSFULLY!`);
+      console.log(`📋 Order ID: ${result.orderId}`);
+      console.log(`👤 Customer ID: ${result.customerId}`);
+    } else {
+      console.log(`❌ ORDER FAILED: ${result.message || result.error}`);
+      console.log(`📋 Full Response: ${JSON.stringify(result.data || result.responseData, null, 2)}`);
+    }
+  })
+  .catch(error => {
+    console.error('💥 Test failed:', error.message);
+  });
