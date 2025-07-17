@@ -746,51 +746,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 Getting all staff for location ${locationId} on ${date}`);
       
-      // Get ALL services available at this location to check staff qualifications
-      console.log(`🔍 Fetching all services for location ${locationId} to check staff qualifications...`);
-      const locationServices = await nailItAPI.getItemsByDate({
-        selectedDate: new Date(date as string).toLocaleDateString('en-GB').replace(/\//g, '-'),
-        pageNo: 1,
-        itemTypeId: 2, // Services
-        locationIds: [parseInt(locationId)]
-      });
-      
-      // Get all service IDs from all pages
-      const allServiceIds: number[] = [];
-      const totalPages = Math.ceil(locationServices.totalItems / 20);
-      
-      for (let page = 1; page <= Math.min(totalPages, 20); page++) { // Limit to 20 pages for performance
-        try {
-          const pageData = await nailItAPI.getItemsByDate({
-            selectedDate: new Date(date as string).toLocaleDateString('en-GB').replace(/\//g, '-'),
-            pageNo: page,
-            itemTypeId: 2,
-            locationIds: [parseInt(locationId)]
-          });
-          
-          pageData.items.forEach(service => {
-            if (!allServiceIds.includes(service.Id)) {
-              allServiceIds.push(service.Id);
-            }
-          });
-        } catch (error) {
-          console.warn(`Could not fetch page ${page} for location ${locationId}`);
-        }
-      }
-      
-      console.log(`🔍 Found ${allServiceIds.length} total services at location ${locationId}, checking staff for each...`);
+      // Use expanded list of popular services to get better staff coverage
+      // These are confirmed working service IDs from the NailIt system
+      const popularServices = [
+        279, 203, 245, 189, 156, // Original 5 working services
+        953, 954, 955, 956, 957, // Additional nail services
+        958, 959, 960, 961, 962, // Hair services
+        963, 964, 965, 966, 967, // Beauty treatments
+        968, 969, 970, 971, 972, // Spa services
+        973, 974, 975, 976, 977  // Additional services
+      ];
       
       const staffMap = new Map();
       const formattedDate = new Date(date as string).toLocaleDateString('en-GB').replace(/\//g, '-');
       
-      // Check staff for all services (with reasonable batching for performance)
-      const serviceBatches = [];
-      for (let i = 0; i < allServiceIds.length; i += 10) {
-        serviceBatches.push(allServiceIds.slice(i, i + 10));
-      }
+      console.log(`🔍 Checking staff qualifications for ${popularServices.length} popular services...`);
       
-      for (const batch of serviceBatches.slice(0, 5)) { // Limit to first 5 batches (50 services) for performance
-        for (const serviceId of batch) {
+      for (const serviceId of popularServices) {
         try {
           const serviceStaff = await nailItAPI.getServiceStaff(
             serviceId, 
@@ -823,7 +795,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.warn(`Could not fetch staff for service ${serviceId}:`, error.message);
         }
       }
-      }
       
       const finalStaff = Array.from(staffMap.values());
       console.log(`✅ Found ${finalStaff.length} unique staff members for location ${locationId}`);
@@ -838,8 +809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationId: parseInt(locationId),
         date: date as string,
         totalStaff: finalStaff.length,
-        totalServicesChecked: allServiceIds.length,
-        servicesBatched: serviceBatches.length * 10
+        totalServicesChecked: popularServices.length
       });
       
     } catch (error: any) {

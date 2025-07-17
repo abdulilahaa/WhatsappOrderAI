@@ -43,7 +43,7 @@ interface Service {
 }
 
 export default function StaffAvailabilityPage() {
-  const [selectedLocation, setSelectedLocation] = useState<string>("53"); // Default to Arraya Mall for testing comprehensive services
+  const [selectedLocation, setSelectedLocation] = useState<string>("1"); // Default to Al-Plaza Mall
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedService, setSelectedService] = useState<string>("all");
 
