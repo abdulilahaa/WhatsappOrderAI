@@ -252,7 +252,23 @@ export class ImprovedAPITesting {
         throw new Error('Customer registration failed');
       }
       
-      // Try to create a simple test order
+      // Get available staff and time slots for realistic test order
+      const tomorrow = new Date(Date.now() + 86400000);
+      const staffData = await nailItAPI.getServiceStaff(
+        203, // itemId
+        1,   // locationId
+        'E', // language
+        nailItAPI.formatDateForURL(tomorrow) // date
+      );
+      
+      console.log('📋 Available staff for test order:', staffData);
+      
+      // Use first available staff and time slots if available
+      const availableStaff = staffData?.length > 0 ? staffData[0] : null;
+      const staffId = availableStaff?.Staff_Id || 48;
+      const timeFrameIds = availableStaff?.TimeFrame_Ids?.slice(0, 2) || [1, 2];
+      
+      // Try to create a realistic test order with available staff
       const orderData = {
         Gross_Amount: 15.0,
         Payment_Type_Id: 1, // Cash
@@ -276,11 +292,17 @@ export class ImprovedAPITesting {
           Promo_Code: '',
           Discount_Amount: 0,
           Net_Amount: 15.0,
-          Staff_Id: 48,
-          TimeFrame_Ids: [1, 2],
-          Appointment_Date: nailItAPI.formatDateForAPI(new Date(Date.now() + 86400000))
+          Staff_Id: staffId, // Use available staff
+          TimeFrame_Ids: timeFrameIds, // Use available time slots
+          Appointment_Date: nailItAPI.formatDateForSaveOrder(tomorrow)
         }]
       };
+      
+      console.log('📋 Creating order with available staff:', {
+        staffId,
+        timeFrameIds,
+        appointmentDate: nailItAPI.formatDateForSaveOrder(tomorrow)
+      });
       
       const orderResult = await nailItAPI.saveOrder(orderData);
       const responseTime = Date.now() - startTime;
