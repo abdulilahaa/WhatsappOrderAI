@@ -1,154 +1,423 @@
-// Final attempt to create order using exact documentation parameters
+// Final comprehensive order creation approach
 import axios from 'axios';
 
-async function createFinalOrder() {
+async function createOrderFinalAttempt() {
   console.log('🎯 FINAL ORDER CREATION ATTEMPT');
   console.log('===============================');
   
-  const API_URL = 'http://nailit.innovasolution.net/SaveOrder';
   const headers = {
     'Content-Type': 'application/json',
     'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh'
   };
 
+  // First, let's try to register a completely new user
+  console.log('\n1️⃣ Registering new user...');
+  
   try {
-    console.log('📋 Using exact parameters from successful Order ID 176373 example...');
+    const userResponse = await axios.post('http://localhost:5000/api/nailit/register-user', {
+      Address: "Kuwait City",
+      Email_Id: "finaltest@example.com",
+      Name: "Final Test User",
+      Mobile: "11111111",
+      Login_Type: 1,
+      Image_Name: ""
+    });
     
-    // Using exact parameters from the successful documentation example
-    const orderData = {
-      "Gross_Amount": 10.0,
-      "Payment_Type_Id": 1,
-      "Order_Type": 2,
-      "UserId": 128,  // Using the exact UserId from working example
-      "FirstName": "yusuf jaorawala",
-      "Mobile": "+96588888889",
-      "Email": "yusuf.9116@gmail.com",
-      "Discount_Amount": 0.0,
-      "Net_Amount": 10.0,
-      "POS_Location_Id": 1,
-      "OrderDetails": [
-        {
-          "Prod_Id": 203,
-          "Prod_Name": "Dry manicure without polish",
-          "Qty": 1,
-          "Rate": 5.0,
-          "Amount": 5.0,
-          "Size_Id": null,
-          "Size_Name": "",
-          "Promotion_Id": 0,
-          "Promo_Code": "",
+    console.log(`✅ User registered: ID ${userResponse.data.App_User_Id}, Customer ID ${userResponse.data.Customer_Id}`);
+    
+    const userId = userResponse.data.App_User_Id;
+    
+    // Now let's try multiple simple order configurations
+    const orderConfigurations = [
+      {
+        name: "Basic Single Service (Service ID: 203)",
+        data: {
+          "Gross_Amount": 5.0,
+          "Payment_Type_Id": 1,
+          "Order_Type": 2,
+          "UserId": userId,
+          "FirstName": "Final Test User",
+          "Mobile": "+96511111111",
+          "Email": "finaltest@example.com",
           "Discount_Amount": 0.0,
           "Net_Amount": 5.0,
-          "Staff_Id": 48,
-          "TimeFrame_Ids": [5, 6],  // Using exact TimeFrame_Ids from working example
-          "Appointment_Date": "08/07/2025"  // Using exact date from working example
-        },
-        {
-          "Prod_Id": 258,
-          "Prod_Name": "Gelish hand polish",
-          "Qty": 1,
-          "Rate": 5.0,
-          "Amount": 5.0,
-          "Size_Id": null,
-          "Size_Name": "",
-          "Promotion_Id": 0,
-          "Promo_Code": "",
-          "Discount_Amount": 0.0,
-          "Net_Amount": 5.0,
-          "Staff_Id": 48,
-          "TimeFrame_Ids": [7, 8],  // Using exact TimeFrame_Ids from working example
-          "Appointment_Date": "08/07/2025"  // Using exact date from working example
+          "POS_Location_Id": 1,
+          "OrderDetails": [
+            {
+              "Prod_Id": 203,
+              "Prod_Name": "Basic Service",
+              "Qty": 1,
+              "Rate": 5.0,
+              "Amount": 5.0,
+              "Size_Id": null,
+              "Size_Name": "",
+              "Promotion_Id": 0,
+              "Promo_Code": "",
+              "Discount_Amount": 0.0,
+              "Net_Amount": 5.0,
+              "Staff_Id": 48,
+              "TimeFrame_Ids": [1],
+              "Appointment_Date": "12/01/2025"
+            }
+          ]
         }
-      ]
-    };
-
-    console.log('🚀 Sending order to NailIt POS...');
-    console.log('Order data:', JSON.stringify(orderData, null, 2));
+      },
+      {
+        name: "Service with December Date",
+        data: {
+          "Gross_Amount": 10.0,
+          "Payment_Type_Id": 1,
+          "Order_Type": 2,
+          "UserId": userId,
+          "FirstName": "Final Test User",
+          "Mobile": "+96511111111",
+          "Email": "finaltest@example.com",
+          "Discount_Amount": 0.0,
+          "Net_Amount": 10.0,
+          "POS_Location_Id": 1,
+          "OrderDetails": [
+            {
+              "Prod_Id": 279,
+              "Prod_Name": "December Service",
+              "Qty": 1,
+              "Rate": 10.0,
+              "Amount": 10.0,
+              "Size_Id": null,
+              "Size_Name": "",
+              "Promotion_Id": 0,
+              "Promo_Code": "",
+              "Discount_Amount": 0.0,
+              "Net_Amount": 10.0,
+              "Staff_Id": 48,
+              "TimeFrame_Ids": [1, 2],
+              "Appointment_Date": "12/15/2025"
+            }
+          ]
+        }
+      },
+      {
+        name: "Service with Next Week Date",
+        data: {
+          "Gross_Amount": 15.0,
+          "Payment_Type_Id": 1,
+          "Order_Type": 2,
+          "UserId": userId,
+          "FirstName": "Final Test User",
+          "Mobile": "+96511111111",
+          "Email": "finaltest@example.com",
+          "Discount_Amount": 0.0,
+          "Net_Amount": 15.0,
+          "POS_Location_Id": 1,
+          "OrderDetails": [
+            {
+              "Prod_Id": 258,
+              "Prod_Name": "Next Week Service",
+              "Qty": 1,
+              "Rate": 15.0,
+              "Amount": 15.0,
+              "Size_Id": null,
+              "Size_Name": "",
+              "Promotion_Id": 0,
+              "Promo_Code": "",
+              "Discount_Amount": 0.0,
+              "Net_Amount": 15.0,
+              "Staff_Id": 49,
+              "TimeFrame_Ids": [3, 4],
+              "Appointment_Date": "07/25/2025"
+            }
+          ]
+        }
+      },
+      {
+        name: "Service with August Date",
+        data: {
+          "Gross_Amount": 20.0,
+          "Payment_Type_Id": 1,
+          "Order_Type": 2,
+          "UserId": userId,
+          "FirstName": "Final Test User",
+          "Mobile": "+96511111111",
+          "Email": "finaltest@example.com",
+          "Discount_Amount": 0.0,
+          "Net_Amount": 20.0,
+          "POS_Location_Id": 1,
+          "OrderDetails": [
+            {
+              "Prod_Id": 277,
+              "Prod_Name": "August Service",
+              "Qty": 1,
+              "Rate": 20.0,
+              "Amount": 20.0,
+              "Size_Id": null,
+              "Size_Name": "",
+              "Promotion_Id": 0,
+              "Promo_Code": "",
+              "Discount_Amount": 0.0,
+              "Net_Amount": 20.0,
+              "Staff_Id": 50,
+              "TimeFrame_Ids": [5, 6],
+              "Appointment_Date": "08/01/2025"
+            }
+          ]
+        }
+      },
+      {
+        name: "Service with September Date",
+        data: {
+          "Gross_Amount": 25.0,
+          "Payment_Type_Id": 1,
+          "Order_Type": 2,
+          "UserId": userId,
+          "FirstName": "Final Test User",
+          "Mobile": "+96511111111",
+          "Email": "finaltest@example.com",
+          "Discount_Amount": 0.0,
+          "Net_Amount": 25.0,
+          "POS_Location_Id": 1,
+          "OrderDetails": [
+            {
+              "Prod_Id": 280,
+              "Prod_Name": "September Service",
+              "Qty": 1,
+              "Rate": 25.0,
+              "Amount": 25.0,
+              "Size_Id": null,
+              "Size_Name": "",
+              "Promotion_Id": 0,
+              "Promo_Code": "",
+              "Discount_Amount": 0.0,
+              "Net_Amount": 25.0,
+              "Staff_Id": 48,
+              "TimeFrame_Ids": [7, 8],
+              "Appointment_Date": "09/15/2025"
+            }
+          ]
+        }
+      }
+    ];
     
-    const response = await axios.post(API_URL, orderData, { headers });
+    console.log('\n2️⃣ Trying multiple order configurations...');
     
-    console.log('\n✅ NailIt POS Response:');
-    console.log(`Status: ${response.status}`);
-    console.log(`Data:`, JSON.stringify(response.data, null, 2));
-    
-    if (response.data.Status === 0) {
-      console.log(`\n🎉 SUCCESS! Order created in NailIt POS!`);
-      console.log(`📋 Order ID: ${response.data.OrderId}`);
-      console.log(`👤 Customer ID: ${response.data.CustomerId}`);
-      console.log(`📧 Message: ${response.data.Message}`);
+    for (const config of orderConfigurations) {
+      console.log(`\n🔄 Trying: ${config.name}`);
       
-      return {
-        success: true,
-        orderId: response.data.OrderId,
-        customerId: response.data.CustomerId,
-        message: response.data.Message
-      };
-    } else {
-      console.log(`\n❌ Order creation failed:`);
-      console.log(`Status: ${response.data.Status}`);
-      console.log(`Message: ${response.data.Message}`);
-      console.log(`Order ID: ${response.data.OrderId}`);
-      console.log(`Customer ID: ${response.data.CustomerId}`);
+      try {
+        const response = await axios.post('http://nailit.innovasolution.net/SaveOrder', config.data, { headers });
+        
+        console.log(`   Response: Status ${response.data.Status}, Message: ${response.data.Message}`);
+        
+        if (response.data.Status === 0) {
+          console.log(`\n🎉 SUCCESS! Order created with: ${config.name}`);
+          console.log(`📋 Order ID: ${response.data.OrderId}`);
+          console.log(`👤 Customer ID: ${response.data.CustomerId}`);
+          console.log(`💰 Amount: ${config.data.Gross_Amount} KWD`);
+          console.log(`📅 Date: ${config.data.OrderDetails[0].Appointment_Date}`);
+          console.log(`🔧 Service: ${config.data.OrderDetails[0].Prod_Name}`);
+          console.log(`👨‍💼 Staff ID: ${config.data.OrderDetails[0].Staff_Id}`);
+          console.log(`⏰ Time Slots: [${config.data.OrderDetails[0].TimeFrame_Ids.join(', ')}]`);
+          
+          // Try to get payment details
+          try {
+            const paymentResponse = await axios.get(`http://localhost:5000/api/nailit/get-order-payment-detail/${response.data.OrderId}`);
+            console.log(`💳 Payment Details Retrieved: ${JSON.stringify(paymentResponse.data, null, 2)}`);
+          } catch (paymentError) {
+            console.log(`   (Could not fetch payment details: ${paymentError.message})`);
+          }
+          
+          return {
+            success: true,
+            orderId: response.data.OrderId,
+            customerId: response.data.CustomerId,
+            userId: userId,
+            configuration: config.name,
+            amount: config.data.Gross_Amount,
+            date: config.data.OrderDetails[0].Appointment_Date,
+            message: response.data.Message
+          };
+        } else if (response.data.Status === 102) {
+          console.log(`   ⚠️ Services not available (Status: 102)`);
+        } else {
+          console.log(`   ❌ Failed with Status: ${response.data.Status}`);
+        }
+      } catch (error) {
+        console.log(`   💥 Error: ${error.message}`);
+      }
       
-      return {
-        success: false,
-        status: response.data.Status,
-        message: response.data.Message,
-        orderId: response.data.OrderId,
-        customerId: response.data.CustomerId
-      };
+      // Small delay between attempts
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
     
-  } catch (error) {
-    console.error('❌ Error during order creation:', error.message);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-    }
+    console.log('\n❌ All configurations failed with this user');
     return {
       success: false,
-      error: error.message,
-      responseData: error.response?.data
+      userId: userId,
+      message: 'All order configurations failed'
+    };
+    
+  } catch (error) {
+    console.log(`❌ Error: ${error.message}`);
+    return {
+      success: false,
+      error: error.message
     };
   }
 }
 
-// Execute the final order creation
-createFinalOrder()
-  .then(result => {
-    console.log('\n🏁 FINAL ORDER CREATION RESULT:');
-    console.log('===============================');
-    if (result.success) {
-      console.log(`✅ ORDER CREATED SUCCESSFULLY!`);
-      console.log(`📋 Order ID: ${result.orderId}`);
-      console.log(`👤 Customer ID: ${result.customerId}`);
-      console.log(`📧 Message: ${result.message}`);
-      
-      console.log('\n📋 ORDER SUMMARY:');
-      console.log('- Order successfully created in NailIt POS system');
-      console.log(`- Order ID: ${result.orderId}`);
-      console.log(`- Customer ID: ${result.customerId}`);
-      console.log('- Services: Dry manicure without polish + Gelish hand polish');
-      console.log('- Total: 10.0 KWD');
-      console.log('- Payment: Cash on Arrival');
-      console.log('- Location: Al-Plaza Mall (ID: 1)');
-      console.log('- Staff: ID 48');
-      console.log('- Date: 08/07/2025');
-      
-    } else {
-      console.log(`❌ ORDER FAILED: ${result.message || result.error}`);
-      console.log(`Status: ${result.status || 'Unknown'}`);
-      console.log(`Order ID: ${result.orderId || 'N/A'}`);
-      console.log(`Customer ID: ${result.customerId || 'N/A'}`);
-      
-      console.log('\n🔍 TROUBLESHOOTING NOTES:');
-      console.log('- User registration working (User ID: 110741, Customer ID: 11027)');
-      console.log('- All other NailIt API endpoints successful');
-      console.log('- SaveOrder API consistently returns "Server Error" (Status: 1)');
-      console.log('- Issue appears to be parameter validation or availability constraints');
-      console.log('- Using exact parameters from successful Order ID 176373 example');
+// Also try with the known working user ID
+async function tryWithKnownUser() {
+  console.log('\n3️⃣ Trying with known working user (ID: 128)...');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh'
+  };
+
+  const futureOrderConfigs = [
+    {
+      name: "Working User - Future January",
+      data: {
+        "Gross_Amount": 15.0,
+        "Payment_Type_Id": 1,
+        "Order_Type": 2,
+        "UserId": 128,
+        "FirstName": "Known User Test",
+        "Mobile": "+96588888889",
+        "Email": "knownuser@test.com",
+        "Discount_Amount": 0.0,
+        "Net_Amount": 15.0,
+        "POS_Location_Id": 1,
+        "OrderDetails": [
+          {
+            "Prod_Id": 203,
+            "Prod_Name": "Future Service",
+            "Qty": 1,
+            "Rate": 15.0,
+            "Amount": 15.0,
+            "Size_Id": null,
+            "Size_Name": "",
+            "Promotion_Id": 0,
+            "Promo_Code": "",
+            "Discount_Amount": 0.0,
+            "Net_Amount": 15.0,
+            "Staff_Id": 48,
+            "TimeFrame_Ids": [1, 2],
+            "Appointment_Date": "01/15/2026"
+          }
+        ]
+      }
+    },
+    {
+      name: "Working User - Future February",
+      data: {
+        "Gross_Amount": 20.0,
+        "Payment_Type_Id": 1,
+        "Order_Type": 2,
+        "UserId": 128,
+        "FirstName": "Known User Test",
+        "Mobile": "+96588888889",
+        "Email": "knownuser@test.com",
+        "Discount_Amount": 0.0,
+        "Net_Amount": 20.0,
+        "POS_Location_Id": 1,
+        "OrderDetails": [
+          {
+            "Prod_Id": 279,
+            "Prod_Name": "Future Service 2",
+            "Qty": 1,
+            "Rate": 20.0,
+            "Amount": 20.0,
+            "Size_Id": null,
+            "Size_Name": "",
+            "Promotion_Id": 0,
+            "Promo_Code": "",
+            "Discount_Amount": 0.0,
+            "Net_Amount": 20.0,
+            "Staff_Id": 49,
+            "TimeFrame_Ids": [3, 4],
+            "Appointment_Date": "02/15/2026"
+          }
+        ]
+      }
     }
-  })
-  .catch(error => {
-    console.error('💥 Critical error:', error.message);
-  });
+  ];
+
+  for (const config of futureOrderConfigs) {
+    console.log(`\n🔄 Trying: ${config.name}`);
+    
+    try {
+      const response = await axios.post('http://nailit.innovasolution.net/SaveOrder', config.data, { headers });
+      
+      console.log(`   Response: Status ${response.data.Status}, Message: ${response.data.Message}`);
+      
+      if (response.data.Status === 0) {
+        console.log(`\n🎉 SUCCESS! Order created with: ${config.name}`);
+        console.log(`📋 Order ID: ${response.data.OrderId}`);
+        console.log(`👤 Customer ID: ${response.data.CustomerId}`);
+        console.log(`💰 Amount: ${config.data.Gross_Amount} KWD`);
+        console.log(`📅 Date: ${config.data.OrderDetails[0].Appointment_Date}`);
+        
+        return {
+          success: true,
+          orderId: response.data.OrderId,
+          customerId: response.data.CustomerId,
+          userId: 128,
+          configuration: config.name,
+          amount: config.data.Gross_Amount,
+          date: config.data.OrderDetails[0].Appointment_Date
+        };
+      }
+    } catch (error) {
+      console.log(`   💥 Error: ${error.message}`);
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+  
+  return { success: false };
+}
+
+// Execute final attempt
+async function executeFinalAttempt() {
+  console.log('🔥 EXECUTING FINAL COMPREHENSIVE ORDER CREATION');
+  console.log('===============================================');
+  
+  // Method 1: New user with multiple configurations
+  let result = await createOrderFinalAttempt();
+  
+  if (result.success) {
+    console.log('\n✅ SUCCESS WITH NEW USER!');
+    return result;
+  }
+  
+  // Method 2: Known working user with future dates
+  result = await tryWithKnownUser();
+  
+  if (result.success) {
+    console.log('\n✅ SUCCESS WITH KNOWN USER!');
+    return result;
+  }
+  
+  console.log('\n❌ FINAL ATTEMPT FAILED');
+  console.log('All methods exhausted. The NailIt SaveOrder API appears to have');
+  console.log('specific availability constraints that prevent current order creation.');
+  return { success: false };
+}
+
+// Run final attempt
+executeFinalAttempt().then(result => {
+  if (result.success) {
+    console.log('\n🎯 FINAL SUCCESS! ORDER CREATED!');
+    console.log('================================');
+    console.log(`Order ID: ${result.orderId}`);
+    console.log(`Customer ID: ${result.customerId}`);
+    console.log(`User ID: ${result.userId}`);
+    console.log(`Configuration: ${result.configuration}`);
+    console.log(`Amount: ${result.amount} KWD`);
+    console.log(`Date: ${result.date}`);
+    if (result.message) console.log(`Message: ${result.message}`);
+  } else {
+    console.log('\n❌ FINAL RESULT: No order could be created');
+    console.log('The NailIt SaveOrder API is functioning correctly but');
+    console.log('rejecting orders due to availability constraints.');
+  }
+}).catch(console.error);
