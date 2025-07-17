@@ -1590,6 +1590,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive Live Order Test endpoint
+  app.post("/api/nailit/live-order-test", async (req, res) => {
+    try {
+      const { LiveOrderTester } = await import('./live-order-test.js');
+      const tester = new LiveOrderTester();
+      
+      console.log('\n🔥 STARTING COMPREHENSIVE LIVE ORDER TEST');
+      console.log('==========================================');
+      
+      const result = await tester.createLiveOrder();
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: "Live order created successfully in NailIt POS system",
+          orderId: result.orderResponse.OrderId,
+          customerId: result.orderResponse.CustomerId,
+          orderData: result.orderData,
+          orderResponse: result.orderResponse,
+          orderDetails: result.orderDetails,
+          summary: result.summary
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: result.error,
+          details: result.details
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Live Order Test error:', error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: error
+      });
+    }
+  });
+
   // Test Save Order with sample data
   app.post("/api/nailit/test-save-order", async (req, res) => {
     try {
