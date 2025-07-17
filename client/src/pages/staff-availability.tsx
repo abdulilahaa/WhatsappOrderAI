@@ -64,9 +64,11 @@ export default function StaffAvailabilityPage() {
   });
 
   // Fetch staff by location for "all services" view
-  const { data: locationStaffData, isLoading: isLoadingLocationStaff } = useQuery({
+  const { data: locationStaffData, isLoading: isLoadingLocationStaff, error: locationStaffError } = useQuery({
     queryKey: [`/api/nailit/staff-by-location/${selectedLocation}`, format(selectedDate, "yyyy-MM-dd")],
     enabled: selectedLocation !== "all" && selectedService === "all",
+    retry: 1, // Only retry once for external API issues
+    retryDelay: 5000, // Wait 5 seconds before retry
   });
 
   // Calculate staff utilization

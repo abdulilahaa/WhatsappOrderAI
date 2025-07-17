@@ -181,8 +181,28 @@ export class NailItAPIService {
         'X-NailItMobile-SecurityToken': this.securityToken,
         'Content-Type': 'application/json',
       },
-      timeout: 10000,
+      timeout: 15000, // Increased timeout for slower connections
     });
+    
+    // Add response interceptor for better error handling
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        console.error('🚨 NailIt API Connection Error:', {
+          code: error.code,
+          message: error.message,
+          status: error.response?.status,
+          url: error.config?.url,
+          baseURL: this.baseURL
+        });
+        
+        if (error.code === 'ECONNREFUSED') {
+          console.error('❌ NailIt API server is refusing connections. Server may be down or blocking requests.');
+        }
+        
+        return Promise.reject(error);
+      }
+    );
   }
 
   async registerDevice(): Promise<boolean> {

@@ -746,6 +746,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 Getting all staff for location ${locationId} on ${date}`);
       
+      // Check if NailIt API is available first
+      let isAPIAvailable = false;
+      try {
+        await nailItAPI.getLocations();
+        isAPIAvailable = true;
+      } catch (error: any) {
+        console.error('⚠️ NailIt API is currently unavailable:', error.code || error.message);
+        
+        return res.status(503).json({
+          success: false,
+          error: 'NailIt API Service Unavailable',
+          message: 'The NailIt API server is currently down or refusing connections. Please try again later.',
+          details: {
+            errorCode: error.code,
+            timestamp: new Date().toISOString(),
+            locationId: parseInt(locationId),
+            date: date as string
+          }
+        });
+      }
+      
+      if (!isAPIAvailable) {
+        return res.status(503).json({
+          success: false,
+          error: 'Service Unavailable',
+          message: 'NailIt API is currently unavailable'
+        });
+      }
+      
       // Use expanded list of popular services to get better staff coverage
       // These are confirmed working service IDs from the NailIt system
       const popularServices = [
