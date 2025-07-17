@@ -139,6 +139,7 @@ Required environment variables:
 - July 16, 2025: **SYSTEM FULLY OPERATIONAL**: Confirmed complete booking flow working perfectly. Service extraction from NailIt catalog (French Manicure ID: 279, 15 KWD), location selection (Al-Plaza Mall), date parsing (tomorrow), and conversation state management all functioning correctly. Both web interface and WhatsApp integration now fully operational without conflicts.
 - July 16, 2025: **COMPLETE SYSTEM CLEANUP**: Successfully removed all redundant AI components including old AI system (server/ai.ts), old test interfaces (ai-test.tsx), and conflicting routes. System now exclusively uses Fresh AI agent with clean, conflict-free codebase. All 995 services and 3 locations synced from authentic NailIt API data with no hardcoded fallbacks.
 - July 16, 2025: **CRITICAL BOOKING VALIDATION SYSTEM**: Implemented comprehensive NailItValidator to prevent booking errors like 8AM appointments when location is closed. Added complete business hours validation, time slot verification, and booking data validation. Enhanced AI agent with proper order creation flow including complete order details, pricing, order numbers, payment links, and authentic NailIt POS integration. Fixed all booking validation issues preventing outside-hours appointments and ensuring complete order confirmation.
+- July 17, 2025: **KNET PAYMENT LINK SYSTEM CONFIRMED**: Verified Fresh AI system is fully operational for KNet payment processing. System automatically generates authentic NailIt payment links (http://nailit.innovasolution.net/knet.aspx?orderId={ORDER_ID}) for KNet and Apple Pay transactions. Includes bilingual payment instructions, test credentials (Card: 0000000001, Expiry: 09/25, PIN: 1234), and seamless WhatsApp delivery of payment links to customers.
 
 ## Current System Status
 **✅ Working Components:**
@@ -193,6 +194,14 @@ Required environment variables:
 - Full error handling and detailed logging
 - Test endpoints for validation (/api/nailit/test-save-order)
 - Real-time order creation in NailIt POS database
+
+**💳 KNet Payment Link System:**
+- Automatic payment link generation for KNet (Payment Type ID: 2) and Apple Pay (Payment Type ID: 7)
+- Authentic NailIt payment gateway integration: http://nailit.innovasolution.net/knet.aspx?orderId={ORDER_ID}
+- Bilingual payment instructions (Arabic/English) with test credentials provided
+- Seamless WhatsApp delivery of payment links during booking confirmation
+- Real-time order-specific payment URL generation tied to valid Order IDs
+- Complete payment flow from selection to link delivery confirmed working
 
 **⚠️ Integration Notes:**
 - NailIt services now automatically sync with real data from their API

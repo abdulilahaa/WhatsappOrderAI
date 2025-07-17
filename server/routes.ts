@@ -562,6 +562,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Demonstrate complete KNet flow
+  app.get("/api/demo-knet-flow", async (req, res) => {
+    try {
+      const { demonstrateKNetFlow } = await import('./demo-knet-flow');
+      const result = await demonstrateKNetFlow();
+      res.json(result);
+    } catch (error: any) {
+      console.error('KNet flow demo error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // KNet payment system demonstration
+  app.get("/api/knet-demo", async (req, res) => {
+    try {
+      const { demonstrateKNetPaymentSystem } = await import('./knet-demo');
+      const result = demonstrateKNetPaymentSystem();
+      res.json(result);
+    } catch (error: any) {
+      console.error('KNet demo error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fresh AI Conversation Management
   app.post("/api/ai-fresh/clear-conversation/:customerId", async (req, res) => {
     try {
