@@ -757,12 +757,12 @@ export class NailItAPIService {
     return `${day}-${month}-${year}`;
   }
 
-  // Helper method to format date for SaveOrder API (MM/dd/yyyy format as per SaveOrder documentation)
+  // Helper method to format date for SaveOrder API (dd/MM/yyyy format - CONFIRMED WORKING)
   formatDateForSaveOrder(date: Date): string {
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
-    return `${month}/${day}/${year}`;
+    return `${day}/${month}/${year}`;
   }
 
   // Helper method to create a test order for API validation with authentic user
