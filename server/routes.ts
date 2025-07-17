@@ -1608,6 +1608,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Simple Order Test with known working parameters
+  app.post("/api/nailit/simple-order-test", async (req, res) => {
+    try {
+      const { createSimpleOrderTest } = await import('./simple-order-test.js');
+      
+      const result = await createSimpleOrderTest();
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error('❌ Simple order test error:', error.message);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: error
+      });
+    }
+  });
+
   // Comprehensive Live Order Test endpoint
   app.post("/api/nailit/live-order-test", async (req, res) => {
     try {

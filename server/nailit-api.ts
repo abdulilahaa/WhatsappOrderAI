@@ -773,7 +773,7 @@ export class NailItAPIService {
         Address: "Kuwait City",
         Email_Id: "test.booking@example.com",
         Name: "Test Booking Customer",
-        Mobile: "+96599887766",
+        Mobile: "99887766",  // Kuwait format without +965 prefix
         Login_Type: 1,
         Image_Name: ""
       });
@@ -790,7 +790,7 @@ export class NailItAPIService {
         Order_Type: 2,
         UserId: validUserId,
         FirstName: "Test Booking Customer",
-        Mobile: "+96599887766",
+        Mobile: "99887766",  // Kuwait format without +965 prefix
         Email: "test.booking@example.com",
         Discount_Amount: 0.0,
         Net_Amount: 15.0,
@@ -827,7 +827,7 @@ export class NailItAPIService {
         Order_Type: 2,
         UserId: 110735, // Use known working user ID
         FirstName: "Test Customer",
-        Mobile: "+96599887766",
+        Mobile: "99887766",  // Kuwait format without +965 prefix
         Email: "test@example.com",
         Discount_Amount: 0.0,
         Net_Amount: 15.0,
