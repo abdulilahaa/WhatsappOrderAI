@@ -730,6 +730,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Handle the base endpoint without location ID (should not be called)
+  app.get("/api/nailit/staff-by-location", async (req, res) => {
+    console.warn("⚠️ Base staff-by-location endpoint called without location ID");
+    res.status(400).json({ 
+      message: "Location ID is required. Use /api/nailit/staff-by-location/:locationId" 
+    });
+  });
+
   // Real Staff by Location API
   app.get("/api/nailit/staff-by-location/:locationId", async (req, res) => {
     try {

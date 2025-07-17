@@ -43,7 +43,7 @@ interface Service {
 }
 
 export default function StaffAvailabilityPage() {
-  const [selectedLocation, setSelectedLocation] = useState<string>("all");
+  const [selectedLocation, setSelectedLocation] = useState<string>("52"); // Default to Zahra Complex for testing
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedService, setSelectedService] = useState<string>("all");
 
@@ -59,13 +59,13 @@ export default function StaffAvailabilityPage() {
 
   // Fetch staff availability based on selected criteria
   const { data: staffData, isLoading: isLoadingStaff } = useQuery({
-    queryKey: ["/api/nailit/staff-availability", selectedLocation, format(selectedDate, "yyyy-MM-dd"), selectedService],
+    queryKey: [`/api/nailit/staff-availability?locationId=${selectedLocation}&serviceId=${selectedService}&date=${format(selectedDate, "yyyy-MM-dd")}`],
     enabled: selectedService !== "all" && selectedLocation !== "all",
   });
 
   // Fetch staff by location for "all services" view
   const { data: locationStaffData, isLoading: isLoadingLocationStaff } = useQuery({
-    queryKey: ["/api/nailit/staff-by-location", selectedLocation, format(selectedDate, "yyyy-MM-dd")],
+    queryKey: [`/api/nailit/staff-by-location/${selectedLocation}`, format(selectedDate, "yyyy-MM-dd")],
     enabled: selectedLocation !== "all" && selectedService === "all",
   });
 
@@ -88,7 +88,7 @@ export default function StaffAvailabilityPage() {
       // Show all staff for selected location
       return locationStaffData?.data || [];
     } else {
-      // Show staff for specific service and location
+      // Show staff for specific service and location  
       return staffData?.data || [];
     }
   };
