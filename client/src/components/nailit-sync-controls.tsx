@@ -42,31 +42,12 @@ export default function NailItSyncControls() {
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 
-  // Query for sync status
-  const { 
-    data: syncStatus,
-    isLoading: statusLoading 
-  } = useQuery({
-    queryKey: ["/api/nailit/status"],
-    queryFn: async () => {
-      // Check if device is registered by testing an endpoint
-      try {
-        const response = await fetch("/api/nailit/locations");
-        return {
-          deviceRegistered: response.ok,
-          lastSync: lastSyncTime,
-          locationsCount: locations.length
-        };
-      } catch {
-        return {
-          deviceRegistered: false,
-          lastSync: null,
-          locationsCount: 0
-        };
-      }
-    },
-    refetchInterval: 60000, // Check every minute
-  });
+  // Derive sync status from existing queries instead of duplicate API calls
+  const syncStatus = {
+    deviceRegistered: !locationsError && locations.length > 0,
+    lastSync: lastSyncTime,
+    locationsCount: locations.length
+  };
 
   // Mutation for syncing services
   const syncServicesMutation = useMutation({
@@ -86,7 +67,7 @@ export default function NailItSyncControls() {
     onSuccess: () => {
       setLastSyncTime(new Date());
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/nailit/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nailit/locations"] });
       
       toast({
         title: "Sync Successful",
@@ -118,7 +99,7 @@ export default function NailItSyncControls() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/nailit/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nailit/locations"] });
       
       toast({
         title: "Device Registered",
