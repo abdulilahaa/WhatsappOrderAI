@@ -339,13 +339,13 @@ export default function APIDataDashboard() {
                 ) : paymentTypes ? (
                   <div className="space-y-2">
                     {paymentTypes.map((payment: any) => (
-                      <div key={payment.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={payment.Type_Id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                         <div>
-                          <div className="font-medium">{payment.name}</div>
-                          <div className="text-sm text-gray-600">Code: {payment.code}</div>
+                          <div className="font-medium">{payment.Type_Name}</div>
+                          <div className="text-sm text-gray-600">Code: {payment.Type_Code}</div>
                         </div>
-                        <Badge variant={payment.enabled ? "default" : "secondary"}>
-                          {payment.enabled ? "Enabled" : "Disabled"}
+                        <Badge variant={payment.Is_Enabled ? "default" : "secondary"}>
+                          {payment.Is_Enabled ? "Enabled" : "Disabled"}
                         </Badge>
                       </div>
                     ))}

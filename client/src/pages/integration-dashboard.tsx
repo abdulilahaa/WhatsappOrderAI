@@ -511,8 +511,8 @@ export default function IntegrationDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       {paymentTypes?.map((payment: any) => (
-                        <SelectItem key={payment.id} value={payment.id.toString()}>
-                          {payment.name} ({payment.code})
+                        <SelectItem key={payment.Type_Id} value={payment.Type_Id.toString()}>
+                          {payment.Type_Name} ({payment.Type_Code})
                         </SelectItem>
                       ))}
                     </SelectContent>
