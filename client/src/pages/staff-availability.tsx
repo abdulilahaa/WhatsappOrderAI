@@ -57,10 +57,16 @@ export default function StaffAvailabilityPage() {
     queryKey: ["/api/products"],
   });
 
-  // Fetch staff availability
+  // Fetch staff availability based on selected criteria
   const { data: staffData, isLoading: isLoadingStaff } = useQuery({
     queryKey: ["/api/nailit/staff-availability", selectedLocation, format(selectedDate, "yyyy-MM-dd"), selectedService],
     enabled: selectedService !== "all" && selectedLocation !== "all",
+  });
+
+  // Fetch staff by location for "all services" view
+  const { data: locationStaffData, isLoading: isLoadingLocationStaff } = useQuery({
+    queryKey: ["/api/nailit/staff-by-location", selectedLocation, format(selectedDate, "yyyy-MM-dd")],
+    enabled: selectedLocation !== "all" && selectedService === "all",
   });
 
   // Calculate staff utilization
@@ -73,22 +79,22 @@ export default function StaffAvailabilityPage() {
     return locations.find(loc => loc.Location_Id === locationId);
   };
 
-  // Mock data for demonstration (replace with actual API data)
-  const mockStaffByLocation = {
-    "1": [
-      { Id: 1, Name: "Sarah Johnson", Location_Id: 1, availability: { slots: ["9:00 AM", "10:00 AM", "2:00 PM"], bookings: 5 } },
-      { Id: 2, Name: "Maria Garcia", Location_Id: 1, availability: { slots: ["11:00 AM", "3:00 PM", "4:00 PM"], bookings: 3 } },
-      { Id: 3, Name: "Fatima Al-Rashid", Location_Id: 1, availability: { slots: ["9:00 AM", "1:00 PM"], bookings: 4 } },
-    ],
-    "2": [
-      { Id: 4, Name: "Aisha Kumar", Location_Id: 2, availability: { slots: ["10:00 AM", "11:00 AM", "3:00 PM", "5:00 PM"], bookings: 2 } },
-      { Id: 5, Name: "Noor Hassan", Location_Id: 2, availability: { slots: ["9:00 AM", "2:00 PM", "4:00 PM"], bookings: 6 } },
-    ]
+  // Get display staff based on current selection and real data
+  const getDisplayStaff = () => {
+    if (selectedLocation === "all") {
+      // For "all locations", we'll show a summary message
+      return [];
+    } else if (selectedService === "all") {
+      // Show all staff for selected location
+      return locationStaffData?.data || [];
+    } else {
+      // Show staff for specific service and location
+      return staffData?.data || [];
+    }
   };
 
-  const displayStaff = selectedLocation === "all" 
-    ? Object.values(mockStaffByLocation).flat()
-    : mockStaffByLocation[selectedLocation] || [];
+  const displayStaff = getDisplayStaff();
+  const isLoading = isLoadingStaff || isLoadingLocationStaff;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -245,102 +251,92 @@ export default function StaffAvailabilityPage() {
         </TabsList>
 
         <TabsContent value="grid" className="space-y-4">
-          {selectedLocation === "all" ? (
-            // Show by location when "All Locations" is selected
-            locations.map((location) => {
-              const locationStaff = mockStaffByLocation[location.Location_Id.toString()] || [];
-              
-              return (
-                <Card key={location.Location_Id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          {location.Location_Name}
-                        </CardTitle>
-                        <CardDescription>
-                          {location.Address} • {location.Working_Days}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="outline">
-                        {locationStaff.length} Staff Members
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {locationStaff.map((staff) => (
-                        <Card key={staff.Id} className="border">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <h4 className="font-medium">{staff.Name}</h4>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  {staff.availability?.slots.length || 0} slots available
-                                </p>
-                              </div>
-                              <Badge variant={staff.availability?.slots.length > 2 ? "default" : "secondary"}>
-                                {staff.availability?.slots.length > 2 ? "Available" : "Limited"}
-                              </Badge>
-                            </div>
-                            
-                            <div className="mt-3 space-y-2">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-gray-600">Utilization</span>
-                                <span className="font-medium">
-                                  {calculateUtilization(staff.availability?.bookings || 0, 8).toFixed(0)}%
-                                </span>
-                              </div>
-                              <Progress 
-                                value={calculateUtilization(staff.availability?.bookings || 0, 8)} 
-                                className="h-2"
-                              />
-                            </div>
-
-                            <div className="mt-3">
-                              <p className="text-xs font-medium text-gray-600 mb-1">Available Slots</p>
-                              <div className="flex flex-wrap gap-1">
-                                {staff.availability?.slots.slice(0, 3).map((slot, idx) => (
-                                  <Badge key={idx} variant="outline" className="text-xs">
-                                    {slot}
-                                  </Badge>
-                                ))}
-                                {staff.availability?.slots.length > 3 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{staff.availability.slots.length - 3} more
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+          {isLoading ? (
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">Loading real staff data from NailIt API...</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : selectedLocation === "all" ? (
+            // Show instruction when "All Locations" is selected
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Select Location and Service</h3>
+                  <p className="text-gray-600 mb-4">
+                    Choose a specific location and service to view real-time staff availability from NailIt POS system.
+                  </p>
+                  <Badge variant="outline" className="inline-flex items-center gap-2">
+                    <Activity className="h-3 w-3" />
+                    {locations.length} Locations Available
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ) : displayStaff.length === 0 ? (
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <AlertCircle className="h-12 w-12 text-amber-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Staff Available</h3>
+                  <p className="text-gray-600 mb-4">
+                    No staff members found for the selected criteria. Try selecting a different service or date.
+                  </p>
+                  <div className="flex gap-2 justify-center">
+                    <Badge variant="outline">Location: {getLocationDetails(parseInt(selectedLocation))?.Location_Name}</Badge>
+                    <Badge variant="outline">Date: {format(selectedDate, "PPP")}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
-            // Show individual staff when specific location is selected
+            // Show real staff data from NailIt API
             <Card>
               <CardHeader>
-                <CardTitle>Staff Members</CardTitle>
-                <CardDescription>
-                  {displayStaff.length} staff members at this location
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Real NailIt Staff Data
+                    </CardTitle>
+                    <CardDescription>
+                      {displayStaff.length} authenticated staff members from NailIt POS system
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {getLocationDetails(parseInt(selectedLocation))?.Location_Name}
+                    </Badge>
+                    <Badge variant="default" className="flex items-center gap-1">
+                      <Activity className="h-3 w-3" />
+                      Live Data
+                    </Badge>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {displayStaff.map((staff) => (
-                    <Card key={staff.Id} className="border">
+                    <Card key={staff.Id} className="border border-blue-200 bg-blue-50/30">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h4 className="font-medium">{staff.Name}</h4>
+                            <h4 className="font-medium text-gray-900">{staff.Name}</h4>
                             <p className="text-sm text-gray-600 mt-1">
-                              {staff.availability?.slots.length || 0} slots available
+                              Staff ID: {staff.Id} • Extra Time: {staff.Extra_Time || 0}min
                             </p>
+                            {staff.services && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                {staff.services.length} service{staff.services.length > 1 ? 's' : ''} qualified
+                              </p>
+                            )}
                           </div>
                           <Badge variant={staff.availability?.slots.length > 2 ? "default" : "secondary"}>
                             {staff.availability?.slots.length > 2 ? "Available" : "Limited"}
@@ -349,22 +345,22 @@ export default function StaffAvailabilityPage() {
                         
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Utilization</span>
+                            <span className="text-gray-600">Today's Utilization</span>
                             <span className="font-medium">
-                              {calculateUtilization(staff.availability?.bookings || 0, 8).toFixed(0)}%
+                              {staff.availability?.utilization || calculateUtilization(staff.availability?.bookings || 0, 8).toFixed(0)}%
                             </span>
                           </div>
                           <Progress 
-                            value={calculateUtilization(staff.availability?.bookings || 0, 8)} 
+                            value={staff.availability?.utilization || calculateUtilization(staff.availability?.bookings || 0, 8)} 
                             className="h-2"
                           />
                         </div>
 
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-gray-600 mb-1">Available Slots</p>
+                          <p className="text-xs font-medium text-gray-600 mb-1">Available Time Slots</p>
                           <div className="flex flex-wrap gap-1">
                             {staff.availability?.slots.slice(0, 3).map((slot, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
+                              <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                                 {slot}
                               </Badge>
                             ))}
@@ -375,6 +371,12 @@ export default function StaffAvailabilityPage() {
                             )}
                           </div>
                         </div>
+
+                        {staff.Image_URL && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs text-gray-500">Profile: {staff.Image_URL}</p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
@@ -399,36 +401,90 @@ export default function StaffAvailabilityPage() {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Performance Metrics</CardTitle>
-                <CardDescription>Staff utilization and booking patterns</CardDescription>
+                <CardTitle>Real-Time NailIt Analytics</CardTitle>
+                <CardDescription>Based on live staff data from NailIt POS system</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Top Performing Staff</h4>
-                    <div className="space-y-2">
-                      {displayStaff.slice(0, 5).map((staff) => (
-                        <div key={staff.Id} className="flex items-center justify-between p-2 border rounded">
-                          <span className="text-sm">{staff.Name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600">
-                              {staff.availability?.bookings || 0} bookings
-                            </span>
-                            <Badge variant="outline">
-                              {calculateUtilization(staff.availability?.bookings || 0, 8).toFixed(0)}%
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-green-600">
+                      {displayStaff.filter(s => s.availability?.utilization > 50).length}
                     </div>
+                    <p className="text-sm text-gray-600">High-Performance Staff</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-600">
+                      {Math.round(displayStaff.reduce((sum, s) => sum + (s.availability?.utilization || 0), 0) / Math.max(displayStaff.length, 1))}%
+                    </div>
+                    <p className="text-sm text-gray-600">Avg. Utilization</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Live Staff Insights</CardTitle>
+                <CardDescription>Current availability data</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Total Available Staff</span>
+                    <Badge>{displayStaff.length}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Location</span>
+                    <Badge variant="outline">
+                      {selectedLocation !== "all" ? getLocationDetails(parseInt(selectedLocation))?.Location_Name : "Multiple"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Data Source</span>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Activity className="h-3 w-3" />
+                      NailIt POS
+                    </Badge>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Performing Staff</CardTitle>
+              <CardDescription>Based on real NailIt staff availability data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {displayStaff.slice(0, 5).map((staff) => (
+                  <div key={staff.Id} className="flex items-center justify-between p-3 border rounded bg-blue-50/30">
+                    <div>
+                      <span className="font-medium">{staff.Name}</span>
+                      <p className="text-sm text-gray-600">ID: {staff.Id} • Extra Time: {staff.Extra_Time || 0}min</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">
+                        {staff.availability?.slots.length || 0} slots
+                      </span>
+                      <Badge variant="outline">
+                        {staff.availability?.utilization || calculateUtilization(staff.availability?.bookings || 0, 8).toFixed(0)}%
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+                {displayStaff.length === 0 && (
+                  <div className="text-center py-4 text-gray-500">
+                    Select a location and service to view staff analytics
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
