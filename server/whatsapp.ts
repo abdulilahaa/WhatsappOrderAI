@@ -560,13 +560,70 @@ export class WhatsAppService {
         }
       );
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        throw new Error(`WhatsApp API error: ${response.statusText}`);
+        console.error("WhatsApp API error:", responseData);
+        
+        // Check for 24-hour window restriction
+        if (responseData.error?.code === 131047) {
+          console.log("24-hour messaging window restriction detected. Attempting template message fallback...");
+          return await this.sendTemplateMessage(to, message);
+        }
+        
+        throw new Error(`WhatsApp API error: ${response.statusText} - ${JSON.stringify(responseData)}`);
       }
 
+      console.log("WhatsApp message sent successfully:", responseData);
       return true;
     } catch (error) {
       console.error("Error sending WhatsApp message:", error);
+      return false;
+    }
+  }
+
+  async sendTemplateMessage(to: string, customMessage: string): Promise<boolean> {
+    if (!await this.isConfigured()) {
+      console.log("WhatsApp not configured for template messages");
+      return false;
+    }
+
+    try {
+      // Use a simple template message for testing
+      // Note: In production, you would need approved templates
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${this.phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${this.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: to,
+            type: "template",
+            template: {
+              name: "hello_world", // Default WhatsApp template
+              language: {
+                code: "en_US"
+              }
+            }
+          }),
+        }
+      );
+
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        console.error("Template message failed:", responseData);
+        return false;
+      }
+
+      console.log("Template message sent successfully:", responseData);
+      return true;
+    } catch (error) {
+      console.error("Error sending template message:", error);
       return false;
     }
   }

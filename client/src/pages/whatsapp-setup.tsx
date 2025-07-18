@@ -89,10 +89,18 @@ export default function WhatsAppSetup() {
   const testMessageMutation = useMutation({
     mutationFn: (data: TestMessageForm) => 
       apiRequest("POST", "/api/whatsapp/test-message", data),
-    onSuccess: () => {
-      setTestMessageSent(true);
-      toast({ title: "Test message sent successfully!" });
-      testForm.reset();
+    onSuccess: (data: any) => {
+      if (data.success) {
+        setTestMessageSent(true);
+        toast({ title: "Test message sent successfully!" });
+        testForm.reset();
+      } else {
+        toast({
+          title: "Message Failed - WhatsApp 24-Hour Window",
+          description: data.troubleshooting?.solution || data.message,
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: any) => {
       toast({

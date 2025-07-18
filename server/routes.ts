@@ -556,7 +556,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const success = await whatsappService.sendMessage(phoneNumber, message);
-      res.json({ success, message: success ? "Message sent" : "Message failed to send" });
+      
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: "Message sent successfully!" 
+        });
+      } else {
+        res.json({ 
+          success: false, 
+          message: "Message failed to send. This could be due to WhatsApp's 24-hour messaging window restriction. The recipient needs to have messaged you within the last 24 hours, or you need to use approved template messages.",
+          troubleshooting: {
+            issue: "24-hour messaging window",
+            solution: "Have the recipient send any message to your WhatsApp Business number first, then try again within 24 hours.",
+            alternativeSolution: "Use approved WhatsApp Business template messages for re-engagement."
+          }
+        });
+      }
     } catch (error: any) {
       res.status(500).json({ message: "Error sending test message: " + error.message });
     }
