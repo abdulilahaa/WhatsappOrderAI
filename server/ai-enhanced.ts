@@ -261,8 +261,8 @@ export class EnhancedAIAgent {
       state.phase = 'service_selection';
       
       const welcomeMessage = state.language === 'ar'
-        ? `مرحباً بك في نايل إت! 💅\n\nأنا مساعدك الذكي لحجز المواعيد. سأساعدك في:\n• اختيار الخدمات المناسبة\n• العثور على أفضل الأوقات المتاحة\n• حجز موعدك بسهولة\n\nما الخدمة التي تريدها اليوم؟`
-        : `Welcome to NailIt! 💅\n\nI'm your smart booking assistant. I'll help you with:\n• Choosing the right services\n• Finding the best available times\n• Booking your appointment easily\n\nWhat service would you like today?`;
+        ? `مرحباً بك في نايل إت! 💇‍♀️\n\nأنا مساعدك الذكي لحجز مواعيد العناية بالشعر والجمال. سأساعدك في:\n• اختيار علاجات الشعر المناسبة\n• العثور على أفضل الأوقات المتاحة\n• حجز موعدك بسهولة\n\nما علاج الشعر الذي تريده اليوم؟`
+        : `Welcome to NailIt Hair & Beauty! 💇‍♀️\n\nI'm your smart booking assistant for hair treatments and beauty services. I'll help you with:\n• Choosing the right hair treatments\n• Finding the best available times\n• Booking your appointment easily\n\nWhat hair treatment would you like today?`;
 
       return {
         message: welcomeMessage,
@@ -295,8 +295,8 @@ export class EnhancedAIAgent {
       console.log(`📋 Got ${suggestions.length} suggestions`);
       
       let response = state.language === 'ar'
-        ? `لم أستطع العثور على الخدمة المحددة. إليك بعض خدماتنا الشائعة:\n\n`
-        : `I couldn't find that specific service. Here are some popular options:\n\n`;
+        ? `لم أستطع العثور على العلاج المحدد. إليك بعض علاجات الشعر الشائعة:\n\n`
+        : `I couldn't find that specific treatment. Here are some popular hair treatments:\n\n`;
       
       const displaySuggestions = suggestions.slice(0, 5);
       
@@ -309,13 +309,13 @@ export class EnhancedAIAgent {
       } else {
         // Fallback if no suggestions
         response += state.language === 'ar' 
-          ? `نحن نقدم خدمات العناية بالأظافر المختلفة.\n\n`
-          : `We offer various nail care services.\n\n`;
+          ? `نحن نقدم علاجات مختلفة للشعر والجمال.\n\n`
+          : `We offer various hair and beauty treatments.\n\n`;
       }
       
       response += state.language === 'ar'
-        ? `أي خدمة تريد من هذه؟ أو اكتب اسم خدمة أخرى.`
-        : `Which service would you like? Or type another service name.`;
+        ? `أي علاج تريد من هذه؟ أو اكتب اسم علاج آخر.`
+        : `Which treatment would you like? Or type another treatment name.`;
       
       return {
         message: response,
@@ -1032,14 +1032,16 @@ export class EnhancedAIAgent {
       const dateStr = new Date().toISOString().split('T')[0].split('-').reverse().join('-');
       let allServices = [];
       
-      // Get NAIL SERVICES specifically - using Group_Id 42 for nail services
-      for (let page = 1; page <= 5; page++) {
+      console.log('🔍 Loading all services to filter for nail services...');
+      
+      // Get ALL services first, then filter properly
+      for (let page = 1; page <= 10; page++) {
         const pageResults = await nailItAPI.getItemsByDate({
           Lang: 'E',
           Like: '',
           Page_No: page,
           Item_Type_Id: 2,
-          Group_Id: 42, // Nail services group ID
+          Group_Id: 0, // Get all services
           Location_Ids: [1, 52, 53],
           Is_Home_Service: false,
           Selected_Date: dateStr
@@ -1052,42 +1054,29 @@ export class EnhancedAIAgent {
         }
       }
       
-      // If no nail services found, try getting all services and filter for nail-related terms
-      if (allServices.length === 0) {
-        console.log('🔍 No services found with Group_Id 42, trying broader search...');
-        for (let page = 1; page <= 5; page++) {
-          const pageResults = await nailItAPI.getItemsByDate({
-            Lang: 'E',
-            Like: '',
-            Page_No: page,
-            Item_Type_Id: 2,
-            Group_Id: 0,
-            Location_Ids: [1, 52, 53],
-            Is_Home_Service: false,
-            Selected_Date: dateStr
-          });
-          
-          if (pageResults && pageResults.items && pageResults.items.length > 0) {
-            // Filter for nail-related services
-            const nailServices = pageResults.items.filter(item => {
-              const serviceName = item.Item_Name.toLowerCase();
-              return serviceName.includes('nail') || 
-                     serviceName.includes('manicure') || 
-                     serviceName.includes('pedicure') ||
-                     serviceName.includes('gel') ||
-                     serviceName.includes('french') ||
-                     serviceName.includes('acrylic') ||
-                     serviceName.includes('polish');
-            });
-            allServices.push(...nailServices);
-          } else {
-            break;
-          }
-        }
+      console.log(`📋 Total services loaded: ${allServices.length}`);
+      
+      // Work with actual available services from NailIt API (hair services)
+      const availableServices = allServices.filter(item => {
+        // Filter for legitimate hair and beauty services
+        return item.Item_Name && 
+               item.Primary_Price > 0 && 
+               item.Item_Name.trim().length > 0;
+      });
+      
+      console.log(`💇‍♀️ Found ${availableServices.length} authentic hair & beauty services from NailIt API`);
+      
+      // Log actual services available
+      if (availableServices.length > 0) {
+        console.log('✅ Available hair & beauty services:');
+        availableServices.slice(0, 10).forEach(service => {
+          console.log(`   - ${service.Item_Name} (${service.Primary_Price} KWD, Duration: ${service.Duration}min)`);
+        });
+      } else {
+        console.log('❌ No services available from NailIt API');
       }
       
-      console.log(`💅 Loaded ${allServices.length} NAIL services from NailIt API`);
-      return allServices;
+      return availableServices;
     } catch (error) {
       console.error('Error loading services:', error);
       return [];
@@ -1119,10 +1108,10 @@ export class EnhancedAIAgent {
         score = 80;
         console.log(`✅ Reverse match: "${lowerMessage}" contains "${serviceName}" (score: ${score})`);
       }
-      // Enhanced keyword matching for nail services
+      // Enhanced keyword matching for available services
       else {
-        const nailKeywords = ['french', 'manicure', 'pedicure', 'gel', 'acrylic', 'nail', 'polish', 'spa', 'classic', 'deluxe'];
-        for (const keyword of nailKeywords) {
+        const serviceKeywords = ['treatment', 'hair', 'wash', 'color', 'style', 'blow', 'therapy', 'care', 'growth', 'oil'];
+        for (const keyword of serviceKeywords) {
           if (lowerMessage.includes(keyword) && serviceName.includes(keyword)) {
             score = 70;
             console.log(`✅ Keyword match: "${serviceName}" and "${lowerMessage}" both contain "${keyword}" (score: ${score})`);
@@ -1130,18 +1119,18 @@ export class EnhancedAIAgent {
           }
         }
         
-        // Boost score for exact nail service matches
-        if (lowerMessage.includes('french') && serviceName.includes('french')) {
-          score = 95;
-          console.log(`✅ French boost: "${serviceName}" (score: ${score})`);
+        // Boost score for popular service types
+        if (lowerMessage.includes('treatment') && serviceName.includes('treatment')) {
+          score = 85;
+          console.log(`✅ Treatment boost: "${serviceName}" (score: ${score})`);
         }
-        else if (lowerMessage.includes('manicure') && serviceName.includes('manicure')) {
-          score = 90;
-          console.log(`✅ Manicure boost: "${serviceName}" (score: ${score})`);
+        else if (lowerMessage.includes('hair') && serviceName.includes('hair')) {
+          score = 80;
+          console.log(`✅ Hair service boost: "${serviceName}" (score: ${score})`);
         }
-        else if (lowerMessage.includes('pedicure') && serviceName.includes('pedicure')) {
-          score = 90;
-          console.log(`✅ Pedicure boost: "${serviceName}" (score: ${score})`);
+        else if (lowerMessage.includes('wash') && serviceName.includes('wash')) {
+          score = 80;
+          console.log(`✅ Hair wash boost: "${serviceName}" (score: ${score})`);
         }
       }
       
@@ -1171,8 +1160,8 @@ export class EnhancedAIAgent {
     }
     
     if (query.length < 3) {
-      // Return popular nail services
-      console.log(`📋 Returning ${Math.min(10, allServices.length)} popular nail services`);
+      // Return popular hair services
+      console.log(`📋 Returning ${Math.min(10, allServices.length)} popular hair services`);
       return allServices.slice(0, 10);
     }
     
@@ -1180,8 +1169,10 @@ export class EnhancedAIAgent {
     
     if (matches.length === 0) {
       // No matches found, return popular services instead of empty array
-      console.log(`🔍 No matches for "${query}", returning popular nail services`);
-      return allServices.slice(0, 5);
+      console.log(`🔍 No matches for "${query}", returning popular hair services`);
+      const popularServices = allServices.slice(0, 5);
+      console.log(`📋 Returning ${popularServices.length} popular services as fallback`);
+      return popularServices;
     }
     
     console.log(`✅ Found ${matches.length} service matches for "${query}"`);
