@@ -252,23 +252,35 @@ export class EnhancedAIAgent {
    */
 
   private async handleGreeting(message: string, state: EnhancedConversationState): Promise<any> {
-    const welcomeMessage = state.language === 'ar'
-      ? `مرحباً بك في نايل إت! 💅\n\nأنا مساعدك الذكي لحجز المواعيد. سأساعدك في:\n• اختيار الخدمات المناسبة\n• العثور على أفضل الأوقات المتاحة\n• حجز موعدك بسهولة\n\nما الخدمة التي تريدها اليوم؟`
-      : `Welcome to NailIt! 💅\n\nI'm your smart booking assistant. I'll help you with:\n• Choosing the right services\n• Finding the best available times\n• Booking your appointment easily\n\nWhat service would you like today?`;
+    // Check if customer is just greeting or mentioning services
+    const greetingPatterns = /^(hi|hello|hey|مرحبا|السلام عليكم|أهلا)$/i;
+    const isJustGreeting = greetingPatterns.test(message.trim());
+    
+    if (isJustGreeting) {
+      // Pure greeting, show welcome message only
+      state.phase = 'service_selection';
+      
+      const welcomeMessage = state.language === 'ar'
+        ? `مرحباً بك في نايل إت! 💅\n\nأنا مساعدك الذكي لحجز المواعيد. سأساعدك في:\n• اختيار الخدمات المناسبة\n• العثور على أفضل الأوقات المتاحة\n• حجز موعدك بسهولة\n\nما الخدمة التي تريدها اليوم؟`
+        : `Welcome to NailIt! 💅\n\nI'm your smart booking assistant. I'll help you with:\n• Choosing the right services\n• Finding the best available times\n• Booking your appointment easily\n\nWhat service would you like today?`;
 
-    // Auto-extract service if mentioned in greeting
+      return {
+        message: welcomeMessage,
+        collectionPhase: state.phase,
+        collectedData: state.collectedData
+      };
+    }
+    
+    // Customer mentioned services in greeting, extract them
     await this.extractServicesFromMessage(message, state);
     
     if (state.collectedData.selectedServices.length > 0) {
       state.phase = 'service_review';
       return this.handleServiceReview(message, state);
     } else {
+      // No clear service mentioned, move to service selection  
       state.phase = 'service_selection';
-      return {
-        message: welcomeMessage,
-        collectionPhase: state.phase,
-        collectedData: state.collectedData
-      };
+      return this.handleServiceSelection(message, state);
     }
   }
 
@@ -278,17 +290,28 @@ export class EnhancedAIAgent {
     
     if (state.collectedData.selectedServices.length === 0) {
       // No service found, suggest options
+      console.log(`🔍 Getting service suggestions for: "${message}"`);
       const suggestions = await this.getServiceSuggestions(message);
+      console.log(`📋 Got ${suggestions.length} suggestions`);
       
       let response = state.language === 'ar'
         ? `لم أستطع العثور على الخدمة المحددة. إليك بعض خدماتنا الشائعة:\n\n`
         : `I couldn't find that specific service. Here are some popular options:\n\n`;
       
-      suggestions.slice(0, 5).forEach((service, index) => {
-        response += `${index + 1}. ${service.Item_Name} - ${service.Special_Price || service.Primary_Price} KWD\n`;
-        if (service.Duration) response += `   Duration: ${service.Duration} min\n`;
-        response += `\n`;
-      });
+      const displaySuggestions = suggestions.slice(0, 5);
+      
+      if (displaySuggestions.length > 0) {
+        displaySuggestions.forEach((service, index) => {
+          response += `${index + 1}. ${service.Item_Name} - ${service.Special_Price || service.Primary_Price} KWD\n`;
+          if (service.Duration) response += `   Duration: ${service.Duration} min\n`;
+          response += `\n`;
+        });
+      } else {
+        // Fallback if no suggestions
+        response += state.language === 'ar' 
+          ? `نحن نقدم خدمات العناية بالأظافر المختلفة.\n\n`
+          : `We offer various nail care services.\n\n`;
+      }
       
       response += state.language === 'ar'
         ? `أي خدمة تريد من هذه؟ أو اكتب اسم خدمة أخرى.`
@@ -297,7 +320,7 @@ export class EnhancedAIAgent {
       return {
         message: response,
         collectionPhase: state.phase,
-        suggestedServices: suggestions.slice(0, 5),
+        suggestedServices: displaySuggestions,
         collectedData: state.collectedData
       };
     }
@@ -1009,14 +1032,14 @@ export class EnhancedAIAgent {
       const dateStr = new Date().toISOString().split('T')[0].split('-').reverse().join('-');
       let allServices = [];
       
-      // Get services from multiple pages
+      // Get NAIL SERVICES specifically - using Group_Id 42 for nail services
       for (let page = 1; page <= 5; page++) {
         const pageResults = await nailItAPI.getItemsByDate({
           Lang: 'E',
           Like: '',
           Page_No: page,
           Item_Type_Id: 2,
-          Group_Id: 0,
+          Group_Id: 42, // Nail services group ID
           Location_Ids: [1, 52, 53],
           Is_Home_Service: false,
           Selected_Date: dateStr
@@ -1029,7 +1052,41 @@ export class EnhancedAIAgent {
         }
       }
       
-      console.log(`📋 Loaded ${allServices.length} total services from NailIt API`);
+      // If no nail services found, try getting all services and filter for nail-related terms
+      if (allServices.length === 0) {
+        console.log('🔍 No services found with Group_Id 42, trying broader search...');
+        for (let page = 1; page <= 5; page++) {
+          const pageResults = await nailItAPI.getItemsByDate({
+            Lang: 'E',
+            Like: '',
+            Page_No: page,
+            Item_Type_Id: 2,
+            Group_Id: 0,
+            Location_Ids: [1, 52, 53],
+            Is_Home_Service: false,
+            Selected_Date: dateStr
+          });
+          
+          if (pageResults && pageResults.items && pageResults.items.length > 0) {
+            // Filter for nail-related services
+            const nailServices = pageResults.items.filter(item => {
+              const serviceName = item.Item_Name.toLowerCase();
+              return serviceName.includes('nail') || 
+                     serviceName.includes('manicure') || 
+                     serviceName.includes('pedicure') ||
+                     serviceName.includes('gel') ||
+                     serviceName.includes('french') ||
+                     serviceName.includes('acrylic') ||
+                     serviceName.includes('polish');
+            });
+            allServices.push(...nailServices);
+          } else {
+            break;
+          }
+        }
+      }
+      
+      console.log(`💅 Loaded ${allServices.length} NAIL services from NailIt API`);
       return allServices;
     } catch (error) {
       console.error('Error loading services:', error);
@@ -1038,33 +1095,53 @@ export class EnhancedAIAgent {
   }
 
   private matchServicesFromMessage(message: string, services: NailItItem[]): NailItItem[] {
-    const lowerMessage = message.toLowerCase();
+    const lowerMessage = message.toLowerCase().trim();
     const matches = [];
+    
+    console.log(`🔍 Matching "${lowerMessage}" against ${services.length} services`);
     
     for (const service of services) {
       const serviceName = service.Item_Name.toLowerCase();
       let score = 0;
       
-      // Exact match
-      if (serviceName === lowerMessage.trim()) {
+      // Exact match (highest priority)
+      if (serviceName === lowerMessage) {
         score = 100;
+        console.log(`✅ Exact match: "${serviceName}" = "${lowerMessage}" (score: ${score})`);
       }
       // Service name contains search term
-      else if (serviceName.includes(lowerMessage.trim())) {
+      else if (serviceName.includes(lowerMessage)) {
         score = 90;
+        console.log(`✅ Contains match: "${serviceName}" contains "${lowerMessage}" (score: ${score})`);
       }
       // Search term contains service name
-      else if (lowerMessage.includes(serviceName)) {
+      else if (lowerMessage.includes(serviceName) && serviceName.length > 2) {
         score = 80;
+        console.log(`✅ Reverse match: "${lowerMessage}" contains "${serviceName}" (score: ${score})`);
       }
-      // Keyword matching
+      // Enhanced keyword matching for nail services
       else {
-        const keywords = ['french', 'manicure', 'pedicure', 'gel', 'acrylic', 'massage'];
-        for (const keyword of keywords) {
+        const nailKeywords = ['french', 'manicure', 'pedicure', 'gel', 'acrylic', 'nail', 'polish', 'spa', 'classic', 'deluxe'];
+        for (const keyword of nailKeywords) {
           if (lowerMessage.includes(keyword) && serviceName.includes(keyword)) {
             score = 70;
+            console.log(`✅ Keyword match: "${serviceName}" and "${lowerMessage}" both contain "${keyword}" (score: ${score})`);
             break;
           }
+        }
+        
+        // Boost score for exact nail service matches
+        if (lowerMessage.includes('french') && serviceName.includes('french')) {
+          score = 95;
+          console.log(`✅ French boost: "${serviceName}" (score: ${score})`);
+        }
+        else if (lowerMessage.includes('manicure') && serviceName.includes('manicure')) {
+          score = 90;
+          console.log(`✅ Manicure boost: "${serviceName}" (score: ${score})`);
+        }
+        else if (lowerMessage.includes('pedicure') && serviceName.includes('pedicure')) {
+          score = 90;
+          console.log(`✅ Pedicure boost: "${serviceName}" (score: ${score})`);
         }
       }
       
@@ -1073,22 +1150,42 @@ export class EnhancedAIAgent {
       }
     }
     
+    console.log(`🎯 Found ${matches.length} matches with score >= 70`);
+    
     // Sort by score and return top matches
-    return matches
+    const sortedMatches = matches
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
       .map(match => match.service);
+      
+    console.log(`📋 Returning ${sortedMatches.length} top matches`);
+    return sortedMatches;
   }
 
   private async getServiceSuggestions(query: string): Promise<NailItItem[]> {
     const allServices = await this.getAllAvailableServices();
     
+    if (!allServices || allServices.length === 0) {
+      console.log('❌ No services available for suggestions');
+      return [];
+    }
+    
     if (query.length < 3) {
-      // Return popular services
+      // Return popular nail services
+      console.log(`📋 Returning ${Math.min(10, allServices.length)} popular nail services`);
       return allServices.slice(0, 10);
     }
     
-    return this.matchServicesFromMessage(query, allServices);
+    const matches = this.matchServicesFromMessage(query, allServices);
+    
+    if (matches.length === 0) {
+      // No matches found, return popular services instead of empty array
+      console.log(`🔍 No matches for "${query}", returning popular nail services`);
+      return allServices.slice(0, 5);
+    }
+    
+    console.log(`✅ Found ${matches.length} service matches for "${query}"`);
+    return matches;
   }
 
   // Complete helper methods implementation
@@ -1472,6 +1569,85 @@ export class EnhancedAIAgent {
       collectionPhase: state.phase,
       collectedData: state.collectedData,
       error
+    };
+  }
+
+  /**
+   * Critical Missing Methods for Routes Integration
+   */
+   
+  validateBookingData(collectedData: any): { 
+    isComplete: boolean; 
+    completionPercentage: number; 
+    missingFields: string[];
+    details: any;
+  } {
+    const requiredFields = [
+      'selectedServices',
+      'locationId', 
+      'appointmentDate',
+      'customerName',
+      'customerEmail',
+      'paymentTypeId',
+      'assignedStaff'
+    ];
+    
+    const missingFields = [];
+    let filledFields = 0;
+    
+    if (!collectedData.selectedServices || collectedData.selectedServices.length === 0) {
+      missingFields.push('Services');
+    } else {
+      filledFields++;
+    }
+    
+    if (!collectedData.locationId) {
+      missingFields.push('Location');
+    } else {
+      filledFields++;
+    }
+    
+    if (!collectedData.appointmentDate) {
+      missingFields.push('Appointment Date');
+    } else {
+      filledFields++;
+    }
+    
+    if (!collectedData.customerName) {
+      missingFields.push('Customer Name');
+    } else {
+      filledFields++;
+    }
+    
+    if (!collectedData.customerEmail) {
+      missingFields.push('Customer Email');
+    } else {
+      filledFields++;
+    }
+    
+    if (!collectedData.paymentTypeId) {
+      missingFields.push('Payment Method');
+    } else {
+      filledFields++;
+    }
+    
+    if (!collectedData.assignedStaff || collectedData.assignedStaff.length === 0) {
+      missingFields.push('Staff Assignment');
+    } else {
+      filledFields++;
+    }
+    
+    const completionPercentage = Math.round((filledFields / requiredFields.length) * 100);
+    
+    return {
+      isComplete: missingFields.length === 0,
+      completionPercentage,
+      missingFields,
+      details: {
+        totalFields: requiredFields.length,
+        filledFields,
+        collectedData
+      }
     };
   }
 
