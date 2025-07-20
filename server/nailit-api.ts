@@ -711,6 +711,84 @@ export class NailItAPIService {
     }
   }
 
+  async saveUnifiedOrder(unifiedOrderData: {
+    customer: {
+      appUserId: number;
+      name: string;
+      phone: string;
+      email: string;
+    };
+    services: Array<{
+      serviceId: number;
+      serviceName: string;
+      staffId: number;
+      timeSlots: number[];
+      appointmentDate: string;
+      price: number;
+      duration: number;
+    }>;
+    locationId: number;
+    paymentTypeId: number;
+    totalAmount: number;
+  }): Promise<NailItSaveOrderResponse | null> {
+    try {
+      console.log('🔗 Creating unified order with multiple services...');
+      console.log(`📊 Order Summary: ${unifiedOrderData.services.length} services, Total: ${unifiedOrderData.totalAmount} KWD`);
+      
+      // Build OrderDetails array for multiple services in one unified order
+      const orderDetails = unifiedOrderData.services.map(service => ({
+        Prod_Id: service.serviceId,
+        Prod_Name: service.serviceName,
+        Qty: 1,
+        Rate: service.price,
+        Amount: service.price,
+        Size_Id: null,
+        Size_Name: "",
+        Promotion_Id: 0,
+        Promo_Code: "",
+        Discount_Amount: 0.0,
+        Net_Amount: service.price,
+        Staff_Id: service.staffId,
+        TimeFrame_Ids: service.timeSlots,
+        Appointment_Date: service.appointmentDate
+      }));
+
+      const unifiedOrder: NailItSaveOrderRequest = {
+        Gross_Amount: unifiedOrderData.totalAmount,
+        Payment_Type_Id: unifiedOrderData.paymentTypeId,
+        Order_Type: 2,
+        UserId: unifiedOrderData.customer.appUserId,
+        FirstName: unifiedOrderData.customer.name,
+        Mobile: unifiedOrderData.customer.phone,
+        Email: unifiedOrderData.customer.email,
+        Discount_Amount: 0.0,
+        Net_Amount: unifiedOrderData.totalAmount,
+        POS_Location_Id: unifiedOrderData.locationId,
+        OrderDetails: orderDetails
+      };
+
+      console.log('📦 Unified order structure:', JSON.stringify(unifiedOrder, null, 2));
+      
+      const response = await this.client.post('/SaveOrder', unifiedOrder);
+      console.log('✅ Unified order created successfully:', response.data);
+      
+      if (response.data.Status === 0) {
+        return response.data;
+      } else {
+        console.error('❌ Unified order rejected by NailIt:', response.data);
+        return null;
+      }
+    } catch (error: any) {
+      console.error('❌ Unified order creation failed:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      return null;
+    }
+  }
+
   // Helper method to format date for API calls (NailIt expects MM/dd/yyyy format)
   formatDateForAPI(date: Date): string {
     // NailIt API expects DD-MM-YYYY format as shown in documentation
