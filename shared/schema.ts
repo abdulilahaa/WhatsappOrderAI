@@ -117,6 +117,118 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// RAG-Enhanced Tables for Local Data Caching
+export const nailItServices = pgTable("nailit_services", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").notNull().unique(), // NailIt Item_Id
+  itemName: text("item_name").notNull(),
+  itemDesc: text("item_desc"),
+  primaryPrice: decimal("primary_price", { precision: 10, scale: 2 }).notNull(),
+  specialPrice: decimal("special_price", { precision: 10, scale: 2 }),
+  duration: text("duration"), // "30", "60", etc.
+  durationMinutes: integer("duration_minutes"), // Parsed duration for calculations
+  itemTypeId: integer("item_type_id"),
+  parentGroupId: integer("parent_group_id"),
+  subGroupId: integer("sub_group_id"),
+  locationIds: jsonb("location_ids"), // Array of location IDs where service is available
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  
+  // RAG Enhancement Fields
+  searchKeywords: text("search_keywords"), // Preprocessed keywords for fast matching
+  categoryTags: jsonb("category_tags"), // ["hair", "treatment", "olaplex"] for better search
+  
+  // Sync tracking
+  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const nailItLocations = pgTable("nailit_locations", {
+  id: serial("id").primaryKey(),
+  locationId: integer("location_id").notNull().unique(), // NailIt Location_Id
+  locationName: text("location_name").notNull(),
+  address: text("address"),
+  phone: text("phone"),
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  fromTime: text("from_time"), // "11:00"
+  toTime: text("to_time"), // "20:30"
+  workingDays: text("working_days"),
+  website: text("website"),
+  isActive: boolean("is_active").notNull().default(true),
+  
+  // Sync tracking
+  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const nailItStaff = pgTable("nailit_staff", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").notNull(), // NailIt Staff ID
+  staffName: text("staff_name").notNull(),
+  locationId: integer("location_id").notNull(),
+  extraTime: integer("extra_time").default(0),
+  imageUrl: text("image_url"),
+  staffGroups: jsonb("staff_groups"), // Services they can perform
+  isActive: boolean("is_active").notNull().default(true),
+  
+  // Sync tracking
+  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const nailItPaymentTypes = pgTable("nailit_payment_types", {
+  id: serial("id").primaryKey(),
+  paymentTypeId: integer("payment_type_id").notNull().unique(),
+  paymentTypeName: text("payment_type_name").notNull(),
+  paymentTypeCode: text("payment_type_code"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  imageUrl: text("image_url"),
+  
+  // Sync tracking
+  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Enhanced conversation state for RAG
+export const enhancedConversationStates = pgTable("enhanced_conversation_states", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
+  phoneNumber: text("phone_number").notNull(),
+  currentPhase: text("current_phase").notNull().default("greeting"),
+  language: text("language").default("en"),
+  
+  // Service selection data
+  selectedServices: jsonb("selected_services"), // Array of selected NailIt services
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }),
+  totalDuration: integer("total_duration"), // Total minutes
+  
+  // Location and timing
+  locationId: integer("location_id"),
+  locationName: text("location_name"),
+  appointmentDate: text("appointment_date"), // DD-MM-YYYY
+  appointmentTime: text("appointment_time"), // HH:MM
+  timeSlots: jsonb("time_slots"), // Array of time slot IDs
+  
+  // Staff assignment
+  assignedStaff: jsonb("assigned_staff"), // Array of assigned staff
+  
+  // Customer information
+  customerName: text("customer_name"),
+  customerEmail: text("customer_email"),
+  paymentMethod: text("payment_method"),
+  
+  // Validation and progress
+  dataCompletionPercentage: integer("data_completion_percentage").default(0),
+  validationErrors: jsonb("validation_errors"),
+  canProceedToBooking: boolean("can_proceed_to_booking").default(false),
+  
+  // Timestamps
+  lastInteractionAt: timestamp("last_interaction_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertProductSchema = createInsertSchema(products).omit({
   id: true,
   createdAt: true,
