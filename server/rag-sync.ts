@@ -100,9 +100,18 @@ class RAGSyncService {
     try {
       console.log('📋 Syncing services from NailIt API...');
       
-      // Get all services using existing method
-      const allServicesResult = await this.nailItAPI.getAllItemsWithMultipleStrategies();
-      const allServices = allServicesResult.allItems || [];
+      // Get all services using existing working method
+      const testLocationIds = [1, 52, 53];
+      const testDate = this.nailItAPI.formatDateForAPI(new Date());
+      
+      const servicesResult = await this.nailItAPI.getItemsByDate({
+        groupId: null,
+        locationIds: testLocationIds,
+        selectedDate: testDate,
+        itemTypeId: null
+      });
+      
+      const allServices = servicesResult.items || [];
       
       if (!allServices || allServices.length === 0) {
         throw new Error('No services received from NailIt API');

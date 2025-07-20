@@ -29,6 +29,12 @@ interface RAGTestResult {
   searchTime?: string;
   duration?: number;
   message?: string;
+  results?: {
+    services?: { synced: number };
+    locations?: { synced: number };
+    staff?: { synced: number };
+    paymentTypes?: { synced: number };
+  };
 }
 
 export default function RAGTest() {
@@ -45,7 +51,8 @@ export default function RAGTest() {
     
     setLoading(prev => ({ ...prev, search: true }));
     try {
-      const result = await apiRequest(`/api/rag/services/search?query=${encodeURIComponent(searchQuery)}&limit=8`);
+      const response = await fetch(`/api/rag/services/search?query=${encodeURIComponent(searchQuery)}&limit=8`);
+      const result = await response.json();
       setSearchResults(result.services || []);
     } catch (error) {
       console.error('Search error:', error);
@@ -60,11 +67,12 @@ export default function RAGTest() {
     
     setLoading(prev => ({ ...prev, ai: true }));
     try {
-      const result = await apiRequest('/api/rag-ai/test', {
+      const response = await fetch('/api/rag-ai/test', {
         method: 'POST',
         body: JSON.stringify({ phoneNumber, message: aiMessage }),
         headers: { 'Content-Type': 'application/json' }
       });
+      const result = await response.json();
       setAIResponse(result);
     } catch (error) {
       console.error('AI test error:', error);
@@ -77,10 +85,11 @@ export default function RAGTest() {
   const handleDataSync = async () => {
     setLoading(prev => ({ ...prev, sync: true }));
     try {
-      const result = await apiRequest('/api/rag/sync', {
+      const response = await fetch('/api/rag/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
+      const result = await response.json();
       setSyncStatus(result);
     } catch (error) {
       console.error('Sync error:', error);
