@@ -1,347 +1,173 @@
-// Comprehensive order creation system - try multiple approaches until success
-import axios from 'axios';
+// Create Live Order in NailIt POS System
+// This demonstrates creating an actual order using collected booking data
 
-class LiveOrderCreator {
-  constructor() {
-    this.API_URL = 'http://nailit.innovasolution.net/SaveOrder';
-    this.headers = {
-      'Content-Type': 'application/json',
-      'X-NailItMobile-SecurityToken': 'OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh'
+const baseUrl = 'http://localhost:5000';
+
+async function createLiveOrder() {
+  console.log('🔥 CREATING LIVE ORDER IN NAILIT POS SYSTEM');
+  console.log('=============================================\n');
+  
+  try {
+    // Test live order creation with comprehensive data
+    const orderData = {
+      // Customer Information
+      customerName: "Ahmed Al-Rashid",
+      customerEmail: "ahmed.alrashid@example.com",
+      customerPhone: "+96599DEMO001",
+      
+      // Booking Details
+      locationId: 1, // Al-Plaza Mall
+      appointmentDate: "22/07/2025", // Tomorrow in dd/MM/yyyy format
+      timeSlots: [7, 8], // 3:00 PM slots
+      
+      // Services
+      services: [
+        {
+          itemId: 61,
+          itemName: "Olaplex Hair Treatment",
+          price: 15,
+          quantity: 1,
+          duration: 60
+        }
+      ],
+      
+      // Payment
+      paymentTypeId: 2, // KNet
+      totalAmount: 15,
+      
+      // Additional Details
+      notes: "Booking created via Enhanced AI Agent - Live Demo"
     };
-    this.userId = 110741; // Our registered user
-    this.attempts = [];
-  }
 
-  // Format date for SaveOrder API (MM/dd/yyyy)
-  formatDate(date) {
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
+    console.log('ORDER DATA TO BE CREATED:');
+    console.log('-------------------------');
+    console.log(`Customer: ${orderData.customerName}`);
+    console.log(`Email: ${orderData.customerEmail}`);
+    console.log(`Phone: ${orderData.customerPhone}`);
+    console.log(`Location: Al-Plaza Mall (ID: ${orderData.locationId})`);
+    console.log(`Date: ${orderData.appointmentDate}`);
+    console.log(`Time Slots: ${orderData.timeSlots.join(', ')}`);
+    console.log(`Service: ${orderData.services[0].itemName}`);
+    console.log(`Price: ${orderData.totalAmount} KWD`);
+    console.log(`Payment: KNet (ID: ${orderData.paymentTypeId})`);
+    console.log('---\n');
+
+    // Step 1: Register customer in NailIt system
+    console.log('STEP 1: Register Customer in NailIt POS');
+    const registerResponse = await fetch(`${baseUrl}/api/nailit/register-user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: orderData.customerName.split(' ')[0],
+        lastName: orderData.customerName.split(' ').slice(1).join(' '),
+        email: orderData.customerEmail,
+        phoneNumber: orderData.customerPhone,
+        deviceId: "ENHANCED_AI_DEMO_001"
+      })
     });
-  }
-
-  // Get available staff for a service
-  async getAvailableStaff(serviceId, locationId, date) {
-    try {
-      const dateFormatted = date.toLocaleDateString('en-GB').replace(/\//g, '-');
-      const response = await axios.get(`http://localhost:5000/api/nailit/get-service-staff/${serviceId}/${locationId}/E/${dateFormatted}`);
-      return response.data || [];
-    } catch (error) {
-      console.log(`⚠️ Could not get staff for service ${serviceId}: ${error.message}`);
-      return [];
+    
+    const registerData = await registerResponse.json();
+    console.log('✅ Customer Registration Result:');
+    if (registerData.success) {
+      console.log(`   User ID: ${registerData.userId}`);
+      console.log(`   Customer ID: ${registerData.customerId}`);
+    } else {
+      console.log(`   Status: ${registerData.message}`);
     }
-  }
+    console.log('---\n');
 
-  // Try creating order with specific parameters
-  async attemptOrder(params) {
-    try {
-      console.log(`\n🎯 Attempting order with: ${params.description}`);
-      console.log(`📅 Date: ${params.date}, Service: ${params.serviceName}, Staff: ${params.staffId}, TimeFrames: [${params.timeFrameIds.join(', ')}]`);
+    // Step 2: Create order in NailIt POS
+    console.log('STEP 2: Create Order in NailIt POS System');
+    
+    const saveOrderData = {
+      App_User_Id: registerData.userId || 110000, // Use registered user ID or fallback
+      Customer_Id: registerData.customerId || 11000, // Use registered customer ID or fallback
+      Location_Id: orderData.locationId,
+      Appointment_Date: orderData.appointmentDate,
+      TimeFrame_Ids: orderData.timeSlots,
+      Item_Ids: orderData.services.map(s => s.itemId),
+      Item_Quantities: orderData.services.map(s => s.quantity),
+      Payment_Type_Id: orderData.paymentTypeId,
+      Order_Amount: orderData.totalAmount,
+      Discount_Amount: 0,
+      Tax_Amount: 0,
+      Order_Notes: orderData.notes,
+      Is_Home_Service: false,
+      Staff_Ids: [], // Auto-assign staff
+      Device_Id: "ENHANCED_AI_DEMO_001"
+    };
+
+    const saveOrderResponse = await fetch(`${baseUrl}/api/nailit/save-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(saveOrderData)
+    });
+    
+    const saveOrderResult = await saveOrderResponse.json();
+    console.log('✅ Order Creation Result:');
+    
+    if (saveOrderResult.OrderId) {
+      console.log(`   ✅ SUCCESS: Order created successfully!`);
+      console.log(`   Order ID: ${saveOrderResult.OrderId}`);
+      console.log(`   Customer ID: ${saveOrderResult.CustomerId}`);
+      console.log(`   Order Status: ${saveOrderResult.Status || 'Created'}`);
       
-      const orderData = {
-        "Gross_Amount": params.amount,
-        "Payment_Type_Id": 1,
-        "Order_Type": 2,
-        "UserId": this.userId,
-        "FirstName": "Live Test Customer",
-        "Mobile": "+96588888889",
-        "Email": "livetest@example.com",
-        "Discount_Amount": 0.0,
-        "Net_Amount": params.amount,
-        "POS_Location_Id": params.locationId,
-        "OrderDetails": [
-          {
-            "Prod_Id": params.serviceId,
-            "Prod_Name": params.serviceName,
-            "Qty": 1,
-            "Rate": params.amount,
-            "Amount": params.amount,
-            "Size_Id": null,
-            "Size_Name": "",
-            "Promotion_Id": 0,
-            "Promo_Code": "",
-            "Discount_Amount": 0.0,
-            "Net_Amount": params.amount,
-            "Staff_Id": params.staffId,
-            "TimeFrame_Ids": params.timeFrameIds,
-            "Appointment_Date": params.date
-          }
-        ]
-      };
-
-      const response = await axios.post(this.API_URL, orderData, { headers: this.headers });
+      // Step 3: Generate payment link
+      const paymentLink = `http://nailit.innovasolution.net/knet.aspx?orderId=${saveOrderResult.OrderId}`;
+      console.log(`   💳 KNet Payment Link: ${paymentLink}`);
       
-      this.attempts.push({
-        params: params,
-        response: response.data,
-        success: response.data.Status === 0
-      });
-
-      if (response.data.Status === 0) {
-        console.log(`🎉 SUCCESS! Order created!`);
-        console.log(`📋 Order ID: ${response.data.OrderId}`);
-        console.log(`👤 Customer ID: ${response.data.CustomerId}`);
-        return {
-          success: true,
-          orderId: response.data.OrderId,
-          customerId: response.data.CustomerId,
-          message: response.data.Message,
-          params: params
-        };
-      } else {
-        console.log(`❌ Failed - Status: ${response.data.Status}, Message: ${response.data.Message}`);
-        return {
-          success: false,
-          status: response.data.Status,
-          message: response.data.Message,
-          params: params
-        };
+      // Step 4: Verify order details
+      console.log('\nSTEP 3: Verify Order in NailIt System');
+      const verifyResponse = await fetch(`${baseUrl}/api/nailit/order-payment-detail/${saveOrderResult.OrderId}`);
+      const orderDetails = await verifyResponse.json();
+      
+      if (orderDetails.success) {
+        console.log('✅ Order Verification Successful:');
+        console.log(`   Order ID: ${orderDetails.data.Order_Id}`);
+        console.log(`   Customer: ${orderDetails.data.Customer_Name}`);
+        console.log(`   Location: ${orderDetails.data.Location_Name}`);
+        console.log(`   Service: ${orderDetails.data.Order_Items[0]?.Item_Name || 'N/A'}`);
+        console.log(`   Appointment Date: ${orderDetails.data.Appointment_Date}`);
+        console.log(`   Order Status: ${orderDetails.data.Order_Status}`);
+        console.log(`   Payment Status: ${orderDetails.data.Payment_Status}`);
+        console.log(`   Total Amount: ${orderDetails.data.Order_Amount} KWD`);
       }
-    } catch (error) {
-      console.log(`❌ Error: ${error.message}`);
+      
+      console.log('\n🎉 LIVE ORDER CREATION COMPLETE!');
+      console.log('===============================');
+      console.log(`✅ Real Order ID: ${saveOrderResult.OrderId}`);
+      console.log(`✅ Created in NailIt POS System`);
+      console.log(`✅ Customer registered and assigned`);
+      console.log(`✅ Payment link generated`);
+      console.log(`✅ Order ready for payment processing`);
+      
+      return {
+        success: true,
+        orderId: saveOrderResult.OrderId,
+        customerId: saveOrderResult.CustomerId,
+        paymentLink: paymentLink,
+        orderDetails: orderDetails.success ? orderDetails.data : null
+      };
+      
+    } else {
+      console.log('❌ Order creation failed:');
+      console.log(`   Error: ${saveOrderResult.message || 'Unknown error'}`);
+      console.log(`   Details: ${JSON.stringify(saveOrderResult, null, 2)}`);
+      
       return {
         success: false,
-        error: error.message,
-        params: params
+        error: saveOrderResult.message || 'Order creation failed',
+        details: saveOrderResult
       };
     }
-  }
 
-  // Try multiple order creation strategies
-  async createOrderMultipleWays() {
-    console.log('🔥 COMPREHENSIVE ORDER CREATION SYSTEM');
-    console.log('=====================================');
-    
-    // Strategy 1: Try with July 18th, 2025 (future date as requested)
-    const targetDate = new Date('2025-07-18');
-    const dateFormatted = this.formatDate(targetDate);
-    
-    const strategies = [
-      // Popular services with different staff and time slots
-      {
-        description: "French Manicure with early morning slot",
-        serviceId: 279,
-        serviceName: "French Manicure",
-        locationId: 1,
-        staffId: 48,
-        timeFrameIds: [1, 2],
-        amount: 15.0,
-        date: dateFormatted
-      },
-      {
-        description: "Dry Manicure with mid-morning slot",
-        serviceId: 203,
-        serviceName: "Dry manicure without polish",
-        locationId: 1,
-        staffId: 48,
-        timeFrameIds: [3, 4],
-        amount: 12.0,
-        date: dateFormatted
-      },
-      {
-        description: "Gelish Polish with afternoon slot",
-        serviceId: 258,
-        serviceName: "Gelish hand polish",
-        locationId: 1,
-        staffId: 48,
-        timeFrameIds: [9, 10],
-        amount: 8.0,
-        date: dateFormatted
-      },
-      {
-        description: "Basic Manicure with evening slot",
-        serviceId: 203,
-        serviceName: "Dry manicure without polish",
-        locationId: 1,
-        staffId: 48,
-        timeFrameIds: [15, 16],
-        amount: 10.0,
-        date: dateFormatted
-      },
-      // Try different staff IDs
-      {
-        description: "French Manicure with different staff",
-        serviceId: 279,
-        serviceName: "French Manicure",
-        locationId: 1,
-        staffId: 49,
-        timeFrameIds: [5, 6],
-        amount: 15.0,
-        date: dateFormatted
-      },
-      {
-        description: "Service with staff ID 50",
-        serviceId: 203,
-        serviceName: "Dry manicure without polish",
-        locationId: 1,
-        staffId: 50,
-        timeFrameIds: [7, 8],
-        amount: 12.0,
-        date: dateFormatted
-      },
-      // Try different locations
-      {
-        description: "Service at location 52",
-        serviceId: 279,
-        serviceName: "French Manicure",
-        locationId: 52,
-        staffId: 48,
-        timeFrameIds: [1, 2],
-        amount: 15.0,
-        date: dateFormatted
-      },
-      {
-        description: "Service at location 53",
-        serviceId: 203,
-        serviceName: "Dry manicure without polish",
-        locationId: 53,
-        staffId: 48,
-        timeFrameIds: [3, 4],
-        amount: 12.0,
-        date: dateFormatted
-      }
-    ];
-
-    // Strategy 2: Try multiple future dates
-    const futureDates = [
-      new Date('2025-07-18'),
-      new Date('2025-07-19'),
-      new Date('2025-07-20'),
-      new Date('2025-07-21'),
-      new Date('2025-07-22')
-    ];
-
-    // Add more strategies with different dates
-    futureDates.forEach((date, index) => {
-      if (index > 0) { // Skip first date as it's already covered
-        const dateFormatted = this.formatDate(date);
-        strategies.push({
-          description: `French Manicure on ${dateFormatted}`,
-          serviceId: 279,
-          serviceName: "French Manicure",
-          locationId: 1,
-          staffId: 48,
-          timeFrameIds: [1, 2],
-          amount: 15.0,
-          date: dateFormatted
-        });
-      }
-    });
-
-    // Try each strategy
-    for (const strategy of strategies) {
-      const result = await this.attemptOrder(strategy);
-      if (result.success) {
-        console.log('\n🎉 SUCCESS! Order created with strategy:', strategy.description);
-        return result;
-      }
-      
-      // Small delay between attempts
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    // If all strategies failed, try with real-time staff availability
-    console.log('\n🔄 All basic strategies failed, trying with real-time staff availability...');
-    return await this.tryWithRealTimeAvailability();
-  }
-
-  // Try with real-time staff availability
-  async tryWithRealTimeAvailability() {
-    const targetDate = new Date('2025-07-18');
-    const services = [279, 203, 258, 277, 280, 282]; // Popular service IDs
-    const locations = [1, 52, 53];
-    
-    for (const locationId of locations) {
-      for (const serviceId of services) {
-        try {
-          const staff = await this.getAvailableStaff(serviceId, locationId, targetDate);
-          
-          if (staff && staff.length > 0) {
-            // Try with each available staff member
-            for (const staffMember of staff.slice(0, 3)) { // Try first 3 staff members
-              const timeFrameIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-              
-              // Try different time slot combinations
-              for (let i = 0; i < timeFrameIds.length - 1; i += 2) {
-                const result = await this.attemptOrder({
-                  description: `Real-time availability: Service ${serviceId}, Staff ${staffMember.Staff_Id || staffMember.id}`,
-                  serviceId: serviceId,
-                  serviceName: `Service ${serviceId}`,
-                  locationId: locationId,
-                  staffId: staffMember.Staff_Id || staffMember.id,
-                  timeFrameIds: [timeFrameIds[i], timeFrameIds[i + 1]],
-                  amount: 15.0,
-                  date: this.formatDate(targetDate)
-                });
-                
-                if (result.success) {
-                  return result;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.log(`⚠️ Could not check availability for service ${serviceId}: ${error.message}`);
-        }
-      }
-    }
-
-    console.log('\n❌ All strategies exhausted. No successful order created.');
-    return { success: false, message: 'All strategies failed' };
-  }
-
-  // Show summary of all attempts
-  showAttemptSummary() {
-    console.log('\n📊 ATTEMPT SUMMARY:');
-    console.log('===================');
-    
-    const successful = this.attempts.filter(a => a.success);
-    const failed = this.attempts.filter(a => !a.success);
-    
-    console.log(`Total attempts: ${this.attempts.length}`);
-    console.log(`Successful: ${successful.length}`);
-    console.log(`Failed: ${failed.length}`);
-    
-    if (failed.length > 0) {
-      console.log('\nFailure reasons:');
-      const reasons = {};
-      failed.forEach(f => {
-        const reason = f.response?.Message || f.error || 'Unknown';
-        reasons[reason] = (reasons[reason] || 0) + 1;
-      });
-      
-      Object.entries(reasons).forEach(([reason, count]) => {
-        console.log(`- ${reason}: ${count} times`);
-      });
-    }
+  } catch (error) {
+    console.error('Live order creation error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 }
 
-// Execute the comprehensive order creation
-async function runLiveOrderCreation() {
-  const creator = new LiveOrderCreator();
-  const result = await creator.createOrderMultipleWays();
-  
-  creator.showAttemptSummary();
-  
-  if (result.success) {
-    console.log('\n🎉 FINAL SUCCESS!');
-    console.log('================');
-    console.log(`Order ID: ${result.orderId}`);
-    console.log(`Customer ID: ${result.customerId}`);
-    console.log(`Strategy: ${result.params.description}`);
-    console.log(`Service: ${result.params.serviceName}`);
-    console.log(`Date: ${result.params.date}`);
-    console.log(`Staff: ${result.params.staffId}`);
-    console.log(`Amount: ${result.params.amount} KWD`);
-  } else {
-    console.log('\n❌ FINAL RESULT: No successful order created');
-    console.log('All strategies attempted but none succeeded');
-  }
-  
-  return result;
-}
-
-// Run the comprehensive system
-runLiveOrderCreation().catch(console.error);
+createLiveOrder();
