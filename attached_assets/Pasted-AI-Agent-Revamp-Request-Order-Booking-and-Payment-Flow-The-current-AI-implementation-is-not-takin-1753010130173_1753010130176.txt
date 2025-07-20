@@ -1,0 +1,69 @@
+AI Agent Revamp Request – Order Booking and Payment Flow
+
+The current AI implementation is not taking into consideration all the necessary requirements to successfully create an order, confirm payment, and process the order in NailPOS. As seen in the last conversation, the system needs a full revamp to align with the recent upgrades made to our order-taking flow.
+
+Key Issues:
+Incomplete Order Handling:
+
+The AI is not correctly validating all required fields before initiating order creation.
+
+It does not confirm payments or reflect order status in NailPOS accurately.
+
+There is no proper confirmation message sent back to the customer upon order and payment success.
+
+Lack of Scheduling Logic:
+
+The AI does not currently handle conflict checks between appointments.
+
+It should consider staff availability and service duration before confirming bookings.
+
+For example, if a customer chooses three services totaling 3 hours, the system must:
+
+Check available time slots based on staff availability.
+
+Ensure no conflicts with other appointments.
+
+Suggest only valid time slots based on the selected branch/location and staff capability.
+
+Staff Reassignment Handling:
+
+If a customer chooses a staff member who is not available, the AI should:
+
+Inform the customer accordingly.
+
+Recommend the next available time and date for that staff member.
+
+Live Data Integration:
+
+The AI must interact with our APIs to fetch real-time data including:
+
+Customer verification or creation.
+
+Live staff schedules.
+
+Available time slots.
+
+Service durations and constraints.
+
+Payment method selection and processing.
+
+Required Revamp:
+We need a full plan to redesign the AI agent to:
+
+Match all recent system updates.
+
+Hold a complete and dynamic conversation with the customer to:
+
+Collect all necessary data.
+
+Validate appointment feasibility.
+
+Create the customer if not already existing.
+
+Confirm payment method and process the transaction.
+
+Create the order in NailPOS.
+
+Send final confirmation to the customer via the appropriate channel.
+
+Please create a structured development plan to implement this upgraded conversational flow and integrate it with all the relevant APIs.
