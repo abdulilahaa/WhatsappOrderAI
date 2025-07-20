@@ -24,6 +24,7 @@ import Checkout from "@/pages/checkout";
 import StaffAvailability from "@/pages/staff-availability";
 import ServiceAnalytics from "@/pages/service-analytics";
 import QuickBookingInsights from "@/pages/quick-booking-insights";
+import RAGTest from "@/pages/rag-test";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -53,6 +54,7 @@ function Router() {
         <Route path="/ai-settings" component={FreshAISettingsPage} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/fresh-ai-test" component={FreshAITest} />
+        <Route path="/rag-test" component={RAGTest} />
         <Route path="/checkout" component={Checkout} />
         <Route path="/staff-availability" component={StaffAvailability} />
         <Route path="/service-analytics" component={ServiceAnalytics} />

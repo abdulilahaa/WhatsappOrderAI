@@ -229,6 +229,53 @@ export const enhancedConversationStates = pgTable("enhanced_conversation_states"
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Relations for RAG tables
+export const nailItServicesRelations = relations(nailItServices, ({ many }) => ({
+  // Add relations as needed
+}));
+
+export const nailItLocationsRelations = relations(nailItLocations, ({ many }) => ({
+  // Add relations as needed  
+}));
+
+export const enhancedConversationStatesRelations = relations(enhancedConversationStates, ({ one }) => ({
+  customer: one(customers, {
+    fields: [enhancedConversationStates.customerId],
+    references: [customers.id],
+  }),
+}));
+
+// Insert schemas for RAG tables
+export const insertNailItServiceSchema = createInsertSchema(nailItServices).omit({
+  id: true,
+  createdAt: true,
+  lastSyncedAt: true,
+});
+
+export const insertNailItLocationSchema = createInsertSchema(nailItLocations).omit({
+  id: true,
+  createdAt: true,
+  lastSyncedAt: true,
+});
+
+export const insertNailItStaffSchema = createInsertSchema(nailItStaff).omit({
+  id: true,
+  createdAt: true,
+  lastSyncedAt: true,
+});
+
+export const insertNailItPaymentTypeSchema = createInsertSchema(nailItPaymentTypes).omit({
+  id: true,
+  createdAt: true,
+  lastSyncedAt: true,
+});
+
+export const insertEnhancedConversationStateSchema = createInsertSchema(enhancedConversationStates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertProductSchema = createInsertSchema(products).omit({
   id: true,
   createdAt: true,
@@ -333,3 +380,15 @@ export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type WhatsAppSettings = typeof whatsappSettings.$inferSelect;
 export type InsertWhatsAppSettings = z.infer<typeof insertWhatsAppSettingsSchema>;
+
+// RAG Types
+export type NailItService = typeof nailItServices.$inferSelect;
+export type InsertNailItService = z.infer<typeof insertNailItServiceSchema>;
+export type NailItLocation = typeof nailItLocations.$inferSelect;
+export type InsertNailItLocation = z.infer<typeof insertNailItLocationSchema>;
+export type NailItStaff = typeof nailItStaff.$inferSelect;
+export type InsertNailItStaff = z.infer<typeof insertNailItStaffSchema>;
+export type NailItPaymentType = typeof nailItPaymentTypes.$inferSelect;
+export type InsertNailItPaymentType = z.infer<typeof insertNailItPaymentTypeSchema>;
+export type EnhancedConversationState = typeof enhancedConversationStates.$inferSelect;
+export type InsertEnhancedConversationState = z.infer<typeof insertEnhancedConversationStateSchema>;

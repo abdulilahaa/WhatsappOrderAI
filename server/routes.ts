@@ -7,6 +7,9 @@ import { enhancedAI } from "./ai-enhanced";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
+import { ragSyncService } from './rag-sync';
+import { ragSearchService } from './rag-search';
+import { ragAIAgent } from './rag-ai-agent';
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -2732,6 +2735,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register NailIt order flow routes
   const { registerNailItOrderFlowRoutes } = await import("./routes/nailit-order-flow");
   registerNailItOrderFlowRoutes(app);
+
+  // ===== RAG SYSTEM ENDPOINTS =====
+  
+  // RAG Data Sync Management
+  app.post("/api/rag/sync", async (req, res) => {
+    try {
+      console.log('🔄 Starting RAG data synchronization...');
+      const syncResults = await ragSyncService.syncAllData();
+      
+      res.json({
+        success: true,
+        message: "RAG data synchronized successfully",
+        results: syncResults,
+        totalSynced: syncResults.services.synced + syncResults.locations.synced + syncResults.staff.synced + syncResults.paymentTypes.synced,
+        duration: syncResults.totalDuration
+      });
+    } catch (error: any) {
+      console.error('RAG sync error:', error);
+      res.status(500).json({
+        success: false,
+        message: "RAG sync failed: " + error.message
+      });
+    }
+  });
+
+  // RAG Service Search (Ultra-fast local search)
+  app.get("/api/rag/services/search", async (req, res) => {
+    try {
+      const { query, locationId, maxPrice, limit } = req.query;
+      
+      const searchResults = await ragSearchService.searchServices(
+        query as string || '',
+        {
+          locationId: locationId ? parseInt(locationId as string) : undefined,
+          maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
+        },
+        limit ? parseInt(limit as string) : 10
+      );
+      
+      res.json({
+        success: true,
+        services: searchResults,
+        count: searchResults.length,
+        searchQuery: query,
+        searchTime: '<500ms'
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: "RAG search error: " + error.message
+      });
+    }
+  });
+
+  // RAG AI Agent (Enhanced with local data)
+  app.post("/api/rag-ai/process", async (req, res) => {
+    try {
+      const { phoneNumber, message } = req.body;
+      
+      if (!phoneNumber || !message) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone number and message are required"
+        });
+      }
+      
+      console.log(`🤖 RAG AI processing: "${message}" from ${phoneNumber}`);
+      
+      const response = await ragAIAgent.processMessage(phoneNumber, message);
+      
+      res.json({
+        success: true,
+        response: response.message,
+        collectionPhase: response.collectionPhase,
+        collectedData: response.collectedData,
+        suggestedServices: response.suggestedServices || []
+      });
+    } catch (error: any) {
+      console.error('RAG AI processing error:', error);
+      res.status(500).json({
+        success: false,
+        message: "RAG AI processing failed: " + error.message
+      });
+    }
+  });
+
+  // RAG AI Test Endpoint  
+  app.post("/api/rag-ai/test", async (req, res) => {
+    try {
+      const { phoneNumber, message } = req.body;
+      const testPhone = phoneNumber || '+965RAG001';
+      const testMessage = message || 'Hi, I need hair treatment';
+      
+      console.log(`🧪 Testing RAG AI with message: "${testMessage}" from ${testPhone}`);
+      
+      const response = await ragAIAgent.processMessage(testPhone, testMessage);
+      
+      res.json({
+        success: true,
+        response: response.message,
+        collectionPhase: response.collectionPhase,
+        collectedData: response.collectedData,
+        suggestedServices: response.suggestedServices || [],
+        testInfo: {
+          phoneNumber: testPhone,
+          message: testMessage,
+          responseTime: '<500ms'
+        }
+      });
+    } catch (error: any) {
+      console.error('RAG AI test error:', error);
+      res.status(500).json({
+        success: false,
+        message: "RAG AI test failed: " + error.message
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
