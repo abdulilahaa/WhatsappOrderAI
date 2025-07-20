@@ -8,19 +8,12 @@ interface SidebarProps {
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
-  { name: "Quick Insights", href: "/quick-insights", icon: Activity },
   { name: "Products", href: "/products", icon: Package },
-  { name: "Orders", href: "/orders", icon: ShoppingCart },
-  { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Staff Availability", href: "/staff-availability", icon: Users },
   { name: "Service Analytics", href: "/service-analytics", icon: BarChart3 },
   { name: "Conversations", href: "/conversations", icon: MessageCircle },
-  { name: "API Data", href: "/api-data", icon: Database },
-  { name: "API Testing", href: "/api-testing", icon: CheckCircle },
   { name: "Integration Hub", href: "/integration-dashboard", icon: Activity },
-  { name: "Integrations", href: "/integrations", icon: Settings },
   { name: "AI Settings", href: "/ai-settings", icon: Bot },
-  { name: "Fresh AI Test", href: "/fresh-ai-test", icon: Bot },
   { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: MessageSquare },
 ];
 

@@ -4,11 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/stats-card";
 import ProductCard from "@/components/product-card";
-import OrderCard from "@/components/order-card";
 import ConversationThread from "@/components/conversation-thread";
 import { Database, CheckCircle, Clock } from "lucide-react";
-import type { DashboardStats, OrderWithCustomer, ConversationWithCustomer } from "@/lib/types";
-import type { Product, AISettings } from "@shared/schema";
+import type { DashboardStats, ConversationWithCustomer } from "@/lib/types";
+import type { Product } from "@shared/schema";
 
 interface DashboardProps {
   onAddProduct: () => void;
@@ -25,20 +24,15 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
     queryKey: ["/api/products"],
   });
 
-  const { data: orders, isLoading: ordersLoading } = useQuery<OrderWithCustomer[]>({
-    queryKey: ["/api/orders"],
-  });
-
   const { data: activeConversations, isLoading: conversationsLoading } = useQuery<ConversationWithCustomer[]>({
     queryKey: ["/api/conversations/active"],
   });
 
-  const { data: aiSettings } = useQuery<AISettings>({
+  const { data: aiSettings } = useQuery({
     queryKey: ["/api/ai-settings"],
   });
 
-  const recentOrders = orders?.slice(0, 3) || [];
-  const featuredProducts = products?.slice(0, 4) || [];
+  const featuredProducts = products?.slice(0, 6) || [];
   const liveConversation = activeConversations?.[0];
 
   const formatLastUpdated = (dateString: string) => {
@@ -99,9 +93,9 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
           ) : (
             <>
               <StatsCard
-                title="Total Orders"
+                title="NailIt Orders"
                 value={stats?.totalOrders || 0}
-                change="+12% from last week"
+                change="via NailIt POS"
                 icon="fa-shopping-cart"
                 iconBgColor="bg-blue-100"
                 iconColor="text-blue-600"
@@ -193,51 +187,40 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
 
         {/* Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Recent Orders */}
+          {/* Featured Products */}
           <div className="lg:col-span-2">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Recent Orders</CardTitle>
+                  <CardTitle>Featured Services</CardTitle>
                   <Button variant="ghost" className="text-whatsapp font-medium text-sm hover:text-whatsapp/80">
                     View All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                {ordersLoading ? (
-                  <div className="space-y-4">
-                    {Array.from({ length: 3 }).map((_, i) => (
+                {productsLoading ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
                       <div key={i} className="animate-pulse p-4 bg-slate-50 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-10 h-10 bg-slate-200 rounded-lg"></div>
-                            <div>
-                              <div className="h-4 bg-slate-200 rounded w-24 mb-1"></div>
-                              <div className="h-3 bg-slate-200 rounded w-32"></div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="h-4 bg-slate-200 rounded w-16 mb-1"></div>
-                            <div className="h-6 bg-slate-200 rounded w-20"></div>
-                          </div>
-                        </div>
+                        <div className="w-full h-32 bg-slate-200 rounded mb-3"></div>
+                        <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-slate-200 rounded w-1/2"></div>
                       </div>
                     ))}
                   </div>
-                ) : recentOrders.length > 0 ? (
-                  <div className="space-y-4">
-                    {recentOrders.map((order) => (
-                      <OrderCard 
-                        key={order.id} 
-                        order={order} 
-                        onStatusChange={() => {}} // Read-only in dashboard
+                ) : featuredProducts.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {featuredProducts.slice(0, 4).map((product) => (
+                      <ProductCard 
+                        key={product.id} 
+                        product={product} 
                       />
                     ))}
                   </div>
                 ) : (
                   <div className="text-center text-slate-500 py-8">
-                    No orders yet. Orders will appear here once customers start purchasing.
+                    No services available. Connect to NailIt API to sync services.
                   </div>
                 )}
               </CardContent>
@@ -317,19 +300,14 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onEdit={() => {}} // Read-only in dashboard
-                    onDelete={() => {}} // Read-only in dashboard
                   />
                 ))}
               </div>
             ) : (
-              <div className="text-center text-slate-500 py-12">
-                <i className="fas fa-box text-6xl mb-4 opacity-50"></i>
-                <h3 className="text-lg font-medium mb-2">No products yet</h3>
-                <p className="mb-4">Start by adding your first product to begin taking orders.</p>
-                <Button onClick={onAddProduct} className="bg-whatsapp hover:bg-whatsapp/90">
-                  <i className="fas fa-plus mr-2"></i>Add Your First Product
-                </Button>
+              <div className="text-center text-slate-500 py-8">
+                <i className="fas fa-cube text-4xl mb-4 opacity-50"></i>
+                <p>No services available yet.</p>
+                <p className="text-sm">Services will sync from NailIt API automatically.</p>
               </div>
             )}
           </CardContent>
