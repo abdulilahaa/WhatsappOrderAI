@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
 import { freshAI } from "./ai-fresh";
+import { enhancedAI } from "./ai-enhanced";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
@@ -2440,6 +2441,272 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error verifying payment:', error);
       res.status(500).json({ error: 'Failed to verify payment status' });
+    }
+  });
+
+  // Enhanced AI testing routes for comprehensive data collection validation
+  app.post("/api/enhanced-ai/test", async (req, res) => {
+    try {
+      const { message, phoneNumber } = req.body;
+      
+      if (!message || !phoneNumber) {
+        return res.status(400).json({ 
+          error: "Both message and phoneNumber are required" 
+        });
+      }
+
+      console.log(`🧪 Testing Enhanced AI with message: "${message}" from ${phoneNumber}`);
+
+      // Find or create test customer
+      let customer = await storage.getCustomerByPhoneNumber(phoneNumber);
+      if (!customer) {
+        customer = await storage.createCustomer({
+          phoneNumber,
+          name: null,
+          email: null,
+        });
+      }
+
+      // Get conversation history
+      let conversation = await storage.getConversationByCustomer(customer.id);
+      if (!conversation) {
+        conversation = await storage.createConversation({
+          customerId: customer.id,
+          isActive: true,
+        });
+      }
+
+      const messages = await storage.getMessages(conversation.id);
+      const conversationHistory = messages.map(msg => ({
+        content: msg.content,
+        isFromAI: msg.isFromAI,
+      }));
+
+      // Process with Enhanced AI
+      const aiResponse = await enhancedAI.processMessage(
+        message,
+        customer,
+        conversationHistory
+      );
+
+      console.log('🚀 Enhanced AI Response:', JSON.stringify(aiResponse, null, 2));
+
+      res.json({
+        success: true,
+        response: aiResponse.message,
+        currentPhase: aiResponse.currentPhase,
+        nextPhase: aiResponse.nextPhase,
+        collectedData: aiResponse.collectedData,
+        dataCompletion: aiResponse.dataCompletion,
+        bookingComplete: aiResponse.bookingComplete,
+        validationMessages: aiResponse.validationMessages,
+        suggestedActions: aiResponse.suggestedActions
+      });
+    } catch (error: any) {
+      console.error("❌ Enhanced AI test error:", error);
+      res.status(500).json({ 
+        error: "Enhanced AI test failed: " + error.message 
+      });
+    }
+  });
+
+  // Enhanced AI data validation test
+  app.post("/api/enhanced-ai/validate-booking", async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      
+      if (!phoneNumber) {
+        return res.status(400).json({ 
+          error: "phoneNumber is required" 
+        });
+      }
+
+      console.log(`🔍 Validating booking data completeness for ${phoneNumber}`);
+
+      // Find customer
+      const customer = await storage.getCustomerByPhoneNumber(phoneNumber);
+      if (!customer) {
+        return res.status(404).json({ 
+          error: "Customer not found" 
+        });
+      }
+
+      // Get current conversation state
+      const currentState = enhancedAI.getConversationState(customer.id.toString());
+      if (!currentState) {
+        return res.json({
+          success: true,
+          dataCompletion: 0,
+          missingFields: ["All fields - no conversation started"],
+          message: "No conversation state found. Customer needs to start booking process."
+        });
+      }
+
+      // Validate completeness
+      const validation = enhancedAI.validateBookingData(currentState.collectedData);
+      
+      res.json({
+        success: true,
+        dataCompletion: validation.completionPercentage,
+        missingFields: validation.missingFields,
+        collectedData: currentState.collectedData,
+        currentPhase: currentState.currentPhase,
+        canProceedToBooking: validation.isComplete,
+        validationDetails: validation.details,
+        message: validation.isComplete 
+          ? "✅ All required information collected - ready for booking!" 
+          : `❌ Missing: ${validation.missingFields.join(', ')}`
+      });
+    } catch (error: any) {
+      console.error("❌ Enhanced AI validation error:", error);
+      res.status(500).json({ 
+        error: "Enhanced AI validation failed: " + error.message 
+      });
+    }
+  });
+
+  // Enhanced AI comprehensive booking test
+  app.post("/api/enhanced-ai/test-complete-booking", async (req, res) => {
+    try {
+      const testPhoneNumber = "+96599999999";
+      
+      console.log(`🎯 Testing complete Enhanced AI booking flow for ${testPhoneNumber}`);
+
+      // Clear any existing state
+      enhancedAI.clearConversationState(testPhoneNumber.replace('+', ''));
+
+      // Simulate complete booking conversation
+      const testMessages = [
+        "Hello, I want French manicure and gel pedicure",
+        "Al-Plaza Mall",
+        "Tomorrow",
+        "10:00 AM",
+        "Sara Ahmed",
+        "sara@example.com",
+        "KNet",
+        "Yes, confirm my booking"
+      ];
+
+      const responses = [];
+      let customer = await storage.getCustomerByPhoneNumber(testPhoneNumber);
+      if (!customer) {
+        customer = await storage.createCustomer({
+          phoneNumber: testPhoneNumber,
+          name: null,
+          email: null,
+        });
+      }
+
+      // Get conversation
+      let conversation = await storage.getConversationByCustomer(customer.id);
+      if (!conversation) {
+        conversation = await storage.createConversation({
+          customerId: customer.id,
+          isActive: true,
+        });
+      }
+
+      for (let i = 0; i < testMessages.length; i++) {
+        const message = testMessages[i];
+        console.log(`📝 Step ${i + 1}: "${message}"`);
+
+        const messages = await storage.getMessages(conversation.id);
+        const conversationHistory = messages.map(msg => ({
+          content: msg.content,
+          isFromAI: msg.isFromAI,
+        }));
+
+        const aiResponse = await enhancedAI.processMessage(
+          message,
+          customer,
+          conversationHistory
+        );
+
+        responses.push({
+          step: i + 1,
+          userMessage: message,
+          aiResponse: aiResponse.message,
+          currentPhase: aiResponse.currentPhase,
+          dataCompletion: aiResponse.dataCompletion,
+          bookingComplete: aiResponse.bookingComplete
+        });
+
+        // Save messages to conversation history
+        await storage.createMessage({
+          conversationId: conversation.id,
+          content: message,
+          isFromAI: false,
+        });
+
+        await storage.createMessage({
+          conversationId: conversation.id,
+          content: aiResponse.message,
+          isFromAI: true,
+        });
+
+        if (aiResponse.bookingComplete) {
+          console.log('✅ Booking completed at step', i + 1);
+          break;
+        }
+      }
+
+      // Final validation
+      const finalState = enhancedAI.getConversationState(customer.id.toString());
+      const validation = enhancedAI.validateBookingData(finalState?.collectedData);
+
+      res.json({
+        success: true,
+        testCompleted: true,
+        conversationSteps: responses,
+        finalDataCompletion: validation.completionPercentage,
+        allRequiredDataCollected: validation.isComplete,
+        missingFields: validation.missingFields,
+        finalCollectedData: finalState?.collectedData,
+        message: validation.isComplete 
+          ? "🎉 Complete booking test successful - all data collected!" 
+          : `❌ Test incomplete - missing: ${validation.missingFields.join(', ')}`
+      });
+    } catch (error: any) {
+      console.error("❌ Complete booking test error:", error);
+      res.status(500).json({ 
+        error: "Complete booking test failed: " + error.message 
+      });
+    }
+  });
+
+  // Clear Enhanced AI conversation state
+  app.delete("/api/enhanced-ai/conversation/:customerId", async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      enhancedAI.clearConversationState(customerId);
+      
+      res.json({ 
+        success: true, 
+        message: 'Enhanced AI conversation state cleared for customer ' + customerId 
+      });
+    } catch (error: any) {
+      console.error('Clear Enhanced AI conversation state error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get Enhanced AI conversation state
+  app.get("/api/enhanced-ai/conversation/:customerId", async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const state = enhancedAI.getConversationState(customerId);
+      
+      res.json({ 
+        success: true, 
+        state: state || null,
+        hasState: !!state,
+        customerId
+      });
+    } catch (error: any) {
+      console.error('Get Enhanced AI conversation state error:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 

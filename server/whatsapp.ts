@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { freshAI } from "./ai-fresh";
+import { enhancedAI } from "./ai-enhanced";
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
 
@@ -118,16 +119,33 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // Process with Fresh AI Agent
-      const aiResponse = await freshAI.processMessage(
-        message.text,
-        customer,
-        conversationHistory
-      );
-
-      // Handle Fresh AI completion (if order is ready for booking)
-      if (aiResponse.collectedData?.readyForBooking) {
-        await this.handleFreshAIBooking(customer, aiResponse.collectedData);
+      // Process with Enhanced AI Agent (with fallback to Fresh AI)
+      let aiResponse;
+      try {
+        console.log('🚀 Using Enhanced AI Agent for comprehensive data collection...');
+        aiResponse = await enhancedAI.processMessage(
+          message.text,
+          customer,
+          conversationHistory
+        );
+        
+        // Handle Enhanced AI completion (if booking is complete)
+        if (aiResponse.bookingComplete || aiResponse.collectedData?.bookingConfirmed) {
+          await this.handleEnhancedAIBooking(customer, aiResponse.collectedData);
+        }
+      } catch (error) {
+        console.error('Enhanced AI failed, falling back to Fresh AI:', error);
+        // Fallback to Fresh AI if Enhanced AI fails
+        aiResponse = await freshAI.processMessage(
+          message.text,
+          customer,
+          conversationHistory
+        );
+        
+        // Handle Fresh AI completion (if order is ready for booking)
+        if (aiResponse.collectedData?.readyForBooking) {
+          await this.handleFreshAIBooking(customer, aiResponse.collectedData);
+        }
       }
 
       // Send AI response
@@ -421,6 +439,207 @@ export class WhatsAppService {
     } catch (error) {
       console.error("Error handling appointment intent:", error);
       await this.sendMessage(customer.phoneNumber, "Sorry, there was an unexpected error. Please try again or contact us directly.");
+    }
+  }
+
+  private async handleEnhancedAIBooking(customer: Customer, collectedData: any): Promise<void> {
+    try {
+      console.log("🚀 Processing Enhanced AI booking with comprehensive validation:", JSON.stringify(collectedData, null, 2));
+      
+      // Validate that all required information is present
+      const validationErrors = [];
+      
+      if (!collectedData.selectedServices || collectedData.selectedServices.length === 0) {
+        validationErrors.push('No services selected');
+      }
+      
+      if (!collectedData.locationId) {
+        validationErrors.push('Location not selected');
+      }
+      
+      if (!collectedData.appointmentDate) {
+        validationErrors.push('Appointment date not provided');
+      }
+      
+      if (!collectedData.customerName) {
+        validationErrors.push('Customer name not provided');
+      }
+      
+      if (!collectedData.customerEmail) {
+        validationErrors.push('Customer email not provided');
+      }
+      
+      if (!collectedData.paymentTypeId) {
+        validationErrors.push('Payment method not selected');
+      }
+      
+      if (!collectedData.assignedStaff || collectedData.assignedStaff.length === 0) {
+        validationErrors.push('No staff assigned');
+      }
+      
+      if (validationErrors.length > 0) {
+        console.error('❌ Enhanced AI booking validation failed:', validationErrors);
+        await this.sendMessage(customer.phoneNumber, 
+          `Booking validation failed. Missing: ${validationErrors.join(', ')}. Please provide this information to complete your booking.`
+        );
+        return;
+      }
+      
+      console.log('✅ All required information validated successfully');
+      
+      // Get or create user in NailIt system
+      const userData = {
+        Address: "Kuwait City, Kuwait",
+        Email_Id: collectedData.customerEmail,
+        Name: collectedData.customerName,
+        Mobile: collectedData.customerPhone || customer.phoneNumber,
+        Login_Type: 1,
+        Image_Name: ""
+      };
+
+      let userId = collectedData.nailItCustomerId;
+      if (!userId) {
+        userId = await nailItAPI.getOrCreateUser(userData);
+        if (!userId) {
+          throw new Error("Failed to create/retrieve user in NailIt system");
+        }
+      }
+      
+      console.log(`👤 NailIt User ID: ${userId}`);
+
+      // Prepare comprehensive order details with enhanced data
+      const orderDetails = collectedData.selectedServices.map((service, index) => {
+        const assignedStaff = collectedData.assignedStaff[index] || collectedData.assignedStaff[0];
+        
+        return {
+          Prod_Id: service.itemId,
+          Prod_Name: service.itemName,
+          Qty: service.quantity,
+          Rate: service.price,
+          Amount: service.price * service.quantity,
+          Size_Id: null,
+          Size_Name: "",
+          Promotion_Id: 0,
+          Promo_Code: "",
+          Discount_Amount: 0,
+          Net_Amount: service.price * service.quantity,
+          Staff_Id: assignedStaff?.staffId || 1,
+          TimeFrame_Ids: collectedData.requestedTimeSlots?.map(slot => slot.timeFrameId) || [1, 2],
+          Appointment_Date: collectedData.appointmentDate
+        };
+      });
+
+      // Create comprehensive NailIt order
+      const orderData = {
+        Gross_Amount: collectedData.totalAmount,
+        Payment_Type_Id: collectedData.paymentTypeId,
+        Order_Type: 2, // Service booking
+        UserId: userId,
+        FirstName: collectedData.customerName,
+        Mobile: collectedData.customerPhone || customer.phoneNumber,
+        Email: collectedData.customerEmail,
+        Discount_Amount: 0,
+        Net_Amount: collectedData.totalAmount,
+        POS_Location_Id: collectedData.locationId,
+        OrderDetails: orderDetails
+      };
+
+      console.log('🔄 Creating comprehensive NailIt order...');
+      const orderResult = await nailItAPI.saveOrder(orderData);
+      
+      if (orderResult && orderResult.Status === 1) {
+        console.log(`✅ Enhanced AI booking successful: NailIt Order ${orderResult.OrderId}`);
+        
+        // Create detailed local order for dashboard tracking
+        const localOrder = await storage.createOrder({
+          customerId: customer.id,
+          status: "confirmed",
+          items: collectedData.selectedServices.map(service => ({
+            productId: service.itemId,
+            quantity: service.quantity,
+            price: service.price.toString()
+          })),
+          total: collectedData.totalAmount.toString(),
+          notes: `Enhanced AI booking - NailIt Order ID: ${orderResult.OrderId}. Staff: ${collectedData.assignedStaff.map(s => s.staffName).join(', ')}. Duration: ${collectedData.totalDuration}min. Payment: ${collectedData.paymentTypeName}`
+        });
+
+        // Create detailed local appointment
+        if (collectedData.selectedServices.length > 0) {
+          const appointment = await storage.createAppointment({
+            customerId: customer.id,
+            serviceId: collectedData.selectedServices[0].itemId,
+            appointmentDate: collectedData.appointmentDate,
+            appointmentTime: collectedData.requestedTimeSlots?.[0]?.timeFrameName || '10:00 AM',
+            duration: collectedData.totalDuration,
+            locationId: collectedData.locationId,
+            locationName: collectedData.locationName,
+            status: "confirmed",
+            paymentMethod: collectedData.paymentTypeName,
+            paymentStatus: collectedData.paymentStatus || "pending",
+            totalPrice: collectedData.totalAmount.toString(),
+            notes: `Enhanced AI booking. NailIt Order: ${orderResult.OrderId}. Services: ${collectedData.selectedServices.map(s => s.itemName).join(', ')}`
+          });
+          
+          console.log(`📅 Local appointment created: ${appointment.id}`);
+        }
+
+        // Generate payment link for KNet if applicable
+        let paymentInfo = '';
+        if (collectedData.paymentTypeId === 2) { // KNet
+          const paymentUrl = `http://nailit.innovasolution.net/knet.aspx?orderId=${orderResult.OrderId}`;
+          paymentInfo = `\n💳 *KNet Payment Link:*\n${paymentUrl}\n\n🔒 *Test Credentials:*\nCard: 0000000001\nExpiry: 09/25\nPIN: 1234\n`;
+        }
+
+        // Send comprehensive confirmation message
+        const duration = `${Math.floor(collectedData.totalDuration / 60)}h ${collectedData.totalDuration % 60}min`;
+        const services = collectedData.selectedServices.map(s => 
+          `• ${s.itemName} - ${s.price} KWD${s.quantity > 1 ? ` (×${s.quantity})` : ''}`
+        ).join('\n');
+        const staff = collectedData.assignedStaff.map(s => s.staffName).join(', ');
+
+        const confirmationMessage = `🎉 *Booking Confirmed!*\n\n` +
+          `📋 *Order #${orderResult.OrderId}*\n\n` +
+          `👤 *Customer:* ${collectedData.customerName}\n` +
+          `📧 *Email:* ${collectedData.customerEmail}\n\n` +
+          `🏢 *Location:* ${collectedData.locationName}\n` +
+          `📅 *Date:* ${collectedData.appointmentDate}\n` +
+          `⏰ *Duration:* ${duration}\n` +
+          `👥 *Specialists:* ${staff}\n\n` +
+          `💰 *Total:* ${collectedData.totalAmount} KWD\n` +
+          `💳 *Payment:* ${collectedData.paymentTypeName}\n\n` +
+          `📋 *Services:*\n${services}\n` +
+          paymentInfo +
+          `\n✨ Thank you for choosing NailIt! We look forward to seeing you.`;
+
+        await this.sendMessage(customer.phoneNumber, confirmationMessage);
+        
+        // Verify payment status if KNet
+        if (collectedData.paymentTypeId === 2) {
+          try {
+            console.log('🔍 Verifying payment status...');
+            const paymentVerification = await nailItAPI.verifyPaymentStatus(orderResult.OrderId);
+            
+            if (paymentVerification.isPaymentSuccessful) {
+              const paymentConfirmation = `✅ *Payment Confirmed!*\n\nYour payment of ${paymentVerification.paymentAmount} KWD has been processed successfully.\n\nReference: ${paymentVerification.paymentDetails?.KNetReference || 'N/A'}\n\nYour appointment is fully confirmed!`;
+              await this.sendMessage(customer.phoneNumber, paymentConfirmation);
+            }
+          } catch (paymentError) {
+            console.error('Payment verification error:', paymentError);
+          }
+        }
+        
+        // Clear conversation state after successful booking
+        enhancedAI.clearConversationState(customer.id.toString());
+        
+        console.log(`🎯 Enhanced AI booking completed successfully: NailIt Order ${orderResult.OrderId}, Local Order ${localOrder.id}`);
+      } else {
+        throw new Error(`NailIt order creation failed: ${orderResult?.Message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("❌ Error handling Enhanced AI booking:", error);
+      await this.sendMessage(customer.phoneNumber, 
+        "Sorry, there was an issue processing your booking. Our enhanced booking system encountered an error. Please try again or contact us directly."
+      );
     }
   }
 
