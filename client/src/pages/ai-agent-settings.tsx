@@ -27,8 +27,8 @@ const aiAgentSettingsSchema = z.object({
   welcomeMessageAR: z.string().min(1, "Arabic welcome message is required"),
 
   // Conversation Settings
-  conversationTone: z.enum(["natural", "friendly", "professional", "enthusiastic"]),
-  responseStyle: z.enum(["concise", "detailed", "conversational"]),
+  conversationTone: z.enum(["natural", "friendly", "professional", "enthusiastic", "empathetic"]),
+  responseStyle: z.enum(["concise", "detailed", "conversational", "empathetic"]),
   defaultLanguage: z.enum(["en", "ar", "both"]),
 
   // OpenAI Configuration
@@ -201,9 +201,12 @@ export default function AIAgentSettings() {
     const errors = form.formState.errors;
     if (Object.keys(errors).length > 0) {
       console.error("❌ Form validation errors:", errors);
+      const errorDetails = Object.entries(errors).map(([field, error]: [string, any]) => 
+        `${field}: ${error.message}`
+      ).join(", ");
       toast({
         title: "Validation Error",
-        description: "Please fix the form errors before publishing",
+        description: `Please fix these errors: ${errorDetails}`,
         variant: "destructive",
       });
       return;
@@ -436,6 +439,7 @@ export default function AIAgentSettings() {
                         <SelectItem value="friendly">Friendly</SelectItem>
                         <SelectItem value="professional">Professional</SelectItem>
                         <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
+                        <SelectItem value="empathetic">Empathetic</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -453,6 +457,7 @@ export default function AIAgentSettings() {
                         <SelectItem value="concise">Concise</SelectItem>
                         <SelectItem value="detailed">Detailed</SelectItem>
                         <SelectItem value="conversational">Conversational</SelectItem>
+                        <SelectItem value="empathetic">Empathetic</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
