@@ -564,16 +564,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (success) {
         res.json({ 
           success: true, 
-          message: "Message sent successfully!" 
+          message: "Message sent successfully! ✅",
+          note: "Check webhook logs for delivery confirmation. If message fails later due to 24-hour window restriction, customer needs to message your WhatsApp Business number (+15550883980) first.",
+          phoneNumber: phoneNumber,
+          timestamp: new Date().toISOString()
         });
       } else {
         res.json({ 
           success: false, 
-          message: "Message failed to send. This could be due to WhatsApp's 24-hour messaging window restriction. The recipient needs to have messaged you within the last 24 hours, or you need to use approved template messages.",
+          message: "❌ Message failed to send - 24-hour messaging window restriction",
+          error_code: "131047 (likely)",
           troubleshooting: {
-            issue: "24-hour messaging window",
-            solution: "Have the recipient send any message to your WhatsApp Business number first, then try again within 24 hours.",
-            alternativeSolution: "Use approved WhatsApp Business template messages for re-engagement."
+            issue: "WhatsApp 24-hour messaging window exceeded",
+            solution: "Customer must send ANY message to +15550883980 first, then you have 24 hours to reply",
+            testing_tip: "Send a message FROM the target phone TO your WhatsApp Business number to open the window",
+            business_number: "+15550883980"
           }
         });
       }
