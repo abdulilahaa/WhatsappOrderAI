@@ -1,0 +1,555 @@
+Nail It API Documentation
+Register Device
+Type : POST
+Url -  http://nailit.innovasolution.net /RegisterDevice
+Request: 
+BODY
+{
+    "DeviceType":"2", //1-IOS,2-Android
+    "UniqueDeviceId":"94e6a320-9081-1ccb-bab4-73090877de8a",
+    "NotificationToken":"1234",
+    "ClientKey":"OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh" //BASE 64 Encoded secret Key
+
+}
+
+Response:
+{
+  "Message": "Success",
+  "Status": 0
+}
+
+
+
+Register
+Type : POST
+Url – http://nailit.innovasolution.net/Register
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Body
+{
+	
+"Address" : "Mirqab city",
+"Email_Id":"yusuf.9116@gmail.com",
+"Name":"Yusuf Jaorawala",
+"Mobile":"+96551533409",
+"Login_Type":1,     
+"Image_Name":""
+}
+Response:
+{
+  " App_User_Id ":4,
+  "Message": "Success",
+  "Status": 0
+}
+
+
+
+Get Groups
+Type : GET
+Url – http://nailit.innovasolution.net/GetGroups/{groupType}  //1-Product,2-Services
+Example - http://nailit.innovasolution.net/GetGroups/2
+
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "Groups": [
+        {
+            "Id": 6,
+            "Name": "Nails",
+            "Image_URL": "Uploads/GroupImage/94bf7c8da5c9_09d8e72a4fa3_dbb91471a511_Highlight Cover.jpg",
+            "Is_Has_Sub_Category": true,
+            "Is_Corporate_Event": false,
+            "Website_Image_URL": "Uploads/GroupImage/dbb91471a511_Highlight Cover.jpg",
+            "Group_Name": null
+        },
+        {
+            "Id": 7,
+            "Name": "Hair Treatment",
+            "Image_URL": "Uploads/GroupImage/54c8c25356b8_a2735362848a_Hair Treatment-1.png",
+            "Is_Has_Sub_Category": true,
+            "Is_Corporate_Event": false,
+            "Website_Image_URL": "Uploads/GroupImage/41ad893a137b_Hair Treatment.png",
+            "Group_Name": null
+        }
+        
+    ]
+}
+
+
+Get Sub Groups
+Type : GET
+Url – http://nailit.innovasolution.net/GetSubGroups/{lang}/{parentgroupId}
+Example - http://nailit.innovasolution.net/GetSubGroups/E/6
+
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "Groups": [
+        {
+            "Id": 42,
+            "Name": "Nail Enhancement",
+            "Image_URL": "",
+            "Is_Has_Sub_Category": false,
+            "Is_Corporate_Event": false,
+            "Website_Image_URL": "",
+            "Group_Name": null
+        },
+        {
+            "Id": 2091,
+            "Name": "Treatment of the Month",
+            "Image_URL": "",
+            "Is_Has_Sub_Category": false,
+            "Is_Corporate_Event": false,
+            "Website_Image_URL": "",
+            "Group_Name": null
+        }
+        
+    ]
+}
+
+
+
+Get Locations
+Type : GET
+Url – http://nailit.innovasolution.net/GetLocations/{lang}
+Example - http://nailit.innovasolution.net/GetLocations/E
+
+
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    {
+    "Status": 0,
+    "Message": "Success",
+    "Locations": [
+        {
+            "Location_Id": 1,
+            "Location_Name": "Al-Plaza Mall",
+            "Latitude": "29.3460021488036",
+            "Longitude": "48.01112174986457",
+            "Address": "Hawally Al-Othman St. Al-Plaza Mall",
+            "Website": "www.nailit.com.kw",
+            "Phone": "22200042",
+            "From_Time": "10:30 AM",
+            "To_Time": "09:00 PM",
+            "Working_Days": "Sunday-Saturday"
+        },
+        {
+            "Location_Id": 52,
+            "Location_Name": "Zahra Complex",
+            "Latitude": "29.34152213692412",
+            "Longitude": "48.07194936893178",
+            "Address": "Zahra Complex,Salem Al Mubarak St, Salmiya",
+            "Website": "www.nailit.com.kw",
+            "Phone": "22200042",
+            "From_Time": "10:30 AM",
+            "To_Time": "09:00 PM",
+            "Working_Days": "Sunday-Saturday"
+        },
+        {
+            "Location_Id": 53,
+            "Location_Name": "Arraya Mall",
+            "Latitude": "29.377731365427017",
+            "Longitude": "47.99080178242287",
+            "Address": "Block 7, Al-Shuhada St., Arraya Center",
+            "Website": "www.nailit.com.kw",
+            "Phone": "22200042",
+            "From_Time": "10:30 AM",
+            "To_Time": "09:00 PM",
+            "Working_Days": "Sunday-Saturday"
+        }
+    ]
+}
+
+
+
+
+Get Items
+Type : POST
+Url – http://nailit.innovasolution.net/GetItemsByDate
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Body
+
+{
+    "Lang": "E",
+    "Like": "",
+    "Page_No": 1,
+    "Item_Type_Id": 2,
+    "Group_Id": 10,
+    "Location_Ids": [
+        52
+    ],
+    "Is_Home_Service": false,
+    "Selected_Date": "09-07-2025"
+}
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "Total_Items": 3,
+    "Items": [
+        {
+            "Item_Id": 93,
+            "Item_Name": "Brazilian Blowout",
+            "Item_Desc": "A hair straightening treatment that can change your life! The most innovative and effective smoothing treatment in the world. Enjoy smooth, frizz-free manageable hair for up to 12 weeks. It is instantly strenghten, repairs, seals and protect split ends.<br />\r\n<br />",
+            "Image_Url": "Uploads/ProductImage/79a01bea6550_brazlian blowout.jpeg",
+            "Primary_Price": 150.000,
+            "Dis_Percent": 0.0,
+            "Dis_Amount": 0.0,
+            "Special_Price": 150.000,
+            "Is_Favorite": false,
+            "Promotion_Id": 0,
+            "Promotion_Type_Id": 0,
+            "Item_Type_Id": 2,
+            "Available_Qty": 0,
+            "Duration": "180",
+            "Parent_Group_Id": 10,
+            "Sub_Group_Id": 10,
+            "Event_Type": 1,
+            "Is_Gift": false,
+            "Location_Ids": [
+                1,
+                52,
+                57
+            ],
+            "Media": [],
+            "Sizes": []
+        },
+        {
+            "Item_Id": 31196,
+            "Item_Name": "Tanino Hair Straightening Treatment",
+            "Item_Desc": "<ul>\r\n<li>Hair smoothing treatment consists of smoothing and moisturizing the hair in a natural way.</li>\r\n<li>It's 100% Organic.</li>\r\n<li>Preserves and treats hair completely.</li>\r\n<li>NO Formaldehyde or derivatives.</li>\r\n<li>Good for Kids and Pregnant women.</li>\r\n<li>NO Strong Smell.</li>\r\n<li>NO Eye Burn and NO Smoke.</li></ul><br />",
+            "Image_Url": "Uploads/ProductImage/f75208c0c22b_WhatsApp Image 2023-05-28 at 8.57.37 PM.jpeg",
+            "Primary_Price": 100.000,
+            "Dis_Percent": 0.0,
+            "Dis_Amount": 0.0,
+            "Special_Price": 100.000,
+            "Is_Favorite": false,
+            "Promotion_Id": 0,
+            "Promotion_Type_Id": 0,
+            "Item_Type_Id": 2,
+            "Available_Qty": 0,
+            "Duration": "300",
+            "Parent_Group_Id": 10,
+            "Sub_Group_Id": 10,
+            "Event_Type": 1,
+            "Is_Gift": false,
+            "Location_Ids": [
+                52,
+                53
+            ],
+            "Media": [],
+            "Sizes": []
+        },
+        {
+            "Item_Id": 51355,
+            "Item_Name": "Erayba Smooth Organic Straightening",
+            "Item_Desc": "Natural smooth hair without frizz up to 3 months, protected cuticle with extra shine. BIOsmooth is easy to use and suitable for all hair types, also for chemically treated hair. Natural based formula with amino acids, oils and proteins from vegetable origin. Free of formaldehyde, sulfates, salt &amp; parabens. Hypoallergenic perfume. A 100% vegan experience and cruelty free.<br />",
+            "Image_Url": "Uploads/ProductImage/8d4743702852_WhatsApp Image 2023-12-03 at 8.20.36 PM.jpeg",
+            "Primary_Price": 80.000,
+            "Dis_Percent": 0.0,
+            "Dis_Amount": 0.0,
+            "Special_Price": 80.000,
+            "Is_Favorite": false,
+            "Promotion_Id": 0,
+            "Promotion_Type_Id": 0,
+            "Item_Type_Id": 2,
+            "Available_Qty": 0,
+            "Duration": "240",
+            "Parent_Group_Id": 10,
+            "Sub_Group_Id": 10,
+            "Event_Type": 1,
+            "Is_Gift": false,
+            "Location_Ids": [
+                1,
+                52,
+                53,
+                57
+            ],
+            "Media": [],
+            "Sizes": []
+        }
+    ]
+}
+
+
+Get Service Staff
+Type : GET
+Url – http://nailit.innovasolution.net/GetServiceStaff1/{ItemId}/{LocationId}/E/{SelectedDate}
+Example - http://nailit.innovasolution.net/GetServiceStaff1/203/52/E/08-07-2025
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "Specialists": [
+        {
+            "Id": 17,
+            "Name": "Monica",
+            "Image_URL": "Uploads/GroupImage/5e0bfa190d45_Monica.jpg",
+            "Location_Id": 52,
+            "Extra_Time": 0,
+            "Staff_Groups": []
+        },
+        {
+            "Id": 24,
+            "Name": "Carlen",
+            "Image_URL": "Uploads/GroupImage/eea46d0811ea_Carlen.jpg",
+            "Location_Id": 52,
+            "Extra_Time": 0,
+            "Staff_Groups": []
+        }
+        
+    ]
+}
+
+
+Get Available Slots
+Type : GET
+Url – http://nailit.innovasolution.net/GetAvailableSlots /{lang}/{staffId}/{BookingDate}
+Example - http://nailit.innovasolution.net/GetAvailableSlots/E/15/08-07-2025
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "TimeFrames": [
+        {
+            "TimeFrame_Id": 2,
+            "TimeFrame_Name": "10:30 AM"
+        },
+        {
+            "TimeFrame_Id": 6,
+            "TimeFrame_Name": "12:30 PM"
+        },
+        {
+            "TimeFrame_Id": 7,
+            "TimeFrame_Name": "01:00 PM"
+        },
+        {
+            "TimeFrame_Id": 10,
+            "TimeFrame_Name": "02:30 PM"
+        },
+        {
+            "TimeFrame_Id": 11,
+            "TimeFrame_Name": "03:00 PM"
+        }
+       
+    ]
+}
+
+
+Get Payment Types
+Type : GET
+Url – http://nailit.innovasolution.net/GetPaymentTypesByDevice/{lang}/{orderType}/{deviceType}
+Example - http://nailit.innovasolution.net/GetPaymentTypesByDevice/E/2/1
+
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "PaymentTypes": [
+        {
+            "Type_Id": 1,
+            "Type_Name": "On Arrival",
+            "Type_Code": "COD",
+            "Is_Enabled": true,
+            "Image_URL": "img\\payment\\on-arrival.png"
+        },
+        {
+            "Type_Id": 2,
+            "Type_Name": "Knet",
+            "Type_Code": "KNET",
+            "Is_Enabled": true,
+            "Image_URL": "img\\payment\\knet.png"
+        },
+        {
+            "Type_Id": 7,
+            "Type_Name": "Apple Pay",
+            "Type_Code": "AP",
+            "Is_Enabled": true,
+            "Image_URL": "img\\payment\\apple-pay.png"
+        }
+    ]
+}
+
+
+Save Order
+Type : POST
+Url – http://nailit.innovasolution.net/SaveOrder
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Body
+{
+    "Gross_Amount": 10.0,
+    "Payment_Type_Id": 1,
+    "Order_Type": 2,
+    "UserId": 128,
+    "FirstName": "yusuf jaorawala",
+    "Mobile": "+96588888889",
+    "Email": "yusuf.9116@gmail.com",   
+    "Discount_Amount": 0.0,
+    "Net_Amount": 10.0,
+    "POS_Location_Id": 1,
+    "ChannelId": 4,
+    "OrderDetails": [
+        {
+            "Prod_Id": 203,
+            "Prod_Name": "Dry manicure without polish",
+            "Qty": 1,
+            "Rate": 5.0,
+            "Amount": 5.0,
+            "Size_Id": null,
+            "Size_Name": "",
+            "Promotion_Id": 0,
+            "Promo_Code": "",
+            "Discount_Amount": 0.0,
+            "Net_Amount": 5.0,
+            "Staff_Id": 48,
+            "TimeFrame_Ids": [
+                5,
+                6
+            ],
+            "Appointment_Date": "08/07/2025"
+        },
+        {
+            "Prod_Id": 258,
+            "Prod_Name": "Gelish hand polish",
+            "Qty": 1,
+            "Rate": 5.0,
+            "Amount": 5.0,
+            "Size_Id": null,
+            "Size_Name": "",
+            "Promotion_Id": 0,
+            "Promo_Code": "",
+            "Discount_Amount": 0.0,
+            "Net_Amount": 5.0,
+            "Staff_Id": 48,
+            "TimeFrame_Ids": [
+                7,
+                8
+            ],
+            "Appointment_Date": "08/07/2025"
+        }
+    ]
+}
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "OrderId": 176373,
+    "CustomerId": 116
+}
+
+
+Get Order Payment Detail
+Type : GET
+Url – http://nailit.innovasolution.net/GetOrderPaymentDetail/{orderId}
+Example - http://nailit.innovasolution.net/GetOrderPaymentDetail/166387
+Request: 
+Header 
+X-NailItMobile-SecurityToken= “OTRlNmEzMjAtOTA4MS0xY2NiLWJhYjQtNzMwOTA4NzdkZThh”
+Response:
+{
+    "Status": 0,
+    "Message": "Success",
+    "OrderId": 166387,
+    "PaymentId": 20955,
+    "PayDate": "03/03/2025 15:18",
+    "Date": "03/03/2025",
+    "Time": "15:18",
+    "ChannelId": 2,
+    "PayAmount": 55.500,
+    "Delivery_Charges": 0.000,
+    "CustomerId": 9589,
+    "PayType": "Knet",
+    "KNetPayId": "100506210000010219",
+    "KNetAuth": "B07397",
+    "KNetResult": "CAPTURED",
+    "KNetReference": "506210000721",
+    "KNetTransId": "506210000961387",
+    "RedeemPoints": 0,
+    "RedeemAmount": 0.0000,
+    "WalletAmount": 0.000,
+    "EarnedPoints": 610,
+    "Customer_Name": "mustafa k  ",
+    "Location_Name": "Al-Plaza Mall",
+    "Booking_Datetime": "03/03/2025 03:16 PM",
+    "Address": "",
+    "Order_Type": 2,
+    "Order_Status_Id": 3,
+    "OrderStatus": "Order Paid",
+    "MinBookingDate": "06/03/2025 11:00 AM",
+    "PayNowExpireDate": "06/03/2025 06:30 PM",
+    "Tip": 0.000,
+    "Services": [
+        {
+            "Service_Id": 205,
+            "Service_Name": "Dry manicure with polish",
+            "Service_Date": "06/03/2025",
+            "Service_Time_Slots": "11:00 AM,11:30 AM",
+            "Price": 3.000,
+            "Qty": 1,
+            "Image_URL": "Uploads/ProductImage/be4c561f3e70_Dry manicure with polish.jpg",
+            "Staff_Name": "Roselyn"
+        },
+        {
+            "Service_Id": 51355,
+            "Service_Name": "Erayba Smooth Organic Straightening",
+            "Service_Date": "06/03/2025",
+            "Service_Time_Slots": "12:00 PM,12:30 PM,01:00 PM,01:30 PM,02:00 PM,02:30 PM,03:00 PM,03:30 PM",
+            "Price": 40.000,
+            "Qty": 1,
+            "Image_URL": "Uploads/ProductImage/8d4743702852_WhatsApp Image 2023-12-03 at 8.20.36 PM.jpeg",
+            "Staff_Name": "Sandya"
+        },
+        {
+            "Service_Id": 10867,
+            "Service_Name": "Soft Gel Nail Extension",
+            "Service_Date": "06/03/2025",
+            "Service_Time_Slots": "04:00 PM,04:30 PM,05:00 PM,05:30 PM",
+            "Price": 12.500,
+            "Qty": 1,
+            "Image_URL": "Uploads/ProductImage/e0f34afcf8e6_Softgel  Nails.jpg",
+            "Staff_Name": "Elvira"
+        }
+    ]
+}
+
+
+
+Order Cycle:
+
+Location
+Date
+Services
+Service Staff
+Timing Availability ( Check if the time available and the duration of the services doesn’t confilt with slots that are unavaaibale basically if it’s a 4pm appontmint and the services takes 30min but there is another appointment at 4.15 than that 4 pm appointment can be available due to the service duration)
+________
+
+More than one services at a time.
+Cannot double book staff members for the same time.
+Find the staff member that is available and the time slots avaible to comly with ther service duration 
+
+

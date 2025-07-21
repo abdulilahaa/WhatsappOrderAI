@@ -2720,6 +2720,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ success: false, error: error.message });
     }
   });
+
+  // Complete RAG population using documented NailIt API
+  app.post("/api/rag/populate-complete", async (req, res) => {
+    try {
+      const { populateRAGComplete } = await import('./rag-population-fix');
+      const result = await populateRAGComplete();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Complete RAG populate error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
   
   // RAG Data Sync Management
   app.post("/api/rag/sync", async (req, res) => {
