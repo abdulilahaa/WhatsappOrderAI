@@ -64,7 +64,7 @@ export const freshAISettings = pgTable("fresh_ai_settings", {
   
   // OpenAI Configuration
   openaiModel: text("openai_model").notNull().default("gpt-4"),
-  openaiTemperature: decimal("openai_temperature", { precision: 2, scale: 1 }).notNull().default("0.3"),
+  openaiTemperature: text("openai_temperature").notNull().default("0.3"), // Store as text for frontend compatibility
   maxTokens: integer("max_tokens").notNull().default(500),
   
   // Booking Behavior
