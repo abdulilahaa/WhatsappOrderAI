@@ -387,9 +387,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateWhatsAppSettings(settings: Partial<InsertWhatsAppSettings>): Promise<WhatsAppSettings> {
+    // Get the current settings to determine which record to update
+    const currentSettings = await this.getWhatsAppSettings();
+    
     const [updatedSettings] = await db
       .update(whatsappSettings)
-      .set(settings)
+      .set({ ...settings, updatedAt: new Date() })
+      .where(eq(whatsappSettings.id, currentSettings.id))
       .returning();
     return updatedSettings;
   }
