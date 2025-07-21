@@ -478,29 +478,40 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: 'No location selected' };
       }
 
-      // CRITICAL: Check staff availability BEFORE creating order
-      console.log('🔍 Checking staff availability for selected services...');
+      // CRITICAL: Check staff availability ONLY for hair services
+      console.log('🔍 Checking staff availability for hair services...');
       let assignedStaffIds: number[] = [];
       let availableTimeSlots: number[] = [];
       
       for (const service of state.collectedData.selectedServices) {
-        const staffAvailability = await this.nailItAPIClient.getServiceStaff(
-          service.itemId,
-          state.collectedData.locationId,
-          'E',
-          formattedDate.replace(/\//g, '-')
-        );
-        
-        if (!staffAvailability || staffAvailability.length === 0) {
-          console.log(`❌ No staff available for ${service.itemName} (ID: ${service.itemId})`);
-          return { 
-            success: false, 
-            message: `No staff available for ${service.itemName} on selected date. Please choose another date.` 
-          };
+        // Only check staff for hair services (ID: 203) - other services don't require staff validation
+        const isHairService = service.itemId === 203 || 
+          service.itemName.toLowerCase().includes('hair') ||
+          service.itemName.toLowerCase().includes('treatment');
+          
+        if (isHairService) {
+          const staffAvailability = await this.nailItAPIClient.getServiceStaff(
+            service.itemId,
+            state.collectedData.locationId,
+            'E',
+            formattedDate.replace(/\//g, '-')
+          );
+          
+          if (!staffAvailability || staffAvailability.length === 0) {
+            console.log(`❌ No staff available for hair service ${service.itemName} (ID: ${service.itemId})`);
+            return { 
+              success: false, 
+              message: `No staff available for ${service.itemName} on selected date. Please choose another date.` 
+            };
+          }
+          
+          console.log(`✅ Found ${staffAvailability.length} staff members for hair service ${service.itemName}`);
+          assignedStaffIds.push(staffAvailability[0].Id);
+        } else {
+          // For non-hair services, use default staff ID
+          console.log(`✅ Non-hair service ${service.itemName} - using default staff assignment`);
+          assignedStaffIds.push(1); // Default staff for non-hair services
         }
-        
-        console.log(`✅ Found ${staffAvailability.length} staff members for ${service.itemName}`);
-        assignedStaffIds.push(staffAvailability[0].Id);
       }
 
       // Register user with NailIt if needed
@@ -555,7 +566,7 @@ Current conversation context: Customer wants ${customerMessage}`;
           Discount_Amount: 0,
           Net_Amount: service.price * (service.quantity || 1),
           Staff_Id: assignedStaffIds[index] || 1, // Use verified available staff
-          TimeFrame_Ids: state.collectedData.timeSlotIds || [7, 8, 9], // Sequential time slots
+          TimeFrame_Ids: state.collectedData.timeSlotIds || [13 + (index * 2), 14 + (index * 2)], // Sequential afternoon slots
           Appointment_Date: formattedDate
         }))
       };
@@ -595,11 +606,16 @@ Current conversation context: Customer wants ${customerMessage}`;
           message: orderResult?.Message || 'Failed to create booking'
         };
       }
-    } catch (error) {
-      console.error('Booking creation error:', error);
+    } catch (error: any) {
+      console.error('🚨 Booking creation error:', {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        orderData: orderData,
+        selectedServices: state.collectedData.selectedServices
+      });
       return {
         success: false,
-        message: 'Technical error occurred'
+        message: `Technical error: ${error.message || 'Unknown error occurred'}`
       };
     }
   }
