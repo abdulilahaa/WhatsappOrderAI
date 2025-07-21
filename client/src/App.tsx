@@ -16,6 +16,7 @@ import AddProductModal from "@/components/add-product-modal";
 import Checkout from "@/pages/checkout";
 import StaffAvailability from "@/pages/staff-availability";
 import ServiceAnalytics from "@/pages/service-analytics";
+import AIAgentSettings from "@/pages/ai-agent-settings";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/integration-dashboard" component={IntegrationDashboard} />
         <Route path="/ai-settings" component={FreshAISettingsPage} />
+        <Route path="/ai-agent-settings" component={AIAgentSettings} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/checkout" component={Checkout} />
         <Route path="/staff-availability" component={StaffAvailability} />

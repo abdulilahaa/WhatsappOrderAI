@@ -13,6 +13,7 @@ const navigation = [
   { name: "Service Analytics", href: "/service-analytics", icon: BarChart3 },
   { name: "Conversations", href: "/conversations", icon: MessageCircle },
   { name: "Integration Hub", href: "/integration-dashboard", icon: Activity },
+  { name: "AI Agent Settings", href: "/ai-agent-settings", icon: Settings },
   { name: "AI Settings", href: "/ai-settings", icon: Bot },
   { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: MessageSquare },
 ];
