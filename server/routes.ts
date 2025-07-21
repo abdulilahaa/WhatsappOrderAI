@@ -2607,6 +2607,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Direct sync endpoint
+  app.post("/api/sync/direct", async (req, res) => {
+    try {
+      const { default: syncService } = await import('./sync-nailit-direct');
+      const result = await syncService.syncAllData();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Direct sync error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Simple populate endpoint
+  app.post("/api/populate-rag", async (req, res) => {
+    try {
+      const { populateRAGDatabase } = await import('./populate-rag-db');
+      const result = await populateRAGDatabase();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Populate error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Ultra-simple populate endpoint
+  app.post("/api/populate-simple", async (req, res) => {
+    try {
+      const { populateSimple } = await import('./populate-rag-simple');
+      const result = await populateSimple();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Simple populate error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
   
   // RAG Data Sync Management
   app.post("/api/rag/sync", async (req, res) => {

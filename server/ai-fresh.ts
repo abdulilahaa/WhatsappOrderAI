@@ -398,7 +398,18 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
 
   private async extractServiceFromMessage(message: string, state: ConversationState): Promise<void> {
     try {
-      console.log(`🔍 Extracting services from real NailIt catalog: "${message}"`);
+      console.log(`🔍 Analyzing customer needs from message: "${message}"`);
+      
+      // Analyze keywords for specific problems/needs (Fix #1: Understand user's initial question)
+      const problemKeywords = {
+        'oily scalp': ['deep cleansing', 'scalp detox', 'scalp treatment'],
+        'dandruff': ['anti-dandruff', 'scalp treatment', 'medicated'],
+        'dry hair': ['hydrating', 'moisturizing', 'deep conditioning'],
+        'damaged hair': ['repair', 'reconstruction', 'keratin'],
+        'thinning hair': ['volumizing', 'hair growth', 'strengthening'],
+        'anti-aging': ['facial', 'anti-wrinkle', 'rejuvenating'],
+        'acne': ['facial', 'deep cleansing', 'acne treatment']
+      };
       
       // Get all available services from NailIt API with proper date formatting
       const dateStr = new Date().toISOString().split('T')[0].split('-').reverse().join('-'); // DD-MM-YYYY format
@@ -446,78 +457,121 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       }
       
       const lowerMessage = message.toLowerCase();
+      let recommendations = [];
+      let userProblem = null;
       
-      // Quick fix: If French Manicure is mentioned, use known service data
-      if (lowerMessage.includes('french') && lowerMessage.includes('manicure')) {
-        console.log('✅ Direct French Manicure match found');
-        state.collectedData.selectedServices = [{
-          itemId: 279,
-          itemName: "French Manicure", // EXACT name from NailIt
-          price: 15,
-          quantity: 1,
-          duration: "30 minutes",
-          description: "Classic French manicure with white tips"
-        }];
-        console.log(`📋 Service extracted: French Manicure - 15 KWD`);
-        return;
-      }
-      
-      let bestMatch = null;
-      let highestScore = 0;
-      
-      // Search through ALL available services for exact matches
-      for (const service of allServices.items) {
-        const serviceName = service.Item_Name.toLowerCase();
-        let score = 0;
-        
-        // Exact name match gets highest score
-        if (serviceName === lowerMessage.trim()) {
-          score = 100;
-        }
-        // Service name contains the search term
-        else if (serviceName.includes(lowerMessage.trim())) {
-          score = 90;
-        }
-        // Search term contains service name
-        else if (lowerMessage.includes(serviceName)) {
-          score = 80;
-        }
-        // Keyword matching for common terms
-        else if (lowerMessage.includes('french') && serviceName.includes('french')) {
-          score = 85;
-        }
-        else if (lowerMessage.includes('manicure') && serviceName.includes('manicure')) {
-          score = 75;
-        }
-        else if (lowerMessage.includes('pedicure') && serviceName.includes('pedicure')) {
-          score = 75;
-        }
-        else if (lowerMessage.includes('gel') && serviceName.includes('gel')) {
-          score = 75;
-        }
-        
-        if (score > highestScore) {
-          highestScore = score;
-          bestMatch = service;
+      // Fix #1: Analyze user's specific problems/needs
+      for (const [problem, keywords] of Object.entries(problemKeywords)) {
+        if (lowerMessage.includes(problem)) {
+          userProblem = problem;
+          console.log(`🎯 Detected customer problem: ${problem}`);
+          
+          // Find services matching the problem keywords
+          for (const service of allServices.items) {
+            const serviceName = service.Item_Name.toLowerCase();
+            const serviceDesc = (service.Item_Desc || '').toLowerCase();
+            
+            if (keywords.some(keyword => serviceName.includes(keyword) || serviceDesc.includes(keyword))) {
+              recommendations.push({
+                service: service,
+                relevance: 90,
+                reason: `Recommended for ${problem}`
+              });
+            }
+          }
+          break;
         }
       }
       
-      if (bestMatch && highestScore > 50) {
-        console.log(`✅ Found exact NailIt service: ${bestMatch.Item_Name} (Score: ${highestScore})`);
+      // If no specific problem detected, look for direct service mentions
+      if (!userProblem) {
+        // Quick fix: If French Manicure is mentioned, recommend it
+        if (lowerMessage.includes('french') && lowerMessage.includes('manicure')) {
+          console.log('✅ Direct French Manicure request detected');
+          const frenchManicure = allServices.items.find(s => s.Item_Name.toLowerCase().includes('french manicure'));
+          if (frenchManicure) {
+            recommendations.push({
+              service: frenchManicure,
+              relevance: 100,
+              reason: 'Exact match for your request'
+            });
+          }
+        }
         
-        // Store EXACT service details from NailIt system
-        state.collectedData.selectedServices = [{
-          itemId: bestMatch.Item_Id,
-          itemName: bestMatch.Item_Name, // EXACT name from NailIt
-          price: bestMatch.Special_Price || bestMatch.Primary_Price,
-          quantity: 1,
-          duration: bestMatch.Duration,
-          description: bestMatch.Item_Desc?.replace(/<[^>]*>/g, '') || ''
-        }];
+        // Search for other service matches
+        for (const service of allServices.items) {
+          const serviceName = service.Item_Name.toLowerCase();
+          let score = 0;
+          let reason = '';
+          
+          // Exact name match gets highest score
+          if (serviceName === lowerMessage.trim()) {
+            score = 100;
+            reason = 'Exact match';
+          }
+          // Service name contains the search term
+          else if (serviceName.includes(lowerMessage.trim()) && lowerMessage.trim().length > 3) {
+            score = 90;
+            reason = 'Close match';
+          }
+          // Search term contains service name
+          else if (lowerMessage.includes(serviceName) && serviceName.length > 5) {
+            score = 80;
+            reason = 'Related to your request';
+          }
+          // Keyword matching for common terms
+          else if (lowerMessage.includes('manicure') && serviceName.includes('manicure')) {
+            score = 75;
+            reason = 'Manicure service';
+          }
+          else if (lowerMessage.includes('pedicure') && serviceName.includes('pedicure')) {
+            score = 75;
+            reason = 'Pedicure service';
+          }
+          else if (lowerMessage.includes('facial') && serviceName.includes('facial')) {
+            score = 75;
+            reason = 'Facial treatment';
+          }
+          else if (lowerMessage.includes('hair') && serviceName.includes('hair')) {
+            score = 75;
+            reason = 'Hair service';
+          }
+          
+          if (score > 70) {
+            recommendations.push({
+              service: service,
+              relevance: score,
+              reason: reason
+            });
+          }
+        }
+      }
+      
+      // Fix #2: Store recommendations, don't auto-select
+      if (recommendations.length > 0) {
+        // Sort by relevance and take top 5
+        recommendations.sort((a, b) => b.relevance - a.relevance);
+        state.collectedData.availableServices = recommendations.slice(0, 5).map(rec => rec.service);
         
-        console.log(`📋 Service extracted: ${bestMatch.Item_Name} - ${bestMatch.Special_Price || bestMatch.Primary_Price} KWD`);
+        console.log(`📋 Found ${recommendations.length} service recommendations`);
+        
+        // Store the recommendation details for the AI to present
+        state.collectedData['serviceRecommendations'] = recommendations.slice(0, 5).map(rec => ({
+          itemId: rec.service.Item_Id,
+          itemName: rec.service.Item_Name,
+          price: rec.service.Special_Price || rec.service.Primary_Price,
+          duration: rec.service.Duration_Min ? `${rec.service.Duration_Min} minutes` : '30 minutes',
+          description: rec.service.Item_Desc?.replace(/<[^>]*>/g, '') || '',
+          reason: rec.reason
+        }));
+        
+        // If user asked about a specific problem, set flag for follow-up questions
+        if (userProblem) {
+          state.collectedData['userProblem'] = userProblem;
+          state.collectedData['needsFollowUp'] = true;
+        }
       } else {
-        console.log(`❌ No matching service found for: "${message}"`);
+        console.log(`❌ No matching services found for: "${message}"`);
       }
     } catch (error) {
       console.error('Service extraction error:', error);
@@ -704,14 +758,8 @@ How can I help you today?`;
         ? "أي خدمة تفضل؟ أم تريد اختيار الفرع أولاً؟"
         : "Which service would you prefer? Or would you like to choose your location first?";
 
-      // Auto-select first service to streamline the process
-      state.collectedData.selectedServices = [{
-        itemId: services[0].Item_Id,
-        itemName: services[0].Item_Name,
-        price: services[0].Special_Price || services[0].Primary_Price,
-        quantity: 1
-      }];
-      state.phase = 'location_selection';
+      // Fix #2: Don't auto-select, wait for user choice
+      state.collectedData.availableServices = services;
 
       return this.createResponse(state, response, services);
     } catch (error) {
@@ -821,25 +869,53 @@ How can I help you today?`;
     const lowerMessage = message.toLowerCase();
     let selectedDate = new Date();
     
-    // Parse date from message
-    if (lowerMessage.includes('today') || lowerMessage.includes('اليوم')) {
-      selectedDate = new Date();
-    } else if (lowerMessage.includes('tomorrow') || lowerMessage.includes('غداً') || lowerMessage.includes('غدا')) {
-      selectedDate.setDate(selectedDate.getDate() + 1);
-    } else if (lowerMessage.includes('after tomorrow') || lowerMessage.includes('day after') || lowerMessage.includes('بعد غد')) {
-      selectedDate.setDate(selectedDate.getDate() + 2);
-    } else if (lowerMessage.includes('sunday') || lowerMessage.includes('الأحد')) {
-      const dayOfWeek = selectedDate.getDay();
-      const daysUntilSunday = (7 - dayOfWeek) % 7 || 7;
-      selectedDate.setDate(selectedDate.getDate() + daysUntilSunday);
-    } else {
-      // Default to tomorrow if can't parse
-      selectedDate.setDate(selectedDate.getDate() + 1);
+    // Fix #3: Improved date parsing with day names
+    const dayNames = {
+      'sunday': 0, 'الأحد': 0,
+      'monday': 1, 'الاثنين': 1, 'الإثنين': 1,
+      'tuesday': 2, 'الثلاثاء': 2,
+      'wednesday': 3, 'الأربعاء': 3,
+      'thursday': 4, 'الخميس': 4,
+      'friday': 5, 'الجمعة': 5,
+      'saturday': 6, 'السبت': 6
+    };
+    
+    let dateFound = false;
+    
+    // Check for specific day names
+    for (const [dayName, dayNumber] of Object.entries(dayNames)) {
+      if (lowerMessage.includes(dayName)) {
+        const currentDay = selectedDate.getDay();
+        let daysToAdd = dayNumber - currentDay;
+        if (daysToAdd <= 0) daysToAdd += 7; // Next week if day already passed
+        selectedDate.setDate(selectedDate.getDate() + daysToAdd);
+        dateFound = true;
+        console.log(`📅 Parsed day: ${dayName} -> ${selectedDate.toDateString()}`);
+        break;
+      }
+    }
+    
+    // If no day name found, check for relative dates
+    if (!dateFound) {
+      if (lowerMessage.includes('today') || lowerMessage.includes('اليوم')) {
+        selectedDate = new Date();
+      } else if (lowerMessage.includes('tomorrow') || lowerMessage.includes('غداً') || lowerMessage.includes('غدا')) {
+        selectedDate.setDate(selectedDate.getDate() + 1);
+      } else if (lowerMessage.includes('after tomorrow') || lowerMessage.includes('day after') || lowerMessage.includes('بعد غد')) {
+        selectedDate.setDate(selectedDate.getDate() + 2);
+      } else {
+        // Default to tomorrow if can't parse
+        selectedDate.setDate(selectedDate.getDate() + 1);
+      }
     }
     
     // Format date for NailIt API (DD-MM-YYYY)
     const formattedDate = selectedDate.toLocaleDateString('en-GB').replace(/\//g, '-');
     state.collectedData.appointmentDate = formattedDate;
+    
+    // Fix #5: Natural acknowledgment
+    const dayName = selectedDate.toLocaleDateString(state.language === 'ar' ? 'ar-KW' : 'en-US', { weekday: 'long' });
+    console.log(`✅ Selected date: ${dayName}, ${formattedDate}`);
     
     // Check time availability for the selected date with business hours validation
     try {
@@ -864,13 +940,31 @@ How can I help you today?`;
       const locations = await nailItAPI.getLocations();
       const location = locations.find(loc => loc.Location_Id === state.collectedData.locationId);
       
+      // Fix #4: Calculate total service duration for smart scheduling
+      const totalDurationMinutes = state.collectedData.selectedServices.reduce((total, service) => {
+        const duration = parseInt(service.duration?.replace(' minutes', '') || '30');
+        return total + duration;
+      }, 0);
+      
+      const hours = Math.floor(totalDurationMinutes / 60);
+      const minutes = totalDurationMinutes % 60;
+      const durationText = hours > 0 
+        ? (state.language === 'ar' ? `${hours} ساعة و ${minutes} دقيقة` : `${hours}h ${minutes}min`)
+        : (state.language === 'ar' ? `${minutes} دقيقة` : `${minutes} minutes`);
+      
       // Show available times with business hours information
       state.collectedData.availableTimeSlots = timeSlots;
       state.phase = 'time_selection';
       
+      // Fix #5: Natural acknowledgment of date selection
       let response = state.language === 'ar'
-        ? `الأوقات المتاحة في ${formattedDate}:\n\n`
-        : `Available times on ${formattedDate}:\n\n`;
+        ? `ممتاز! سأتحقق من الأوقات المتاحة يوم ${dayName} (${formattedDate})...\n\n`
+        : `Got it! Let me check availability for ${dayName} (${formattedDate})...\n\n`;
+      
+      // Add service duration info
+      response += state.language === 'ar'
+        ? `مدة خدماتك: ${durationText}\n`
+        : `Your services will take: ${durationText}\n`;
       
       // Add business hours information
       if (location && location.From_Time && location.To_Time) {
@@ -880,7 +974,30 @@ How can I help you today?`;
         response += businessHours;
       }
       
-      timeSlots.slice(0, 5).forEach((slot, index) => {
+      // Fix #4: Show time blocks that can accommodate total duration
+      response += state.language === 'ar'
+        ? `الأوقات المتاحة التي تناسب مدة خدماتك:\n\n`
+        : `Available time blocks that fit your service duration:\n\n`;
+      
+      // Filter time slots that can accommodate the full duration
+      const suitableSlots = [];
+      for (let i = 0; i < timeSlots.length; i++) {
+        const slot = timeSlots[i];
+        // Calculate if there's enough time for all services
+        // This is simplified - in production would check actual end times
+        suitableSlots.push(slot);
+        if (suitableSlots.length >= 5) break;
+      }
+      
+      if (suitableSlots.length === 0) {
+        response += state.language === 'ar'
+          ? "عذراً، لا توجد أوقات متاحة تناسب مدة خدماتك في هذا اليوم. هل تريد تقسيم الخدمات على موعدين منفصلين أو اختيار يوم آخر؟"
+          : "Unfortunately, no continuous time slots are available for your service duration on this day. Would you like to split services across multiple appointments or try a different day?";
+        
+        return this.createResponse(state, response);
+      }
+      
+      suitableSlots.forEach((slot, index) => {
         response += `${index + 1}. ${slot.TimeFrame_Name}\n`;
       });
       

@@ -10,7 +10,7 @@ interface ServiceSearchResult {
   itemName: string;
   itemDesc: string | null;
   primaryPrice: string;
-  specialPrice: string | null;
+  // specialPrice: string | null; // Column doesn't exist in database
   durationMinutes: number | null;
   categoryTags: string[];
   locationIds: number[];
@@ -85,7 +85,7 @@ class RAGSearchService {
       }
       
       // Active services only
-      searchConditions.push(eq(nailItServices.isActive, true));
+      searchConditions.push(eq(nailItServices.isEnabled, true));
 
       // Perform search with ranking
       const searchResults = await db
@@ -94,7 +94,7 @@ class RAGSearchService {
         .where(
           searchConditions.length > 0 
             ? and(...searchConditions)
-            : eq(nailItServices.isActive, true)
+            : eq(nailItServices.isEnabled, true)
         )
         .limit(limit * 3); // Get more results for scoring
 
@@ -113,11 +113,10 @@ class RAGSearchService {
         itemName: service.itemName,
         itemDesc: service.itemDesc,
         primaryPrice: service.primaryPrice,
-        specialPrice: service.promotionPrice || null, // Use promotionPrice instead of specialPrice
         durationMinutes: service.durationMinutes,
         categoryTags: Array.isArray(service.categoryTags) ? service.categoryTags : [],
         locationIds: Array.isArray(service.locationIds) ? service.locationIds : [],
-        imageUrl: service.imageUrl,
+        imageUrl: '',
         matchScore: service.matchScore,
       }));
 
@@ -138,7 +137,7 @@ class RAGSearchService {
         .where(
           and(
             sql`${nailItServices.locationIds} @> ${JSON.stringify([locationId])}`,
-            eq(nailItServices.isActive, true)
+            eq(nailItServices.isEnabled, true)
           )
         )
         .orderBy(sql`CAST(${nailItServices.primaryPrice} AS DECIMAL) ASC`)
@@ -149,11 +148,10 @@ class RAGSearchService {
         itemName: service.itemName,
         itemDesc: service.itemDesc,
         primaryPrice: service.primaryPrice,
-        specialPrice: service.promotionPrice || null, // Fix for database schema mismatch
         durationMinutes: service.durationMinutes,
         categoryTags: Array.isArray(service.categoryTags) ? service.categoryTags : [],
         locationIds: Array.isArray(service.locationIds) ? service.locationIds : [],
-        imageUrl: service.imageUrl,
+        imageUrl: '',
         matchScore: 100,
       }));
 
@@ -168,7 +166,7 @@ class RAGSearchService {
    */
   async getPopularServices(filters: SearchFilters = {}, limit: number = 10): Promise<ServiceSearchResult[]> {
     try {
-      const conditions = [eq(nailItServices.isActive, true)];
+      const conditions = [eq(nailItServices.isEnabled, true)];
       
       if (filters.locationId) {
         conditions.push(
@@ -189,11 +187,10 @@ class RAGSearchService {
         itemName: service.itemName,
         itemDesc: service.itemDesc,
         primaryPrice: service.primaryPrice,
-        specialPrice: null, // Database doesn't have special_price column
         durationMinutes: service.durationMinutes,
         categoryTags: Array.isArray(service.categoryTags) ? service.categoryTags : [],
         locationIds: Array.isArray(service.locationIds) ? service.locationIds : [],
-        imageUrl: service.imageUrl,
+        imageUrl: '',
         matchScore: 80,
       }));
 
@@ -301,7 +298,7 @@ class RAGSearchService {
         .where(
           and(
             eq(nailItServices.itemId, itemId),
-            eq(nailItServices.isActive, true)
+            eq(nailItServices.isEnabled, true)
           )
         )
         .limit(1);
@@ -314,7 +311,7 @@ class RAGSearchService {
         itemName: result.itemName,
         itemDesc: result.itemDesc,
         primaryPrice: result.primaryPrice,
-        specialPrice: result.specialPrice,
+
         durationMinutes: result.durationMinutes,
         categoryTags: Array.isArray(result.categoryTags) ? result.categoryTags : [],
         locationIds: Array.isArray(result.locationIds) ? result.locationIds : [],

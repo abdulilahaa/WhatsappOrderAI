@@ -124,15 +124,16 @@ export const nailItServices = pgTable("nailit_services", {
   itemName: text("item_name").notNull(),
   itemDesc: text("item_desc"),
   primaryPrice: decimal("primary_price", { precision: 10, scale: 2 }).notNull(),
-  specialPrice: decimal("special_price", { precision: 10, scale: 2 }),
-  duration: text("duration"), // "30", "60", etc.
+  // specialPrice: decimal("special_price", { precision: 10, scale: 2 }), // Column doesn't exist in database
+  // duration: text("duration"), // Column doesn't exist in database
   durationMinutes: integer("duration_minutes"), // Parsed duration for calculations
   itemTypeId: integer("item_type_id"),
-  parentGroupId: integer("parent_group_id"),
-  subGroupId: integer("sub_group_id"),
+  // parentGroupId: integer("parent_group_id"), // Not in database
+  // subGroupId: integer("sub_group_id"), // Not in database
+  groupId: integer("group_id"), // Group ID exists in database
   locationIds: jsonb("location_ids"), // Array of location IDs where service is available
   imageUrl: text("image_url"),
-  isActive: boolean("is_active").notNull().default(true),
+  isEnabled: boolean("is_enabled").notNull().default(true), // is_enabled not is_active
   
   // RAG Enhancement Fields
   searchKeywords: text("search_keywords"), // Preprocessed keywords for fast matching
@@ -145,7 +146,7 @@ export const nailItServices = pgTable("nailit_services", {
 
 export const nailItLocations = pgTable("nailit_locations", {
   id: serial("id").primaryKey(),
-  locationId: integer("location_id").notNull().unique(), // NailIt Location_Id
+  nailitId: integer("nailit_id").notNull().unique(), // NailIt Location_Id - actual column name
   locationName: text("location_name").notNull(),
   address: text("address"),
   phone: text("phone"),
@@ -166,7 +167,7 @@ export const nailItStaff = pgTable("nailit_staff", {
   id: serial("id").primaryKey(),
   staffId: integer("staff_id").notNull(), // NailIt Staff ID
   staffName: text("staff_name").notNull(),
-  locationId: integer("location_id").notNull(),
+  nailitLocationId: integer("nailit_location_id").notNull(), // Reference to location
   extraTime: integer("extra_time").default(0),
   imageUrl: text("image_url"),
   staffGroups: jsonb("staff_groups"), // Services they can perform
@@ -179,7 +180,7 @@ export const nailItStaff = pgTable("nailit_staff", {
 
 export const nailItPaymentTypes = pgTable("nailit_payment_types", {
   id: serial("id").primaryKey(),
-  paymentTypeId: integer("payment_type_id").notNull().unique(),
+  nailitId: integer("nailit_id").notNull().unique(), // NailIt Payment Type ID - actual column name
   paymentTypeName: text("payment_type_name").notNull(),
   paymentTypeCode: text("payment_type_code"),
   isEnabled: boolean("is_enabled").notNull().default(true),
