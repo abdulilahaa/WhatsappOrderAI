@@ -21,17 +21,20 @@ export class WhatsAppService {
 
   constructor() {
     this.initialize();
-    // Use fresh access token from environment if available
-    if (process.env.WHATSAPP_ACCESS_TOKEN) {
-      this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    }
   }
 
   private async initialize() {
     const settings = await storage.getWhatsAppSettings();
-    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN || settings.accessToken;
+    // Always use database settings (from API settings tab)
+    this.accessToken = settings.accessToken;
     this.phoneNumberId = settings.phoneNumberId;
     this.webhookVerifyToken = settings.webhookVerifyToken;
+    
+    console.log("🔄 WhatsApp settings initialized from database:", {
+      hasToken: !!this.accessToken,
+      tokenLength: this.accessToken?.length || 0,
+      phoneNumberId: this.phoneNumberId
+    });
   }
 
   async isConfigured(): Promise<boolean> {
@@ -42,12 +45,25 @@ export class WhatsAppService {
   }
 
   async updateConfiguration(config: { phoneNumberId?: string, accessToken?: string, webhookVerifyToken?: string }) {
-    // Force refresh from database
+    // Update instance variables immediately with new values
+    if (config.accessToken) {
+      this.accessToken = config.accessToken;
+    }
+    if (config.phoneNumberId) {
+      this.phoneNumberId = config.phoneNumberId;
+    }
+    if (config.webhookVerifyToken) {
+      this.webhookVerifyToken = config.webhookVerifyToken;
+    }
+    
+    // Also refresh from database to ensure consistency
     await this.initialize();
-    console.log("🔄 WhatsApp configuration updated:", {
+    
+    console.log("🔄 WhatsApp configuration updated with new token:", {
       hasToken: !!this.accessToken,
-      tokenLength: this.accessToken?.length,
-      phoneNumberId: this.phoneNumberId
+      tokenLength: this.accessToken?.length || 0,
+      phoneNumberId: this.phoneNumberId,
+      tokenPreview: this.accessToken ? `${this.accessToken.substring(0, 10)}...` : 'none'
     });
   }
 
@@ -752,7 +768,15 @@ export class WhatsAppService {
     return message;
   }
 
+  async forceRefreshConfiguration(): Promise<void> {
+    console.log("🔄 Force refreshing WhatsApp configuration from database...");
+    await this.initialize();
+  }
+
   async sendMessage(to: string, message: string): Promise<boolean> {
+    // Always get fresh configuration before sending messages
+    await this.forceRefreshConfiguration();
+    
     if (!await this.isConfigured()) {
       console.log("WhatsApp not configured. Message would be sent:", { to, message });
       return false;
@@ -799,6 +823,9 @@ export class WhatsAppService {
   }
 
   async sendTemplateMessage(to: string, customMessage: string): Promise<boolean> {
+    // Always get fresh configuration before sending template messages
+    await this.forceRefreshConfiguration();
+    
     if (!await this.isConfigured()) {
       console.log("WhatsApp not configured for template messages");
       return false;
