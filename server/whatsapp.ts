@@ -1,6 +1,5 @@
 import { storage } from "./storage";
 import { freshAI } from "./ai-fresh";
-import { enhancedAI } from "./ai-enhanced";
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
 
@@ -123,33 +122,17 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // Process with Enhanced AI Agent (with fallback to Fresh AI)
-      let aiResponse;
-      try {
-        console.log('🚀 Using Enhanced AI Agent for comprehensive data collection...');
-        aiResponse = await enhancedAI.processMessage(
-          message.text,
-          customer,
-          conversationHistory
-        );
-        
-        // Handle Enhanced AI completion (if booking is complete)
-        if (aiResponse.bookingComplete || aiResponse.collectedData?.bookingConfirmed) {
-          await this.handleEnhancedAIBooking(customer, aiResponse.collectedData);
-        }
-      } catch (error) {
-        console.error('Enhanced AI failed, falling back to Fresh AI:', error);
-        // Fallback to Fresh AI if Enhanced AI fails
-        aiResponse = await freshAI.processMessage(
-          message.text,
-          customer,
-          conversationHistory
-        );
-        
-        // Handle Fresh AI completion (if order is ready for booking)
-        if (aiResponse.collectedData?.readyForBooking) {
-          await this.handleFreshAIBooking(customer, aiResponse.collectedData);
-        }
+      // Process with Fresh AI Agent (using empathetic system prompts)
+      console.log('🚀 Using Fresh AI Agent with empathetic conversation style...');
+      const aiResponse = await freshAI.processMessage(
+        message.text,
+        customer,
+        conversationHistory
+      );
+      
+      // Handle Fresh AI completion (if order is ready for booking)
+      if (aiResponse.collectedData?.readyForBooking) {
+        await this.handleFreshAIBooking(customer, aiResponse.collectedData);
       }
 
       // Send AI response
@@ -633,7 +616,7 @@ export class WhatsAppService {
         }
         
         // Clear conversation state after successful booking
-        enhancedAI.clearConversationState(customer.id.toString());
+        freshAI.clearConversationState(customer.id.toString());
         
         console.log(`🎯 Enhanced AI booking completed successfully: NailIt Order ${orderResult.OrderId}, Local Order ${localOrder.id}`);
       } else {

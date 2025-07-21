@@ -3,7 +3,6 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
 import { freshAI } from "./ai-fresh";
-import { enhancedAI } from "./ai-enhanced";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
@@ -45,15 +44,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Staff availability routes
+  // Staff availability routes - inline implementation
   app.get("/api/nailit/staff-availability", async (req, res) => {
-    const { getStaffAvailability } = await import("./routes/staff-availability");
-    await getStaffAvailability(req, res);
+    try {
+      const { locationId, date, serviceId } = req.query;
+      const staff = await nailItAPI.getServiceStaff(
+        parseInt(serviceId as string),
+        parseInt(locationId as string), 
+        'EN',
+        date as string
+      );
+      res.json({ success: true, staff });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   app.get("/api/analytics/services", async (req, res) => {
-    const { getServiceAnalytics } = await import("./routes/staff-availability");
-    await getServiceAnalytics(req, res);
+    try {
+      const locations = await nailItAPI.getLocations();
+      res.json({ success: true, locations, analyticsAvailable: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   // Products API
@@ -587,10 +600,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CRITICAL: Direct Natural Conversation Test Route
+  // Natural Conversation Test Route (using Fresh AI)
   app.post('/api/test-natural-conversation', async (req, res) => {
-    const { testNaturalConversation } = await import('./routes/natural-conversation-test');
-    await testNaturalConversation(req, res);
+    const { testFreshAI } = await import("./routes/fresh-ai");
+    await testFreshAI(req, res);
   });
 
   // Fresh AI Test Route
@@ -601,95 +614,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Fresh AI booking flow endpoints (legacy test routes removed)
 
-  // KNet payment system demonstration
-  app.get("/api/knet-demo", async (req, res) => {
-    try {
-      const { demonstrateKNetPaymentSystem } = await import('./knet-demo');
-      const result = demonstrateKNetPaymentSystem();
-      res.json(result);
-    } catch (error: any) {
-      console.error('KNet demo error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
+  // API endpoints removed - using only Fresh AI system
 
-  // API testing analysis
-  app.get("/api/analyze-testing-issues", async (req, res) => {
-    try {
-      const { analyzeCurrentAPITestingIssues } = await import('./api-testing-analysis');
-      const result = analyzeCurrentAPITestingIssues();
-      res.json(result);
-    } catch (error: any) {
-      console.error('API analysis error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Improved comprehensive API testing
-  app.get("/api/comprehensive-testing", async (req, res) => {
-    try {
-      const { improvedAPITesting } = await import('./improved-api-testing');
-      const result = await improvedAPITesting.runComprehensiveTests();
-      res.json(result);
-    } catch (error: any) {
-      console.error('Comprehensive testing error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Staff Availability API - Real NailIt Data
-  app.get("/api/nailit/staff-availability", async (req, res) => {
-    try {
-      const { locationId, date, serviceId } = req.query;
-      
-      if (!serviceId || !locationId || !date) {
-        return res.status(400).json({ 
-          message: "Service ID, location ID, and date are required" 
-        });
-      }
-
-      console.log(`🔍 Getting staff availability for service ${serviceId} at location ${locationId} on ${date}`);
-      
-      // Format date for NailIt API (DD-MM-YYYY)
-      const formattedDate = new Date(date as string).toLocaleDateString('en-GB').replace(/\//g, '-');
-      
-      // Get staff data from NailIt API
-      const staff = await nailItAPI.getServiceStaff(
-        parseInt(serviceId as string), 
-        parseInt(locationId as string), 
-        'E', 
-        formattedDate
-      );
-      
-      console.log(`✅ Found ${staff.length} staff members for service ${serviceId}`);
-      
-      // Enhance staff data with availability information
-      const enhancedStaff = staff.map(staffMember => ({
-        ...staffMember,
-        availability: {
-          date: date as string,
-          slots: generateTimeSlots(9, 18), // Generate 9 AM to 6 PM slots
-          bookings: Math.floor(Math.random() * 6) + 1, // Simulated booking count
-          utilization: Math.floor(Math.random() * 40) + 30 // 30-70% utilization
-        }
-      }));
-      
-      res.json({
-        success: true,
-        data: enhancedStaff,
-        locationId: parseInt(locationId as string),
-        serviceId: parseInt(serviceId as string),
-        date: date as string,
-        totalStaff: enhancedStaff.length
-      });
-      
-    } catch (error: any) {
-      console.error('Staff availability error:', error);
-      res.status(500).json({ 
-        message: "Error fetching staff availability: " + error.message 
-      });
-    }
-  });
+  // Staff Availability API - Real NailIt Data (duplicate route removed)
+  // Route already defined above - removing duplicate
 
   // Handle the base endpoint without location ID (should not be called)
   app.get("/api/nailit/staff-by-location", async (req, res) => {
@@ -2560,9 +2488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   })();
 
-  // Register NailIt order flow routes
-  const { registerNailItOrderFlowRoutes } = await import("./routes/nailit-order-flow");
-  registerNailItOrderFlowRoutes(app);
+  // NailIt order flow routes removed - using Fresh AI system
 
   // ===== RAG SYSTEM ENDPOINTS =====
   
