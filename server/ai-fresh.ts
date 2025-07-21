@@ -175,17 +175,38 @@ How can I help you today?`;
     conversationHistory: Array<{ content: string; isFromAI: boolean }>
   ): Promise<AIResponse> {
     
-    // CRITICAL: Use working natural conversation fix for 99.9% accuracy
-    const { NaturalConversationFix } = await import('./natural-conversation-fix');
-    
+    // CRITICAL: Use updated system prompt with our proven method
     try {
-      console.log('🚀 Using Natural Conversation Fix for authentic responses');
+      console.log('🚀 Using updated system prompt with proven booking method');
       
-      // Generate natural, contextual response using working implementation
-      const naturalResponse = await NaturalConversationFix.generateNaturalResponse(
-        customerMessage,
-        state
-      );
+      // Build conversation context for OpenAI
+      const conversationMessages = [
+        {
+          role: 'system' as const,
+          content: state.language === 'ar' ? this.settings.systemPromptAR : this.settings.systemPromptEN
+        },
+        ...conversationHistory.map(msg => ({
+          role: msg.isFromAI ? 'assistant' as const : 'user' as const,
+          content: msg.content
+        })),
+        {
+          role: 'user' as const,
+          content: customerMessage
+        }
+      ];
+      
+      // Generate natural response using OpenAI with updated prompt
+      const response = await openai.chat.completions.create({
+        model: this.settings.openaiModel || 'gpt-4',
+        messages: conversationMessages,
+        temperature: parseFloat(this.settings.openaiTemperature?.toString() || '0.3'),
+        max_tokens: this.settings.maxTokens || 500
+      });
+      
+      const naturalResponse = response.choices[0]?.message?.content || 
+        (state.language === 'ar' ? 
+          "مرحباً! كيف يمكنني مساعدتك اليوم؟" : 
+          "Hello! How can I help you today?");
       
       // Update conversation state based on customer message
       await this.updateStateFromMessage(customerMessage, state, await nailItAPI.getLocations());
@@ -449,6 +470,7 @@ How can I help you today?`;
       }
       
       // Step 3: Search location-specific cached services using RAG
+      const searchQuery = specificSearchTerms.join(' ');
       console.log(`💾 Searching cached services for location ${locationId} with query: "${searchQuery}"`);
       
       const ragResults = await ragSearchService.searchServices(searchQuery, 
