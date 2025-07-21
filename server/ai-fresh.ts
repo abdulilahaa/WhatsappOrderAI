@@ -212,38 +212,15 @@ Current conversation context: Customer wants ${customerMessage}`;
           customerMessage.toLowerCase().includes('book') ||
           customerMessage.toLowerCase().includes('confirm')) {
         
-        // Force extract services if we have location but no services yet
-        if (state.collectedData.selectedServices.length === 0 && state.collectedData.locationId) {
-          console.log('🔄 Force extracting default services for booking...');
+        // CRITICAL: Always ensure we have services before booking
+        if (state.collectedData.selectedServices.length === 0) {
+          console.log('🚨 NO SERVICES SELECTED - Cannot proceed with booking');
           
-          // Directly add default nail services from RAG
-          try {
-            const { ragSearchService } = await import('./rag-search');
-            const nailServices = await ragSearchService.searchServices('manicure nail', { locationId: state.collectedData.locationId }, 3);
-            
-            if (nailServices.length > 0) {
-              state.collectedData.selectedServices = nailServices.slice(0, 2).map(s => ({
-                itemId: s.itemId,
-                itemName: s.itemName,
-                price: parseFloat(s.primaryPrice) || 15,
-                quantity: 1,
-                duration: '60 minutes'
-              }));
-              console.log(`🎯 FORCE ADDED SERVICES: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}`);
-            } else {
-              // Fallback if no services found
-              state.collectedData.selectedServices = [{
-                itemId: 279,
-                itemName: 'French Manicure',
-                price: 15,
-                quantity: 1,
-                duration: '60 minutes'
-              }];
-              console.log('🎯 FALLBACK SERVICE ADDED: French Manicure');
-            }
-          } catch (error) {
-            console.error('Error force adding services:', error);
-          }
+          return this.createResponse(state, 
+            state.language === 'ar' 
+              ? "عذراً، لم يتم اختيار أي خدمات. أي خدمة تريد حجزها؟"
+              : "Sorry, no services selected. Which services would you like to book?"
+          );
         }
         
         console.log('✅ Ready to create REAL booking in NailIt POS');
@@ -282,71 +259,77 @@ Current conversation context: Customer wants ${customerMessage}`;
       }
     }
     
-    // Extract services naturally - ALWAYS check for new services
-    const { ragSearchService } = await import('./rag-search');
-    let searchTerms = [];
-    let newServicesFound = false;
+    // ENHANCED SERVICE EXTRACTION - Direct keyword matching 
+    console.log('🔍 Analyzing message for services:', customerMessage.toLowerCase());
     
-    // Check BOTH customer message AND AI response for services
-    const combinedText = (customerMessage + " " + aiResponse).toLowerCase();
-    
-    // Check for nail services
-    if (combinedText.includes('gel') || combinedText.includes('manicure') || combinedText.includes('mani')) {
-      searchTerms.push('manicure');
-      newServicesFound = true;
-    }
-    if (combinedText.includes('pedicure') || combinedText.includes('pedi')) {
-      searchTerms.push('pedicure');
-      newServicesFound = true;
-    }
-    
-    // Check for hair services
-    if (combinedText.includes('hair') || combinedText.includes('conditioning') || combinedText.includes('dry hair')) {
-      searchTerms.push('hair treatment');
-      newServicesFound = true;
-    }
-    
-    // Check for facial services
-    if (combinedText.includes('facial') || combinedText.includes('skin')) {
-      searchTerms.push('facial');
-      newServicesFound = true;
-    }
-    
-    // ALWAYS search for services if we don't have any yet
-    if (state.collectedData.selectedServices.length === 0) {
-      newServicesFound = true;
-      if (searchTerms.length === 0) {
-        searchTerms.push('manicure', 'pedicure', 'hair'); // Default search
+    // Check if we should extract services (new message or explicit requests)
+    if (state.collectedData.selectedServices.length === 0 || 
+        customerMessage.toLowerCase().includes('want') || 
+        customerMessage.toLowerCase().includes('book') || 
+        customerMessage.toLowerCase().includes('add')) {
+      
+      const lowerMessage = customerMessage.toLowerCase();
+      let directServices = [];
+      
+      // Hair services
+      if (lowerMessage.includes('hair')) {
+        directServices.push({
+          itemId: 203,
+          itemName: 'Hair Treatment',
+          price: 15,
+          quantity: 1,
+          duration: '60 minutes'
+        });
+        console.log('✅ Added Hair Treatment');
       }
-    }
-    
-    // Extract services if new terms found
-    if (newServicesFound && searchTerms.length > 0) {
-      try {
-        const services = await ragSearchService.searchServices(searchTerms.join(' '), { locationId: state.collectedData.locationId }, 5);
-        console.log(`🔍 RAG Search for "${searchTerms.join(' ')}" found ${services.length} services`);
+      
+      // Manicure services
+      if (lowerMessage.includes('manicure') || lowerMessage.includes('mani')) {
+        directServices.push({
+          itemId: 279,
+          itemName: 'French Manicure',
+          price: 15,
+          quantity: 1,
+          duration: '45 minutes'
+        });
+        console.log('✅ Added French Manicure');
+      }
+      
+      // Pedicure services
+      if (lowerMessage.includes('pedicure') || lowerMessage.includes('pedi')) {
+        directServices.push({
+          itemId: 1058,
+          itemName: 'Classic Pedicure',
+          price: 20,
+          quantity: 1,
+          duration: '60 minutes'
+        });
+        console.log('✅ Added Classic Pedicure');
+      }
+      
+      // Nail art services
+      if (lowerMessage.includes('nail art') || lowerMessage.includes('art')) {
+        directServices.push({
+          itemId: 801,
+          itemName: 'Nail Art Design',
+          price: 10,
+          quantity: 1,
+          duration: '30 minutes'
+        });
+        console.log('✅ Added Nail Art Design');
+      }
+      
+      // Update selected services
+      if (directServices.length > 0) {
+        const existingIds = state.collectedData.selectedServices.map(s => s.itemId);
+        const uniqueServices = directServices.filter(s => !existingIds.includes(s.itemId));
         
-        if (services.length > 0) {
-          // Add to existing services (don't replace)
-          const newServices = services.map(s => ({
-            itemId: s.itemId,
-            itemName: s.itemName,
-            price: parseFloat(s.primaryPrice) || 15,
-            quantity: 1,
-            duration: '60 minutes'
-          }));
-          
-          // Avoid duplicates
-          const existingIds = state.collectedData.selectedServices.map(s => s.itemId);
-          const uniqueNewServices = newServices.filter(s => !existingIds.includes(s.itemId));
-          
-          state.collectedData.selectedServices = [...state.collectedData.selectedServices, ...uniqueNewServices];
-          console.log(`💅 Total services now: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}`);
-        }
-      } catch (error) {
-        console.error('Error searching services:', error);
+        state.collectedData.selectedServices = [...state.collectedData.selectedServices, ...uniqueServices];
+        console.log(`💅 Services extracted: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}`);
       }
     }
+    
+    // Service extraction is now handled by direct keyword matching above
     
     // Extract date naturally
     if (!state.collectedData.appointmentDate) {
