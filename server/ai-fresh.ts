@@ -73,9 +73,10 @@ export interface ConversationState {
   lastUpdated: Date;
 }
 
-export class FreshAIAgent {
+class FreshAIAgent {
   private conversationStates: Map<string, ConversationState> = new Map();
   private settings: FreshAISettings;
+  private nailItAPIClient = nailItAPI;
 
   constructor() {
     this.settings = {} as FreshAISettings;
@@ -125,12 +126,12 @@ export class FreshAIAgent {
       return await this.handleNaturalConversation(customerMessage, state, customer, conversationHistory);
     } catch (error) {
       console.error('AI processing error:', error);
-      console.error('Error details:', error.message);
+      console.error('Error details:', (error as Error).message);
       return {
         message: state.language === 'ar' 
           ? "عذراً، حدث خطأ. كيف يمكنني مساعدتك اليوم؟"
           : "Sorry, something went wrong. How can I help you today?",
-        conversationState: state
+        error: 'Processing error occurred'
       };
     }
   }
@@ -358,7 +359,7 @@ Current conversation context: Customer wants ${customerMessage}`;
   private createResponse(state: ConversationState, message: string, services?: any[]): AIResponse {
     return {
       message,
-      conversationState: state
+      suggestedServices: services
     };
   }
 
@@ -374,15 +375,15 @@ Current conversation context: Customer wants ${customerMessage}`;
       }
 
       // Register user with NailIt if needed
-      const userResult = await this.nailItAPI.registerUser({
-        fullName: state.collectedData.customerName || 'Customer',
-        email: state.collectedData.customerEmail || customer.email || `${customer.phoneNumber}@temp.com`,
-        phoneNumber: customer.phoneNumber,
-        password: '123456',
-        confirmPassword: '123456'
+      const userResult = await this.nailItAPIClient.registerUser({
+        Address: '',
+        Email_Id: state.collectedData.customerEmail || customer.email || `${customer.phoneNumber}@temp.com`,
+        Name: state.collectedData.customerName || 'Customer',
+        Mobile: customer.phoneNumber,
+        Login_Type: 1
       });
 
-      if (!userResult.success) {
+      if (!userResult || userResult.Status !== 200) {
         console.log('User registration failed, trying to proceed with existing customer data');
       }
 
@@ -392,39 +393,55 @@ Current conversation context: Customer wants ${customerMessage}`;
       const appointmentDate = state.collectedData.appointmentDate || 
         tomorrow.toLocaleDateString('en-GB').replace(/\//g, '/');
 
+      const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 
+        total + (service.price * (service.quantity || 1)), 0);
+      
       const orderData = {
-        Customer_Name: state.collectedData.customerName || 'Customer',
-        Customer_Email: state.collectedData.customerEmail || customer.email || `${customer.phoneNumber}@temp.com`,
-        Customer_Mobile: customer.phoneNumber,
-        Location_Id: state.collectedData.locationId,
-        Appointment_Date: appointmentDate,
-        TimeFrame_Ids: [1, 2], // Default time slots
-        Payment_Type_Id: state.collectedData.paymentTypeId || 2, // KNet
-        Channel_Id: 4, // WhatsApp
+        Gross_Amount: grossAmount,
+        Payment_Type_Id: state.collectedData.paymentTypeId || 2,
+        Order_Type: 1,
+        UserId: userResult?.App_User_Id || 1,
+        FirstName: state.collectedData.customerName || 'Customer',
+        Mobile: customer.phoneNumber,
+        Email: state.collectedData.customerEmail || customer.email || `${customer.phoneNumber}@temp.com`,
+        Discount_Amount: 0,
+        Net_Amount: grossAmount,
+        POS_Location_Id: state.collectedData.locationId,
         OrderDetails: state.collectedData.selectedServices.map(service => ({
-          Item_Id: service.itemId,
-          Quantity: service.quantity || 1,
-          Unit_Price: service.price || 15
+          Prod_Id: service.itemId,
+          Prod_Name: service.itemName,
+          Qty: service.quantity || 1,
+          Rate: service.price,
+          Amount: service.price * (service.quantity || 1),
+          Size_Id: null,
+          Size_Name: '',
+          Promotion_Id: 0,
+          Promo_Code: '',
+          Discount_Amount: 0,
+          Net_Amount: service.price * (service.quantity || 1),
+          Staff_Id: state.collectedData.staffId || 1,
+          TimeFrame_Ids: state.collectedData.timeSlotIds || [1, 2],
+          Appointment_Date: appointmentDate
         }))
       };
 
       console.log('🎯 Creating order with NailIt API:', orderData);
 
       // Create order in NailIt POS system
-      const orderResult = await this.nailItAPI.saveOrder(orderData);
+      const orderResult = await this.nailItAPIClient.saveOrder(orderData);
 
-      if (orderResult.success && orderResult.orderId) {
-        console.log(`✅ Order created successfully: ${orderResult.orderId}`);
+      if (orderResult && orderResult.Status === 200 && orderResult.OrderId) {
+        console.log(`✅ Order created successfully: ${orderResult.OrderId}`);
         return {
           success: true,
-          orderId: orderResult.orderId,
+          orderId: orderResult.OrderId.toString(),
           message: 'Booking created successfully'
         };
       } else {
-        console.error('❌ Order creation failed:', orderResult.message);
+        console.error('❌ Order creation failed:', orderResult?.Message);
         return {
           success: false,
-          message: orderResult.message || 'Failed to create booking'
+          message: orderResult?.Message || 'Failed to create booking'
         };
       }
     } catch (error) {
@@ -442,7 +459,5 @@ Current conversation context: Customer wants ${customerMessage}`;
   }
 }
 
-export { FreshAIAgent };
-      return {
-        message: state.language === 'ar' 
-  private createResponse(state: ConversationState, message: string, services?: NailItItem[]): AIResponse {
+const freshAI = new FreshAIAgent();
+export { FreshAIAgent, freshAI };
