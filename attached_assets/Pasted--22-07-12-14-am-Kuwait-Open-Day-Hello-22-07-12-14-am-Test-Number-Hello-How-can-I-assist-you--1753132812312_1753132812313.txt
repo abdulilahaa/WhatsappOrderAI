@@ -1,0 +1,28 @@
+[22/07, 12:14 am] Kuwait Open Day: Hello
+[22/07, 12:14 am] Test Number: Hello! How can I assist you today at NailIt Spa? Are you looking to book a service or do you have any questions?
+[22/07, 12:15 am] Kuwait Open Day: Im looking to book a nail appointment for tomorrow i want to do gel and a mani padi
+[22/07, 12:15 am] Test Number: That sounds like a lovely choice! We can certainly arrange a gel manicure and pedicure for you. May I know your preferred location? We have three to choose from: Al-Plaza Mall, Zahra Complex, and Arraya Mall.
+[22/07, 12:15 am] Kuwait Open Day: Plaza please and can I also do a hair treatment?
+[22/07, 12:15 am] Test Number: Absolutely, we can add a hair treatment to your booking. Could you please specify which hair treatment you would like to have? We offer a variety of services including deep conditioning, keratin treatment, and color services.
+[22/07, 12:16 am] Kuwait Open Day: I feel like I have dry hair what would you recommend?
+[22/07, 12:16 am] Test Number: For dry hair, I'd recommend our Deep Conditioning Treatment. It's a hydrating service that penetrates deep into the hair shaft to restore moisture, making your hair soft and shiny again. Would you like to include this in your booking?
+[22/07, 12:16 am] Kuwait Open Day: Yes please
+[22/07, 12:16 am] Test Number: Great! So, to confirm, I'll be booking you for a gel manicure, pedicure, and a Deep Conditioning Treatment at the Al-Plaza Mall location on the 22nd of July, 2025. May I have your name and email address, please?
+[22/07, 12:17 am] Kuwait Open Day: Zaratest and it's testingonemoretime@testing.com
+[22/07, 12:17 am] Test Number: Thank you, Zaratest. I've got all the details I need to finalize your booking. Let's review them once more before we proceed:
+
+- Services: Gel Manicure, Pedicure, and Deep Conditioning Treatment
+- Location: Al-Plaza Mall
+- Date: 22-07-2025
+- Name: Zaratest
+- Email: testingonemoretime@testing.com
+
+If everything looks good, I'll go ahead and book your appointment.
+[22/07, 12:17 am] Kuwait Open Day: What time is my booking?
+[22/07, 12:17 am] Test Number: I apologize for the oversight, Zaratest. It seems the exact time for your booking wasn't specified earlier. Could you please let me know your preferred time for the appointment on 22nd of July, 2025?
+[22/07, 12:18 am] Kuwait Open Day: 2pm please
+[22/07, 12:18 am] Test Number: Sorry, there was a booking error. No services selected
+[22/07, 12:18 am] Kuwait Open Day: Please check our chat i requested 2 or 3 services
+[22/07, 12:18 am] Test Number: Oh, I see, I missed that. You had requested a Gel Manicure, Pedicure, and Deep Conditioning Treatment. My apologies for the confusion. With these services added, your appointment at our Al-Plaza Mall location is ready to be confirmed for 2 PM on the 22nd of July, 2025. Shall I go ahead and finalize this booking for you?
+[22/07, 12:18 am] Kuwait Open Day: Yes please
+[22/07, 12:19 am] Test Number: Sorry, there was a booking error. No services selected

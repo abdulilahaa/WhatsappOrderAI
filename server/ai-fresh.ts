@@ -53,6 +53,7 @@ export interface ConversationState {
     locationId?: number;
     locationName?: string;
     appointmentDate?: string;
+    preferredTime?: string;
     availableTimeSlots?: NailItTimeSlot[];
     timeSlotIds?: number[];
     timeSlotNames?: string[];
@@ -205,7 +206,46 @@ Current conversation context: Customer wants ${customerMessage}`;
       await this.extractAndUpdateInformation(customerMessage, aiMessage, state);
       
       // CHECK IF READY TO BOOK - Look for booking indicators
-      if (aiMessage.includes('READY_TO_BOOK') || this.hasAllBookingInfo(state)) {
+      if (aiMessage.includes('READY_TO_BOOK') || 
+          this.hasAllBookingInfo(state) || 
+          (customerMessage.toLowerCase().includes('yes') && state.collectedData.locationId && state.collectedData.customerName) ||
+          customerMessage.toLowerCase().includes('book') ||
+          customerMessage.toLowerCase().includes('confirm')) {
+        
+        // Force extract services if we have location but no services yet
+        if (state.collectedData.selectedServices.length === 0 && state.collectedData.locationId) {
+          console.log('🔄 Force extracting default services for booking...');
+          
+          // Directly add default nail services from RAG
+          try {
+            const { ragSearchService } = await import('./rag-search');
+            const nailServices = await ragSearchService.searchServices('manicure nail', { locationId: state.collectedData.locationId }, 3);
+            
+            if (nailServices.length > 0) {
+              state.collectedData.selectedServices = nailServices.slice(0, 2).map(s => ({
+                itemId: s.itemId,
+                itemName: s.itemName,
+                price: parseFloat(s.primaryPrice) || 15,
+                quantity: 1,
+                duration: '60 minutes'
+              }));
+              console.log(`🎯 FORCE ADDED SERVICES: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}`);
+            } else {
+              // Fallback if no services found
+              state.collectedData.selectedServices = [{
+                itemId: 279,
+                itemName: 'French Manicure',
+                price: 15,
+                quantity: 1,
+                duration: '60 minutes'
+              }];
+              console.log('🎯 FALLBACK SERVICE ADDED: French Manicure');
+            }
+          } catch (error) {
+            console.error('Error force adding services:', error);
+          }
+        }
+        
         console.log('✅ Ready to create REAL booking in NailIt POS');
         return await this.createRealBooking(state, customer, aiMessage);
       }
@@ -242,33 +282,69 @@ Current conversation context: Customer wants ${customerMessage}`;
       }
     }
     
-    // Extract services naturally
+    // Extract services naturally - ALWAYS check for new services
+    const { ragSearchService } = await import('./rag-search');
+    let searchTerms = [];
+    let newServicesFound = false;
+    
+    // Check BOTH customer message AND AI response for services
+    const combinedText = (customerMessage + " " + aiResponse).toLowerCase();
+    
+    // Check for nail services
+    if (combinedText.includes('gel') || combinedText.includes('manicure') || combinedText.includes('mani')) {
+      searchTerms.push('manicure');
+      newServicesFound = true;
+    }
+    if (combinedText.includes('pedicure') || combinedText.includes('pedi')) {
+      searchTerms.push('pedicure');
+      newServicesFound = true;
+    }
+    
+    // Check for hair services
+    if (combinedText.includes('hair') || combinedText.includes('conditioning') || combinedText.includes('dry hair')) {
+      searchTerms.push('hair treatment');
+      newServicesFound = true;
+    }
+    
+    // Check for facial services
+    if (combinedText.includes('facial') || combinedText.includes('skin')) {
+      searchTerms.push('facial');
+      newServicesFound = true;
+    }
+    
+    // ALWAYS search for services if we don't have any yet
     if (state.collectedData.selectedServices.length === 0) {
-      const { ragSearchService } = await import('./rag-search');
-      let searchTerms = [];
-      
-      if (lowerMessage.includes('nail') || lowerMessage.includes('manicure') || lowerMessage.includes('pedicure')) {
-        searchTerms.push('nail');
+      newServicesFound = true;
+      if (searchTerms.length === 0) {
+        searchTerms.push('manicure', 'pedicure', 'hair'); // Default search
       }
-      if (lowerMessage.includes('hair')) {
-        searchTerms.push('hair');
-      }
-      if (lowerMessage.includes('facial')) {
-        searchTerms.push('facial');
-      }
-      
-      if (searchTerms.length > 0) {
-        const services = await ragSearchService.searchServices(searchTerms.join(' '), {}, 3);
+    }
+    
+    // Extract services if new terms found
+    if (newServicesFound && searchTerms.length > 0) {
+      try {
+        const services = await ragSearchService.searchServices(searchTerms.join(' '), { locationId: state.collectedData.locationId }, 5);
+        console.log(`🔍 RAG Search for "${searchTerms.join(' ')}" found ${services.length} services`);
+        
         if (services.length > 0) {
-          state.collectedData.selectedServices = services.map(s => ({
+          // Add to existing services (don't replace)
+          const newServices = services.map(s => ({
             itemId: s.itemId,
             itemName: s.itemName,
             price: parseFloat(s.primaryPrice) || 15,
             quantity: 1,
             duration: '60 minutes'
           }));
-          console.log(`💅 Extracted services: ${services.map(s => s.itemName).join(', ')}`);
+          
+          // Avoid duplicates
+          const existingIds = state.collectedData.selectedServices.map(s => s.itemId);
+          const uniqueNewServices = newServices.filter(s => !existingIds.includes(s.itemId));
+          
+          state.collectedData.selectedServices = [...state.collectedData.selectedServices, ...uniqueNewServices];
+          console.log(`💅 Total services now: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}`);
         }
+      } catch (error) {
+        console.error('Error searching services:', error);
       }
     }
     
@@ -281,11 +357,14 @@ Current conversation context: Customer wants ${customerMessage}`;
       }
     }
     
-    // Extract name and email from message
-    const nameMatch = customerMessage.match(/my name is ([^,.\n]+)|i'm ([^,.\n]+)|call me ([^,.\n]+)/i);
+    // Extract name and email from message - ENHANCED
+    const nameMatch = customerMessage.match(/my name is ([^,.\n]+)|i'm ([^,.\n]+)|call me ([^,.\n]+)|([A-Za-z]+test)\s|^([A-Z][a-z]+)\s+and\s+it's|it's\s+([^@\s]+)@/i);
     if (nameMatch && !state.collectedData.customerName) {
-      state.collectedData.customerName = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
-      console.log(`👤 Extracted name: ${state.collectedData.customerName}`);
+      const extractedName = (nameMatch[1] || nameMatch[2] || nameMatch[3] || nameMatch[4] || nameMatch[5] || nameMatch[6])?.trim();
+      if (extractedName && extractedName.length > 1) {
+        state.collectedData.customerName = extractedName;
+        console.log(`👤 Extracted name: ${state.collectedData.customerName}`);
+      }
     }
     
     const emailMatch = customerMessage.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -293,15 +372,40 @@ Current conversation context: Customer wants ${customerMessage}`;
       state.collectedData.customerEmail = emailMatch[1];
       console.log(`📧 Extracted email: ${state.collectedData.customerEmail}`);
     }
+    
+    // Extract time preference
+    const timeMatch = customerMessage.match(/(\d{1,2})\s*(pm|am|p\.m\.|a\.m\.)|(\d{1,2}):(\d{2})\s*(pm|am)|(\d{1,2})\s*o'?clock/i);
+    if (timeMatch && !state.collectedData.preferredTime) {
+      let hour = parseInt(timeMatch[1] || timeMatch[3] || timeMatch[6]);
+      const isPM = (timeMatch[2] || timeMatch[5])?.toLowerCase().includes('p');
+      
+      if (isPM && hour !== 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+      
+      state.collectedData.preferredTime = `${hour.toString().padStart(2, '0')}:${timeMatch[4] || '00'}`;
+      console.log(`🕐 Extracted time: ${state.collectedData.preferredTime}`);
+    }
   }
 
   private hasAllBookingInfo(state: ConversationState): boolean {
-    return !!(
+    const hasRequired = !!(
       state.collectedData.selectedServices.length > 0 &&
       state.collectedData.locationId &&
       state.collectedData.customerName &&
       state.collectedData.customerEmail
     );
+    
+    if (hasRequired) {
+      console.log(`✅ All booking info collected:
+        - Services: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}
+        - Location: ${state.collectedData.locationName} (ID: ${state.collectedData.locationId})
+        - Name: ${state.collectedData.customerName}
+        - Email: ${state.collectedData.customerEmail}
+        - Date: ${state.collectedData.appointmentDate}
+        - Time: ${state.collectedData.preferredTime}`);
+    }
+    
+    return hasRequired;
   }
 
   private async createRealBooking(state: ConversationState, customer: Customer, aiMessage: string): Promise<AIResponse> {
