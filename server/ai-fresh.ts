@@ -400,18 +400,21 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
     try {
       console.log(`🔍 Analyzing customer needs from message: "${message}"`);
       
+      // Import RAG search service for cached services
+      const { ragSearchService } = await import('./rag-search');
+      
       // Analyze keywords for specific problems/needs (Fix #1: Understand user's initial question)
       const problemKeywords = {
-        'oily scalp': ['deep cleansing', 'scalp detox', 'scalp treatment'],
-        'dandruff': ['anti-dandruff', 'scalp treatment', 'medicated'],
-        'dry hair': ['hydrating', 'moisturizing', 'deep conditioning'],
-        'damaged hair': ['repair', 'reconstruction', 'keratin'],
-        'thinning hair': ['volumizing', 'hair growth', 'strengthening'],
-        'anti-aging': ['facial', 'anti-wrinkle', 'rejuvenating'],
-        'acne': ['facial', 'deep cleansing', 'acne treatment']
+        'oily scalp': ['scalp', 'treatment', 'cleansing', 'detox'],
+        'dandruff': ['scalp', 'treatment', 'anti-dandruff', 'medicated'],
+        'dry hair': ['hair', 'hydrating', 'moisturizing', 'conditioning'],
+        'damaged hair': ['hair', 'repair', 'reconstruction', 'keratin'],
+        'thinning hair': ['hair', 'volumizing', 'growth', 'strengthening'],
+        'anti-aging': ['facial', 'anti-aging', 'rejuvenating'],
+        'acne': ['facial', 'cleansing', 'acne']
       };
       
-      // Get all available services from NailIt API with proper date formatting
+      // Use RAG search for cached services instead of live API
       const dateStr = new Date().toISOString().split('T')[0].split('-').reverse().join('-'); // DD-MM-YYYY format
       const allServices = await nailItAPI.getItemsByDate({
         Lang: 'E',
