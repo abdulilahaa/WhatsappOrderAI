@@ -840,7 +840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           });
-        } catch (error) {
+        } catch (error: any) {
           console.warn(`Could not fetch staff for service ${serviceId}:`, error.message);
         }
       }
@@ -966,60 +966,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Old AI agent removed - redirect to Fresh AI
       return res.status(400).json({ message: "Please use the Fresh AI test route at /api/fresh-ai/test instead" });
-
-      // Save the AI's response
-      await storage.createMessage({
-        conversationId: conversation.id,
-        content: response.message,
-        isFromAI: true,
-      });
-
-      // Handle appointment booking if the AI indicates appointment intent
-      if (response.appointmentIntent && response.appointmentIntent.serviceId) {
-        const appointmentData = response.appointmentIntent;
-        
-        // Update customer info if provided in appointment intent
-        if (appointmentData.customerInfo) {
-          const updatedInfo: any = {};
-          if (appointmentData.customerInfo.name) updatedInfo.name = appointmentData.customerInfo.name;
-          if (appointmentData.customerInfo.email) updatedInfo.email = appointmentData.customerInfo.email;
-          
-          if (Object.keys(updatedInfo).length > 0) {
-            dbCustomer = await storage.updateCustomer(dbCustomer.id, updatedInfo) || dbCustomer;
-          }
-        }
-
-        // Create the appointment if we have all required info
-        if (appointmentData.serviceId && appointmentData.preferredDate && appointmentData.preferredTime) {
-          try {
-            const appointment = await storage.createAppointment({
-              customerId: dbCustomer.id,
-              serviceId: appointmentData.serviceId,
-              appointmentDate: appointmentData.preferredDate,
-              appointmentTime: appointmentData.preferredTime,
-              duration: appointmentData.duration || 60,
-              status: "pending",
-              paymentMethod: "cash", // Default payment method
-              paymentStatus: "cash_pending",
-              notes: `Appointment booked via AI assistant for ${dbCustomer.name || 'customer'}`,
-              totalPrice: null, // Will be set based on service price
-            });
-
-            // Add appointment confirmation to the response
-            response.appointmentCreated = {
-              id: appointment.id,
-              date: appointmentData.preferredDate,
-              time: appointmentData.preferredTime,
-              serviceId: appointmentData.serviceId,
-            };
-          } catch (appointmentError) {
-            console.error("Error creating appointment:", appointmentError);
-            // Don't fail the whole request if appointment creation fails
-          }
-        }
-      }
-
-      res.json(response);
     } catch (error: any) {
       console.error("AI test processing error:", error);
       res.status(500).json({ message: "AI processing error: " + error.message });
@@ -1484,7 +1430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalItems
           }
         });
-      } catch (apiError) {
+      } catch (apiError: any) {
         console.log(`⚠️ API call failed, returning empty: ${apiError.message}`);
         res.json({
           success: true,
@@ -1693,7 +1639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/nailit/test-save-order", async (req, res) => {
     try {
       console.log("🧪 Testing NailIt Save Order with sample data...");
-      const testOrder = nailItAPI.createTestOrder();
+      const testOrder = await nailItAPI.createTestOrder();
       
       const result = await nailItAPI.saveOrder(testOrder);
       
