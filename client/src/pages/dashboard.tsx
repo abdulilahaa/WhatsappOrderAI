@@ -29,7 +29,7 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
   });
 
   const { data: aiSettings } = useQuery({
-    queryKey: ["/api/ai-settings"],
+    queryKey: ["/api/fresh-ai-settings"],
   });
 
   const featuredProducts = products?.slice(0, 6) || [];

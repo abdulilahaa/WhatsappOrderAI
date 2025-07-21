@@ -9,7 +9,6 @@ import Dashboard from "@/pages/dashboard";
 import Products from "@/pages/products";
 import Conversations from "@/pages/conversations";
 import IntegrationDashboard from "@/pages/integration-dashboard";
-import FreshAISettingsPage from "@/pages/fresh-ai-settings";
 import WhatsAppSetup from "@/pages/whatsapp-setup";
 import NotFound from "@/pages/not-found";
 import AddProductModal from "@/components/add-product-modal";
@@ -37,7 +36,6 @@ function Router() {
         <Route path="/products" component={Products} />
         <Route path="/conversations" component={Conversations} />
         <Route path="/integration-dashboard" component={IntegrationDashboard} />
-        <Route path="/ai-settings" component={FreshAISettingsPage} />
         <Route path="/ai-agent-settings" component={AIAgentSettings} />
         <Route path="/whatsapp-setup" component={WhatsAppSetup} />
         <Route path="/checkout" component={Checkout} />
