@@ -36,9 +36,9 @@ const aiAgentSettingsSchema = z.object({
   openaiTemperature: z.number().min(0).max(2),
   maxTokens: z.number().min(1).max(4000),
 
-  // System Prompts (Critical)
-  systemPromptEN: z.string().min(50, "English system prompt must be at least 50 characters"),
-  systemPromptAR: z.string().min(50, "Arabic system prompt must be at least 50 characters"),
+  // System Prompts (Critical) - No max limit for large prompts
+  systemPromptEN: z.string().min(50, "English system prompt must be at least 50 characters").max(10000, "English system prompt too long"),
+  systemPromptAR: z.string().min(50, "Arabic system prompt must be at least 50 characters").max(10000, "Arabic system prompt too long"),
 
   // Booking Behavior
   autoStaffAssignment: z.boolean(),
@@ -152,6 +152,7 @@ export default function AIAgentSettings() {
     },
     onError: (error: any) => {
       setIsPublishing(false);
+      console.error("❌ Publish error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to publish settings",
@@ -190,6 +191,24 @@ export default function AIAgentSettings() {
   });
 
   const onSubmit = (data: AIAgentSettings) => {
+    console.log("🚀 Publishing AI Agent Settings:", {
+      systemPromptENLength: data.systemPromptEN.length,
+      systemPromptARLength: data.systemPromptAR.length,
+      totalLength: data.systemPromptEN.length + data.systemPromptAR.length
+    });
+    
+    // Check for form validation errors
+    const errors = form.formState.errors;
+    if (Object.keys(errors).length > 0) {
+      console.error("❌ Form validation errors:", errors);
+      toast({
+        title: "Validation Error",
+        description: "Please fix the form errors before publishing",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     publishMutation.mutate(data);
   };
 
