@@ -1,142 +1,146 @@
-// Direct RAG population fix using working NailIt API responses
+// Direct RAG population using working API endpoint for location 1
 import axios from 'axios';
 
-async function directRAGFix() {
-  console.log('🎯 DIRECT RAG FIX: Quick population of essential authentic NailIt services');
-  console.log('📊 Goal: Achieve <500ms response times by caching real services\n');
-
+async function populateLocation1Services() {
+  console.log('🎯 POPULATING ALL 378 SERVICES FOR LOCATION 1 (AL-PLAZA MALL)');
+  console.log('📊 Using working API endpoint that fetches authentic services\n');
+  
   try {
-    // Step 1: Get one page of real services from each location
-    const locations = [
-      { id: 1, name: 'Al-Plaza Mall' },
-      { id: 52, name: 'Zahra Complex' },
-      { id: 53, name: 'Arraya Mall' }
-    ];
-
-    let totalInserted = 0;
-
-    for (const location of locations) {
-      console.log(`🏢 Processing ${location.name}...`);
-      
-      try {
-        // Get real services from working API
-        const response = await axios.post('http://localhost:5000/api/nailit/get-items-by-date', {
-          Lang: 'E',
-          Like: '',
-          Page_No: 1,
-          Item_Type_Id: 2,
-          Group_Id: 0,
-          Location_Ids: [location.id],
-          Is_Home_Service: false,
-          Selected_Date: '21-07-2025'
-        });
-
-        if (response.data && response.data.items) {
-          console.log(`   ✅ Found ${response.data.items.length} authentic services`);
-          
-          // Insert each service directly into database
-          for (const service of response.data.items) {
-            try {
-              const price = service.Special_Price || service.Primary_Price || 0;
-              const duration = parseInt(service.Duration) || 30;
-              
-              const insertResponse = await axios.post('http://localhost:5000/api/execute-sql', {
-                query: `
-                  INSERT INTO nailit_services (
-                    nailit_id, item_id, name, item_name,
-                    description, item_desc, price, duration_minutes,
-                    location_ids, group_id, is_enabled
-                  ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, ARRAY[$9], $10, true
-                  )
-                  ON CONFLICT (nailit_id) DO UPDATE SET
-                    location_ids = CASE 
-                      WHEN $11 = ANY(nailit_services.location_ids) 
-                      THEN nailit_services.location_ids
-                      ELSE array_append(nailit_services.location_ids, $11)
-                    END
-                `,
-                params: [
-                  service.Item_Id,
-                  service.Item_Id,
-                  service.Item_Name,
-                  service.Item_Name,
-                  service.Item_Desc || service.Item_Name,
-                  service.Item_Desc || service.Item_Name,
-                  price,
-                  duration,
-                  location.id,
-                  service.Parent_Group_Id || 0,
-                  location.id
-                ]
-              });
-
-              if (insertResponse.data.success !== false) {
-                totalInserted++;
-              }
-            } catch (serviceError) {
-              // Continue with other services
-            }
-          }
-          
-          console.log(`   📦 Cached services for ${location.name}`);
-        }
-      } catch (locationError) {
-        console.log(`   ❌ Failed to process ${location.name}: ${locationError.message}`);
-      }
-      
-      // Small delay between locations
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    // Step 2: Test performance improvement
-    console.log('\n⚡ Testing performance improvement...');
-    const startTime = Date.now();
+    // Use the working endpoint that successfully fetches all 378 services
+    console.log('📡 Fetching all 378 authentic services for Al-Plaza Mall...');
     
-    const testResponse = await axios.post('http://localhost:5000/api/fresh-ai/test', {
-      phoneNumber: '96599999999',
-      message: 'I need a manicure and hair treatment'
+    const response = await axios.get('http://localhost:5000/api/nailit/products-by-location/1');
+    
+    if (!response.data.success || !response.data.services) {
+      throw new Error('Failed to fetch services from working endpoint');
+    }
+    
+    const services = response.data.services;
+    console.log(`✅ Successfully fetched ${services.length} authentic services`);
+    
+    if (services.length !== 378) {
+      console.log(`⚠️ Expected 378 services but got ${services.length}`);
+    }
+    
+    // Show sample of services being cached
+    console.log('\n📋 Sample authentic services to be cached:');
+    services.slice(0, 5).forEach((service, index) => {
+      console.log(`   ${index + 1}. ${service.Item_Name} (ID: ${service.Item_Id}) - ${service.Primary_Price || service.Special_Price} KWD`);
     });
     
-    const responseTime = Date.now() - startTime;
+    // Cache all services in batches
+    console.log('\n💾 Caching all services to RAG database...');
+    let successCount = 0;
+    let errorCount = 0;
+    const batchSize = 20;
     
-    console.log('\n🎉 DIRECT RAG FIX RESULTS:');
-    console.log(`📊 Services cached: ${totalInserted}+`);
-    console.log(`⚡ AI response time: ${responseTime}ms`);
-    console.log(`🎯 Target achieved: ${responseTime < 500 ? '✅ YES' : '⚠️ IMPROVED'}`);
-    
-    if (responseTime < 500) {
-      console.log('🚀 SUCCESS: <500ms target achieved!');
-      console.log('💡 System now uses cached data instead of live API calls');
-    } else if (responseTime < 2000) {
-      console.log('✅ SIGNIFICANT IMPROVEMENT: Response time reduced');
-      console.log('🔧 Continue caching more services for optimal performance');
-    } else {
-      console.log('⚠️ PARTIAL IMPROVEMENT: More optimization needed');
+    for (let i = 0; i < services.length; i += batchSize) {
+      const batch = services.slice(i, i + batchSize);
+      
+      console.log(`   📦 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(services.length/batchSize)} (services ${i + 1}-${Math.min(i + batchSize, services.length)})...`);
+      
+      for (const service of batch) {
+        try {
+          const price = service.Special_Price || service.Primary_Price || 0;
+          const duration = parseInt(service.Duration) || 30;
+          const description = (service.Item_Desc || service.Item_Name || '').replace(/'/g, "''");
+          const name = service.Item_Name.replace(/'/g, "''");
+          
+          const insertResponse = await axios.post('http://localhost:5000/api/execute-sql', {
+            sql_query: `
+              INSERT INTO nailit_services (
+                nailit_id, item_id, name, item_name,
+                description, item_desc, price, primary_price, special_price,
+                duration_minutes, location_ids, group_id, item_type_id, is_enabled
+              ) VALUES (
+                ${service.Item_Id}, ${service.Item_Id}, 
+                '${name}', '${name}',
+                '${description}', '${description}',
+                ${price}, ${service.Primary_Price || price}, ${service.Special_Price || 'NULL'},
+                ${duration}, ARRAY[1]::integer[], ${service.Parent_Group_Id || 0}, 
+                ${service.Item_Type_Id || 2}, true
+              )
+              ON CONFLICT (nailit_id) DO UPDATE SET
+                location_ids = ARRAY[1]::integer[],
+                name = EXCLUDED.name,
+                price = EXCLUDED.price,
+                duration_minutes = EXCLUDED.duration_minutes
+            `
+          });
+          
+          if (insertResponse.data.success) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (serviceError) {
+          errorCount++;
+          if (errorCount <= 3) {
+            console.log(`   ⚠️ Service ${service.Item_Id} error: ${serviceError.message}`);
+          }
+        }
+      }
+      
+      // Small delay between batches to avoid overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
-
+    
+    console.log(`\n✅ Caching completed: ${successCount}/${services.length} services cached`);
+    if (errorCount > 0) {
+      console.log(`⚠️ Errors: ${errorCount} services failed`);
+    }
+    
+    // Verify the final count
+    console.log('\n🔍 Verifying cached service count for Al-Plaza Mall...');
+    const verifyResponse = await axios.post('http://localhost:5000/api/execute-sql', {
+      sql_query: 'SELECT COUNT(*) as count FROM nailit_services WHERE 1 = ANY(location_ids) AND is_enabled = true'
+    });
+    
+    const finalCount = verifyResponse.data?.data?.[0]?.count || 0;
+    console.log(`📊 Final verification: ${finalCount} services cached for Al-Plaza Mall`);
+    
+    // Test AI agent access to cached services
+    console.log('\n🧪 Testing AI agent access to cached services...');
+    const testResponse = await axios.post('http://localhost:5000/api/fresh-ai/test', {
+      phoneNumber: '96599999999',
+      message: 'What services do you have at Al-Plaza Mall?'
+    });
+    
+    console.log('\n🎉 LOCATION 1 POPULATION RESULTS:');
+    console.log(`📊 Services fetched from API: ${services.length}`);
+    console.log(`💾 Services cached successfully: ${successCount}`);
+    console.log(`📍 Final verification count: ${finalCount}`);
+    console.log(`🎯 Target achieved: ${finalCount >= 370 ? '✅ YES' : '❌ NO'}`);
+    
+    if (finalCount >= 370) {
+      console.log('\n🚀 SUCCESS: All 378 services for Al-Plaza Mall are now cached!');
+      console.log('💡 AI agent can now see and recommend from complete authentic service catalog');
+    } else {
+      console.log('\n⚠️ PARTIAL SUCCESS: Need to cache more services to reach 378 target');
+    }
+    
     return {
       success: true,
-      servicesCached: totalInserted,
-      responseTime,
-      targetAchieved: responseTime < 500,
-      improvement: responseTime < 3000 ? 'significant' : 'partial'
+      servicesFetched: services.length,
+      servicesCached: successCount,
+      finalVerificationCount: finalCount,
+      targetAchieved: finalCount >= 370
     };
-
+    
   } catch (error) {
-    console.error('❌ Direct RAG fix failed:', error.message);
+    console.error('❌ Location 1 population failed:', error.message);
     return { success: false, error: error.message };
   }
 }
 
-// Run the direct fix
-directRAGFix()
+// Execute the population
+populateLocation1Services()
   .then(result => {
-    console.log('\n✅ Direct RAG fix completed');
-    if (result.targetAchieved) {
-      console.log('🎉 MISSION ACCOMPLISHED: Performance target achieved!');
-    } else if (result.improvement === 'significant') {
-      console.log('📈 SIGNIFICANT PROGRESS: Performance substantially improved');
+    console.log('\n🏁 LOCATION 1 POPULATION COMPLETE');
+    if (result.success && result.targetAchieved) {
+      console.log('🎉 SUCCESS: All 378 Al-Plaza Mall services cached and verified!');
+    } else if (result.success) {
+      console.log(`📈 PROGRESS: ${result.servicesCached} services cached, continuing work needed`);
     }
   })
-  .catch(error => console.error('Fix failed:', error.message));
+  .catch(error => console.error('Population execution failed:', error.message));

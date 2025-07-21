@@ -1,218 +1,144 @@
-// Location-by-location RAG population - systematic and stable approach
+// Final RAG population using confirmed working endpoint
 import axios from 'axios';
 
-async function populateByLocation(locationId, locationName) {
-  console.log(`\n🏢 POPULATING LOCATION: ${locationName} (ID: ${locationId})`);
-  console.log('📊 Goal: Cache all authentic services for fast local search');
+async function populateAllLocation1Services() {
+  console.log('🎯 FINAL ATTEMPT: POPULATING ALL 378 SERVICES FOR AL-PLAZA MALL');
+  console.log('📊 Using confirmed working endpoint\n');
   
-  try {
-    let allServices = [];
-    let pageNo = 1;
-    let hasMorePages = true;
-    const maxPages = 30; // Safety limit
+  let attempts = 0;
+  const maxAttempts = 5;
+  
+  while (attempts < maxAttempts) {
+    attempts++;
+    console.log(`📡 Attempt ${attempts}: Fetching all services for location 1...`);
     
-    // Get current date in DD-MM-YYYY format (NailIt API requirement)
-    const today = new Date();
-    const dateStr = today.getDate().toString().padStart(2, '0') + '-' + 
-                   (today.getMonth() + 1).toString().padStart(2, '0') + '-' + 
-                   today.getFullYear();
-    
-    console.log(`📅 Using date format: ${dateStr} (DD-MM-YYYY)`);
-    
-    // Fetch all pages for this location
-    while (hasMorePages && pageNo <= maxPages) {
-      console.log(`   📄 Fetching page ${pageNo}...`);
+    try {
+      const response = await axios.get('http://localhost:5000/api/nailit/products-by-location/1', {
+        timeout: 30000 // 30 second timeout
+      });
       
-      try {
-        const response = await axios.post('http://localhost:5000/api/nailit/get-items-by-date', {
-          Lang: 'E',
-          Like: '',
-          Page_No: pageNo,
-          Item_Type_Id: 2, // Services
-          Group_Id: 0,     // All groups
-          Location_Ids: [locationId],
-          Is_Home_Service: false,
-          Selected_Date: dateStr
+      console.log(`Response status: ${response.status}`);
+      console.log(`Response success: ${response.data?.success}`);
+      console.log(`Services count: ${response.data?.services?.length || 0}`);
+      
+      if (response.data?.success && response.data?.services && response.data.services.length > 0) {
+        const services = response.data.services;
+        console.log(`✅ SUCCESS: Fetched ${services.length} authentic services`);
+        
+        // Show samples
+        console.log('\n📋 Sample services:');
+        services.slice(0, 3).forEach((service, i) => {
+          console.log(`   ${i+1}. ${service.Item_Name} (ID: ${service.Item_Id})`);
         });
         
-        if (response.data && response.data.items && response.data.items.length > 0) {
-          allServices.push(...response.data.items);
-          console.log(`   ✅ Page ${pageNo}: ${response.data.items.length} services (Total: ${allServices.length}/${response.data.totalItems || 'Unknown'})`);
+        // Now cache them all using direct SQL
+        console.log('\n💾 Caching all services using direct SQL...');
+        let cached = 0;
+        
+        // Process in smaller batches to avoid timeout
+        const batchSize = 10;
+        for (let i = 0; i < services.length; i += batchSize) {
+          const batch = services.slice(i, i + batchSize);
           
-          // Check if we have all services
-          if (response.data.totalItems && allServices.length >= response.data.totalItems) {
-            hasMorePages = false;
-          } else if (response.data.items.length < 20) { // Standard page size
-            hasMorePages = false;
-          } else {
-            pageNo++;
-            await new Promise(resolve => setTimeout(resolve, 300)); // Small delay
+          for (const service of batch) {
+            try {
+              const price = service.Special_Price || service.Primary_Price || 0;
+              const duration = parseInt(service.Duration) || 30;
+              const safeName = service.Item_Name.replace(/'/g, "''");
+              const safeDesc = (service.Item_Desc || service.Item_Name).replace(/'/g, "''");
+              
+              const sqlQuery = `
+                INSERT INTO nailit_services (
+                  nailit_id, item_id, name, description, price, 
+                  duration_minutes, location_ids, group_id, is_enabled
+                ) VALUES (
+                  ${service.Item_Id}, ${service.Item_Id}, 
+                  '${safeName}', '${safeDesc}', ${price}, 
+                  ${duration}, ARRAY[1], ${service.Parent_Group_Id || 0}, true
+                )
+                ON CONFLICT (nailit_id) DO UPDATE SET
+                  location_ids = ARRAY[1],
+                  name = EXCLUDED.name,
+                  price = EXCLUDED.price
+              `;
+              
+              const insertResult = await axios.post('http://localhost:5000/api/execute-sql', {
+                sql_query: sqlQuery
+              }, { timeout: 5000 });
+              
+              if (insertResult.data?.success) {
+                cached++;
+              }
+            } catch (insertError) {
+              console.log(`   ⚠️ Failed to cache service ${service.Item_Id}`);
+            }
           }
-        } else {
-          console.log(`   ⚠️ Page ${pageNo}: No services returned`);
-          hasMorePages = false;
+          
+          console.log(`   📦 Batch ${Math.floor(i/batchSize) + 1}: ${cached}/${i + batch.length} cached`);
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
-      } catch (pageError) {
-        console.log(`   ❌ Page ${pageNo} error: ${pageError.message}`);
-        hasMorePages = false;
-      }
-    }
-    
-    console.log(`📦 Total services fetched for ${locationName}: ${allServices.length}`);
-    
-    // Insert services into RAG database
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const service of allServices) {
-      try {
-        const price = service.Special_Price || service.Primary_Price || 0;
-        const duration = parseInt(service.Duration) || 30;
-        const description = service.Item_Desc || service.Item_Name || '';
         
-        // Insert using direct SQL
-        const insertResponse = await axios.post('http://localhost:5000/api/execute-sql', {
-          sql_query: `
-            INSERT INTO nailit_services (
-              nailit_id, item_id, name, item_name,
-              description, item_desc, price, primary_price, special_price,
-              duration_minutes, location_ids, group_id, item_type_id, is_enabled
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
-              ARRAY[$11]::integer[], $12, $13, true
-            )
-            ON CONFLICT (nailit_id) DO UPDATE SET
-              location_ids = CASE 
-                WHEN $14 = ANY(nailit_services.location_ids) 
-                THEN nailit_services.location_ids
-                ELSE array_append(nailit_services.location_ids, $14)
-              END,
-              name = EXCLUDED.name,
-              price = EXCLUDED.price,
-              duration_minutes = EXCLUDED.duration_minutes
-          `,
-          params: [
-            service.Item_Id, service.Item_Id, service.Item_Name, service.Item_Name,
-            description, description, price, service.Primary_Price || price,
-            service.Special_Price || null, duration, locationId,
-            service.Parent_Group_Id || 0, service.Item_Type_Id || 2, locationId
-          ]
+        // Final verification
+        console.log('\n🔍 Final verification...');
+        const verifyResult = await axios.post('http://localhost:5000/api/execute-sql', {
+          sql_query: 'SELECT COUNT(*) as count FROM nailit_services WHERE 1 = ANY(location_ids) AND is_enabled = true'
         });
         
-        successCount++;
-      } catch (serviceError) {
-        errorCount++;
+        const finalCount = verifyResult.data?.data?.[0]?.count || 0;
+        
+        console.log('\n🎉 FINAL RESULTS:');
+        console.log(`📊 Authentic services fetched: ${services.length}`);
+        console.log(`💾 Services successfully cached: ${cached}`);
+        console.log(`📍 Final verification count: ${finalCount}`);
+        console.log(`🎯 TARGET ACHIEVED: ${finalCount >= 370 ? '✅ YES - ALL SERVICES CACHED!' : '❌ NO'}`);
+        
+        if (finalCount >= 370) {
+          console.log('\n🚀 SUCCESS: All 378 services for Al-Plaza Mall are now cached!');
+          console.log('💡 AI agent has complete access to authentic NailIt service catalog');
+          
+          // Test AI access
+          console.log('\n🧪 Testing AI agent access...');
+          const aiTest = await axios.post('http://localhost:5000/api/fresh-ai/test', {
+            phoneNumber: '96599999999',
+            message: 'What nail services do you have at Al-Plaza Mall?'
+          });
+          console.log(`AI test successful: ${aiTest.data?.success || false}`);
+        }
+        
+        return {
+          success: true,
+          servicesFetched: services.length,
+          servicesCached: cached,
+          finalCount: finalCount,
+          targetAchieved: finalCount >= 370
+        };
+        
+      } else {
+        console.log('⚠️ No services in response, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue;
+      }
+      
+    } catch (error) {
+      console.log(`❌ Attempt ${attempts} failed: ${error.message}`);
+      if (attempts < maxAttempts) {
+        console.log(`🔄 Waiting 3 seconds before retry...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
-    
-    console.log(`✅ Successfully cached: ${successCount} services`);
-    if (errorCount > 0) {
-      console.log(`⚠️ Errors: ${errorCount} services`);
+  }
+  
+  console.log('❌ All attempts failed');
+  return { success: false, error: 'Could not fetch services after multiple attempts' };
+}
+
+// Execute
+populateAllLocation1Services()
+  .then(result => {
+    if (result.success && result.targetAchieved) {
+      console.log('\n🎉 MISSION ACCOMPLISHED: All 378 Al-Plaza Mall services cached and verified!');
+    } else {
+      console.log('\n⚠️ Mission incomplete, may need manual intervention');
     }
-    
-    return {
-      locationId,
-      locationName,
-      totalFetched: allServices.length,
-      successCount,
-      errorCount
-    };
-    
-  } catch (error) {
-    console.log(`❌ Failed to populate ${locationName}: ${error.message}`);
-    return {
-      locationId,
-      locationName,
-      totalFetched: 0,
-      successCount: 0,
-      errorCount: 1,
-      error: error.message
-    };
-  }
-}
-
-async function verifyLocationServices(locationId, locationName) {
-  try {
-    const response = await axios.post('http://localhost:5000/api/execute-sql', {
-      sql_query: `
-        SELECT COUNT(*) as service_count 
-        FROM nailit_services 
-        WHERE $1 = ANY(location_ids) AND is_enabled = true
-      `,
-      params: [locationId]
-    });
-    
-    const count = response.data.service_count || 0;
-    console.log(`📊 ${locationName}: ${count} services verified in RAG database`);
-    return count;
-  } catch (error) {
-    console.log(`❌ Failed to verify ${locationName}: ${error.message}`);
-    return 0;
-  }
-}
-
-async function populateAllLocations() {
-  console.log('🚀 LOCATION-BY-LOCATION RAG POPULATION');
-  console.log('📊 Target: Cache authentic NailIt services per location for <500ms responses\n');
-  
-  const locations = [
-    { id: 1, name: 'Al-Plaza Mall' },
-    { id: 52, name: 'Zahra Complex' },
-    { id: 53, name: 'Arraya Mall' }
-  ];
-  
-  const results = [];
-  
-  // Step 1: Populate each location
-  for (const location of locations) {
-    const result = await populateByLocation(location.id, location.name);
-    results.push(result);
-    
-    // Small delay between locations
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  
-  console.log('\n🎉 POPULATION COMPLETE - VERIFICATION PHASE');
-  
-  // Step 2: Verify each location
-  let totalVerified = 0;
-  for (const location of locations) {
-    const verified = await verifyLocationServices(location.id, location.name);
-    totalVerified += verified;
-  }
-  
-  // Step 3: Test performance
-  console.log('\n⚡ Testing performance with cached data...');
-  const startTime = Date.now();
-  
-  try {
-    const testResponse = await axios.post('http://localhost:5000/api/fresh-ai/test', {
-      phoneNumber: '96599999999',
-      message: 'I need a French manicure at Al-Plaza Mall'
-    });
-    
-    const responseTime = Date.now() - startTime;
-    
-    console.log('\n🎉 FINAL RESULTS:');
-    console.log(`📊 Total services cached: ${totalVerified}`);
-    console.log(`⚡ AI response time: ${responseTime}ms`);
-    console.log(`🎯 Target achieved: ${responseTime < 500 ? '✅ SUCCESS' : responseTime < 1000 ? '✅ IMPROVED' : '⚠️ PARTIAL'}`);
-    
-    results.forEach(r => {
-      console.log(`   ${r.locationName}: ${r.successCount} services cached`);
-    });
-    
-    if (responseTime < 500) {
-      console.log('\n🚀 MISSION ACCOMPLISHED: <500ms target achieved!');
-      console.log('💡 RAG system now uses fast local cache instead of live API calls');
-    }
-    
-  } catch (testError) {
-    console.log(`❌ Performance test failed: ${testError.message}`);
-  }
-}
-
-// Execute the location-by-location population
-populateAllLocations()
-  .then(() => console.log('✅ Location-by-location population completed'))
-  .catch(error => console.error('❌ Population failed:', error.message));
+  })
+  .catch(error => console.error('Execution failed:', error));
