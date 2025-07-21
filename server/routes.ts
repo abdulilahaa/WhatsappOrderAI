@@ -2643,6 +2643,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ success: false, error: error.message });
     }
   });
+
+  // Full RAG populate endpoint with ALL real NailIt services
+  app.post("/api/rag/populate-full", async (req, res) => {
+    try {
+      const { populateFullRAG } = await import('./populate-rag-full');
+      const result = await populateFullRAG();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Full RAG populate error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Direct RAG populate - fast and simple
+  app.post("/api/rag/populate-now", async (req, res) => {
+    try {
+      const { populateRAGDirect } = await import('./populate-rag-direct');
+      const result = await populateRAGDirect();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Direct RAG populate error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Batch insert services for RAG population
+  app.post("/api/rag/batch-insert", async (req, res) => {
+    try {
+      const { locationId, locationName, services } = req.body;
+      
+      let insertedCount = 0;
+      for (const service of services) {
+        try {
+          const price = service.Special_Price || service.Primary_Price || 0;
+          const duration = service.Duration_Min || service.Duration || 30;
+          
+          await db.execute(sql`
+            INSERT INTO nailit_services (
+              nailit_id, item_id, name, item_name, 
+              description, item_desc, price, primary_price,
+              duration_minutes, location_ids, is_enabled
+            ) VALUES (
+              ${service.Item_Id}, ${service.Item_Id}, 
+              ${service.Item_Name || 'Unknown Service'}, ${service.Item_Name || 'Unknown Service'},
+              ${service.Item_Desc || service.Item_Name || 'No description'}, ${service.Item_Desc || service.Item_Name || 'No description'},
+              ${price}, ${price}, ${duration}, 
+              ${sql`'{${locationId}}'::integer[]`}, true
+            )
+            ON CONFLICT (nailit_id) DO UPDATE SET
+              location_ids = array_cat(nailit_services.location_ids, EXCLUDED.location_ids)
+          `);
+          insertedCount++;
+        } catch (err: any) {
+          // Skip individual errors
+        }
+      }
+      
+      res.json({ success: true, inserted: insertedCount, location: locationName });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // RAG status endpoint
+  app.get("/api/rag/status", async (req, res) => {
+    try {
+      const servicesResult = await db.execute(sql`SELECT COUNT(*) as count FROM nailit_services WHERE is_enabled = true`);
+      const locationsResult = await db.execute(sql`SELECT COUNT(*) as count FROM nailit_locations WHERE is_active = true`);
+      
+      res.json({
+        totalServices: (servicesResult as any)[0]?.count || 0,
+        totalLocations: (locationsResult as any)[0]?.count || 0
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
   
   // RAG Data Sync Management
   app.post("/api/rag/sync", async (req, res) => {
