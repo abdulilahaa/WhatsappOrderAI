@@ -84,6 +84,10 @@ export class FreshAIAgent {
 
   private async initialize() {
     this.settings = await storage.getFreshAISettings();
+    console.log('🔄 Fresh AI Settings loaded:', {
+      systemPromptEN: this.settings.systemPromptEN?.substring(0, 100) + '...',
+      systemPromptAR: this.settings.systemPromptAR?.substring(0, 50) + '...'
+    });
   }
 
   async processMessage(
