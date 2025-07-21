@@ -597,7 +597,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Test RAG system
       try {
-        const ragTest = await ragSearch.searchServices("test", 1);
+        const { ragSearchService } = await import('./rag-search');
+        const ragTest = await ragSearchService.searchServices("test", 1);
         ragSystemStatus = Array.isArray(ragTest);
       } catch (error) {
         ragSystemStatus = false;
