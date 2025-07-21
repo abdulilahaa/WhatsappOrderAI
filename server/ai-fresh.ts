@@ -121,8 +121,34 @@ export class FreshAIAgent {
       console.log(`🧩 Debug: Customer ${customerId}, Phase: ${state.phase}, Message: "${customerMessage}"`);
       console.log(`🧩 Current services: ${JSON.stringify(state.collectedData.selectedServices)}`);
       
-      // Always use advanced AI for better understanding
-      return await this.handleWithAdvancedAI(customerMessage, state, customer, conversationHistory);
+      // CRITICAL FIX: Use structured conversation flow instead of OpenAI chat completion
+      // This ensures we actually call the booking creation logic
+      switch (state.phase) {
+        case 'greeting':
+          return await this.handleNaturalGreeting(customerMessage, state);
+        case 'service_selection':
+          return await this.handleServiceSelection(customerMessage, state);
+        case 'location_selection':
+          return await this.handleLocationSelection(customerMessage, state);
+        case 'date_selection':
+          return await this.handleDateSelection(customerMessage, state);
+        case 'time_selection':
+          return await this.handleTimeSelection(customerMessage, state);
+        case 'staff_selection':
+          return await this.handleStaffSelection(customerMessage, state);
+        case 'customer_info':
+          return await this.handleCustomerInfo(customerMessage, state, customer);
+        case 'payment_method':
+          return await this.handlePaymentMethod(customerMessage, state);
+        case 'order_summary':
+          return await this.handleOrderSummary(customerMessage, state);
+        case 'confirmation':
+          return await this.handleConfirmation(customerMessage, state, customer);
+        case 'completed':
+          return await this.handleNaturalGreeting(customerMessage, state);
+        default:
+          return await this.handleServiceSelection(customerMessage, state);
+      }
     } catch (error) {
       console.error('AI processing error:', error);
       console.error('Error details:', error.message);
@@ -664,59 +690,139 @@ How can I help you today?`;
 
   private async handleServiceSelection(message: string, state: ConversationState): Promise<AIResponse> {
     try {
-      // Get popular services directly from NailIt API without search
-      const allServices = await nailItAPI.getItemsByDate({
-        Lang: 'E',
-        Like: '',
-        Page_No: 1,
-        Item_Type_Id: 2,
-        Group_Id: 0,
-        Location_Ids: [1, 52, 53],
-        Is_Home_Service: false,
-        Selected_Date: new Date().toISOString().split('T')[0].split('-').reverse().join('-')
-      });
-
-      const services = allServices.items.slice(0, this.settings.maxServicesDisplay); // Get configured number of services
-
-      if (services.length === 0) {
-        const response = state.language === 'ar'
-          ? "عذراً، لا توجد خدمات متاحة حالياً. يرجى المحاولة لاحقاً."
-          : "Sorry, no services are currently available. Please try again later.";
+      // CRITICAL FIX: Analyze customer request and match services
+      console.log(`🎯 Analyzing customer service request: "${message}"`);
+      
+      // Use RAG system to find matching services based on customer needs
+      const { ragSearchService } = await import('./rag-search');
+      
+      // Extract service keywords from customer message
+      const lowerMessage = message.toLowerCase();
+      let searchTerms = [];
+      
+      // Detect specific service requests
+      if (lowerMessage.includes('hair') || lowerMessage.includes('شعر')) {
+        searchTerms.push('hair');
+      }
+      if (lowerMessage.includes('nail') || lowerMessage.includes('أظافر') || 
+          lowerMessage.includes('manicure') || lowerMessage.includes('pedicure')) {
+        searchTerms.push('nail');
+      }
+      if (lowerMessage.includes('facial') || lowerMessage.includes('وجه')) {
+        searchTerms.push('facial');
+      }
+      if (lowerMessage.includes('massage') || lowerMessage.includes('مساج')) {
+        searchTerms.push('massage');
+      }
+      
+      // If no specific services detected, show popular services
+      if (searchTerms.length === 0) {
+        searchTerms = ['popular'];
+      }
+      
+      // Search for relevant services using RAG
+      const searchResults = await ragSearchService.searchServices(searchTerms.join(' '), 10);
+      
+      if (searchResults.length === 0) {
+        // Fallback to API if RAG returns no results
+        console.log('📋 No RAG results, falling back to NailIt API...');
+        const allServices = await nailItAPI.getItemsByDate({
+          Lang: 'E',
+          Like: '',
+          Page_No: 1,
+          Item_Type_Id: 2,
+          Group_Id: 0,
+          Location_Ids: [1, 52, 53],
+          Is_Home_Service: false,
+          Selected_Date: new Date().toISOString().split('T')[0].split('-').reverse().join('-')
+        });
         
+        const services = allServices.items.slice(0, 10);
+        
+        // Convert API services to our format
+        const convertedServices = services.map(service => ({
+          itemId: service.Item_Id,
+          itemName: service.Item_Name,
+          price: service.Selling_Price,
+          quantity: 1,
+          duration: '60 minutes',
+          description: service.Item_Description || ''
+        }));
+        
+        // Ask customer to choose from available services
+        let response = state.language === 'ar'
+          ? "هذه بعض خدماتنا المتاحة:\n\n"
+          : "Here are some of our available services:\n\n";
+        
+        convertedServices.forEach((service, index) => {
+          response += `${index + 1}. ${service.itemName} - ${service.price} KWD\n`;
+        });
+        
+        response += state.language === 'ar'
+          ? "\nاختر الخدمات التي تريدها (اكتب الأرقام مثل: 1, 3, 5)"
+          : "\nChoose the services you want (type numbers like: 1, 3, 5)";
+        
+        state.collectedData.availableServices = convertedServices;
         return this.createResponse(state, response);
       }
-
-      // Show available services without backend details
+      
+      // Check if customer is choosing from previously shown services
+      const numbers = message.match(/\d+/g);
+      if (numbers && state.collectedData.availableServices && state.collectedData.availableServices.length > 0) {
+        console.log(`🔢 Customer selecting services by numbers: ${numbers.join(', ')}`);
+        
+        const selectedServices = [];
+        for (const num of numbers) {
+          const index = parseInt(num) - 1;
+          if (index >= 0 && index < state.collectedData.availableServices.length) {
+            selectedServices.push(state.collectedData.availableServices[index]);
+          }
+        }
+        
+        if (selectedServices.length > 0) {
+          state.collectedData.selectedServices = selectedServices;
+          state.phase = 'location_selection';
+          
+          const serviceNames = selectedServices.map(s => s.itemName).join(', ');
+          const total = selectedServices.reduce((sum, s) => sum + s.price, 0);
+          
+          const response = state.language === 'ar'
+            ? `ممتاز! اخترت: ${serviceNames}\nالإجمالي: ${total} دينار كويتي\n\nأي فرع تفضل؟`
+            : `Great! You selected: ${serviceNames}\nTotal: ${total} KWD\n\nWhich location do you prefer?`;
+          
+          return this.createResponse(state, response);
+        }
+      }
+      
+      // Show matching services from RAG
+      console.log(`✅ Found ${searchResults.length} matching services from RAG`);
+      
       let response = state.language === 'ar'
-        ? "إليك بعض خدماتنا المميزة:\n\n"
-        : "Here are some of our popular services:\n\n";
-
-      services.forEach((service, index) => {
-        const price = service.Special_Price || service.Primary_Price;
-        response += `${index + 1}. ${service.Item_Name}`;
-        
-        // Show price if configured to do so
-        if (this.settings.showServicePrices) {
-          response += ` - ${price} KWD`;
+        ? "بناءً على طلبك، هذه الخدمات المناسبة:\n\n"
+        : "Based on your request, here are suitable services:\n\n";
+      
+      searchResults.forEach((service, index) => {
+        response += `${index + 1}. ${service.itemName} - ${service.price} KWD\n`;
+        if (service.description) {
+          response += `   ${service.description}\n`;
         }
-        response += `\n`;
-        
-        // Show duration if configured to do so
-        if (this.settings.showServiceDuration && service.Duration && service.Duration > 0) {
-          const duration = state.language === 'ar' ? `${service.Duration} دقيقة` : `${service.Duration} minutes`;
-          response += `   ${duration}\n`;
-        }
-        response += "\n";
       });
-
+      
       response += state.language === 'ar'
-        ? "أي خدمة تفضل؟ أم تريد اختيار الفرع أولاً؟"
-        : "Which service would you prefer? Or would you like to choose your location first?";
-
-      // Fix #2: Don't auto-select, wait for user choice
-      state.collectedData.availableServices = services;
-
-      return this.createResponse(state, response, services);
+        ? "\nاختر الخدمات التي تريدها (اكتب الأرقام مثل: 1, 3)"
+        : "\nChoose the services you want (type numbers like: 1, 3)";
+      
+      // Store available services for selection
+      state.collectedData.availableServices = searchResults.map(service => ({
+        itemId: service.itemId,
+        itemName: service.itemName,
+        price: service.price,
+        quantity: 1,
+        duration: '60 minutes',
+        description: service.description || ''
+      }));
+      
+      return this.createResponse(state, response);
     } catch (error) {
       console.error('Service selection error:', error);
       const response = state.language === 'ar'
