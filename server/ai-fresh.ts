@@ -478,6 +478,31 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: 'No location selected' };
       }
 
+      // CRITICAL: Check staff availability BEFORE creating order
+      console.log('🔍 Checking staff availability for selected services...');
+      let assignedStaffIds: number[] = [];
+      let availableTimeSlots: number[] = [];
+      
+      for (const service of state.collectedData.selectedServices) {
+        const staffAvailability = await this.nailItAPIClient.getServiceStaff(
+          service.itemId,
+          state.collectedData.locationId,
+          'E',
+          formattedDate.replace(/\//g, '-')
+        );
+        
+        if (!staffAvailability || staffAvailability.length === 0) {
+          console.log(`❌ No staff available for ${service.itemName} (ID: ${service.itemId})`);
+          return { 
+            success: false, 
+            message: `No staff available for ${service.itemName} on selected date. Please choose another date.` 
+          };
+        }
+        
+        console.log(`✅ Found ${staffAvailability.length} staff members for ${service.itemName}`);
+        assignedStaffIds.push(staffAvailability[0].Id);
+      }
+
       // Register user with NailIt if needed
       const userResult = await this.nailItAPIClient.registerUser({
         Address: '',
@@ -517,7 +542,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         Net_Amount: grossAmount,
         POS_Location_Id: state.collectedData.locationId,
         ChannelId: 4, // Required by API documentation
-        OrderDetails: state.collectedData.selectedServices.map(service => ({
+        OrderDetails: state.collectedData.selectedServices.map((service, index) => ({
           Prod_Id: service.itemId,
           Prod_Name: service.itemName,
           Qty: service.quantity || 1,
@@ -529,8 +554,8 @@ Current conversation context: Customer wants ${customerMessage}`;
           Promo_Code: '',
           Discount_Amount: 0,
           Net_Amount: service.price * (service.quantity || 1),
-          Staff_Id: state.collectedData.staffId || 1,
-          TimeFrame_Ids: state.collectedData.timeSlotIds || [7, 8], // Default 1PM-2PM slots
+          Staff_Id: assignedStaffIds[index] || 1, // Use verified available staff
+          TimeFrame_Ids: state.collectedData.timeSlotIds || [7, 8, 9], // Sequential time slots
           Appointment_Date: formattedDate
         }))
       };
@@ -542,10 +567,22 @@ Current conversation context: Customer wants ${customerMessage}`;
 
       if (orderResult && orderResult.Status === 0 && orderResult.OrderId) {
         console.log(`✅ Order created successfully: ${orderResult.OrderId}`);
+        
+        // CRITICAL: Get payment details immediately after order creation
+        console.log('💳 Fetching payment details for order...');
+        const paymentDetails = await this.nailItAPIClient.getOrderPaymentDetail(orderResult.OrderId);
+        
+        if (paymentDetails) {
+          console.log('✅ Payment details retrieved:', paymentDetails);
+        } else {
+          console.log('⚠️ No payment details available yet');
+        }
+        
         return {
           success: true,
           orderId: orderResult.OrderId.toString(),
-          message: 'Booking created successfully'
+          message: 'Booking created successfully',
+          paymentDetails: paymentDetails
         };
       } else {
         console.error('❌ Order creation failed:', {

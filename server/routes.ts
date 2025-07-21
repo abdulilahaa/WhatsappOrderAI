@@ -1560,6 +1560,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Order Payment Detail from NailIt POS
+  app.get("/api/nailit/order-payment-detail/:orderId", async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      console.log(`💳 Getting payment details for order: ${orderId}`);
+      
+      const paymentDetails = await nailItAPI.getOrderPaymentDetail(orderId);
+      
+      if (paymentDetails) {
+        console.log("✅ Payment details retrieved:", paymentDetails);
+        res.json(paymentDetails);
+      } else {
+        console.log("❌ No payment details found");
+        res.status(404).json({ message: "No payment details found for this order" });
+      }
+    } catch (error: any) {
+      console.error("Payment details error:", error);
+      res.status(500).json({ message: "Error retrieving payment details: " + error.message });
+    }
+  });
+
   // SaveOrder API Parameters Demonstration
   app.post("/api/nailit/demo-save-order-params", async (req, res) => {
     try {

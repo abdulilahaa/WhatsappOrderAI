@@ -884,6 +884,7 @@ export class NailItAPIService {
         Discount_Amount: 0.0,
         Net_Amount: 15.0,
         POS_Location_Id: 1,
+        ChannelId: 4, // Required by API documentation
         OrderDetails: [
           {
             Prod_Id: 203,
@@ -897,8 +898,8 @@ export class NailItAPIService {
             Promo_Code: "",
             Discount_Amount: 0.0,
             Net_Amount: 15.0,
-            Staff_Id: 48,
-            TimeFrame_Ids: [7, 8], // 1PM-2PM slots (after 11AM opening)
+            Staff_Id: 16, // Use available staff ID (Roselyn)
+            TimeFrame_Ids: [9, 10], // 2PM-3PM slots (avoiding 1PM conflict)
             Appointment_Date: this.formatDateForSaveOrder(tomorrow) // Use DD/MM/yyyy format for SaveOrder
           }
         ]
@@ -921,6 +922,7 @@ export class NailItAPIService {
         Discount_Amount: 0.0,
         Net_Amount: 15.0,
         POS_Location_Id: 1,
+        ChannelId: 4, // Required by API documentation
         OrderDetails: [
           {
             Prod_Id: 203,
@@ -934,8 +936,8 @@ export class NailItAPIService {
             Promo_Code: "",
             Discount_Amount: 0.0,
             Net_Amount: 15.0,
-            Staff_Id: 48,
-            TimeFrame_Ids: [7, 8], // 1PM-2PM slots (after 11AM opening)  
+            Staff_Id: 16, // Use available staff ID (Roselyn)
+            TimeFrame_Ids: [9, 10], // 2PM-3PM slots (avoiding 1PM conflict)
             Appointment_Date: this.formatDateForSaveOrder(tomorrow) // DD/MM/yyyy format for SaveOrder
           }
         ]
