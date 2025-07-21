@@ -258,12 +258,12 @@ Current conversation context: Customer wants ${customerMessage}`;
       }
       
       if (searchTerms.length > 0) {
-        const services = await ragSearchService.searchServices(searchTerms.join(' '), { limit: 3 });
+        const services = await ragSearchService.searchServices(searchTerms.join(' '), {}, 3);
         if (services.length > 0) {
           state.collectedData.selectedServices = services.map(s => ({
             itemId: s.itemId,
             itemName: s.itemName,
-            price: s.itemPrice || 15,
+            price: parseFloat(s.primaryPrice) || 15,
             quantity: 1,
             duration: '60 minutes'
           }));

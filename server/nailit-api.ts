@@ -279,7 +279,7 @@ export class NailItAPIService {
         data: deviceResult ? 'Device registered successfully' : 'Device registration failed'
       };
     } catch (error) {
-      results['RegisterDevice'] = { success: false, error: error.message };
+      results['RegisterDevice'] = { success: false, error: (error as Error).message };
     }
 
     // Test 2: Get Groups  
@@ -290,7 +290,7 @@ export class NailItAPIService {
         data: `Found ${groups.length} groups`
       };
     } catch (error) {
-      results['GetGroups'] = { success: false, error: error.message };
+      results['GetGroups'] = { success: false, error: (error as Error).message };
     }
 
     // Test 3: Get SubGroups (if we have groups)
@@ -301,7 +301,7 @@ export class NailItAPIService {
         data: `Found ${subGroups.length} sub-groups for group 42`
       };
     } catch (error) {
-      results['GetSubGroups'] = { success: false, error: error.message };
+      results['GetSubGroups'] = { success: false, error: (error as Error).message };
     }
 
     // Test 4: Get Locations
@@ -312,7 +312,7 @@ export class NailItAPIService {
         data: `Found ${locations.length} locations`
       };
     } catch (error) {
-      results['GetLocations'] = { success: false, error: error.message };
+      results['GetLocations'] = { success: false, error: (error as Error).message };
     }
 
     // Test 5: Get Items by Date
@@ -328,7 +328,7 @@ export class NailItAPIService {
         data: `Found ${items.totalItems} total items, ${items.items.length} on page 1`
       };
     } catch (error) {
-      results['GetItemsByDate'] = { success: false, error: error.message };
+      results['GetItemsByDate'] = { success: false, error: (error as Error).message };
     }
 
     // Test 6: Get Service Staff
@@ -340,7 +340,7 @@ export class NailItAPIService {
         data: `Found ${staff.length} staff members for service 203, location 1`
       };
     } catch (error) {
-      results['GetServiceStaff'] = { success: false, error: error.message };
+      results['GetServiceStaff'] = { success: false, error: (error as Error).message };
     }
 
     // Test 7: Get Available Slots
@@ -352,7 +352,7 @@ export class NailItAPIService {
         data: `Found ${slots.length} available time slots for today`
       };
     } catch (error) {
-      results['GetAvailableSlots'] = { success: false, error: error.message };
+      results['GetAvailableSlots'] = { success: false, error: (error as Error).message };
     }
 
     // Test 8: Get Payment Types
@@ -363,7 +363,7 @@ export class NailItAPIService {
         data: `Found ${paymentTypes.length} payment types`
       };
     } catch (error) {
-      results['GetPaymentTypes'] = { success: false, error: error.message };
+      results['GetPaymentTypes'] = { success: false, error: (error as Error).message };
     }
 
     // Test 9: User Registration (test data)
@@ -381,7 +381,7 @@ export class NailItAPIService {
         data: registerResult ? `User registered with ID ${registerResult.App_User_Id}` : 'Registration failed'
       };
     } catch (error) {
-      results['RegisterUser'] = { success: false, error: error.message };
+      results['RegisterUser'] = { success: false, error: (error as Error).message };
     }
 
     return results;
@@ -628,7 +628,7 @@ export class NailItAPIService {
             return response.data.PaymentTypes;
           }
         } catch (error) {
-          console.log(`❌ Payment types failed for ${JSON.stringify(params)}:`, error.message);
+          console.log(`❌ Payment types failed for ${JSON.stringify(params)}:`, (error as Error).message);
         }
       }
       
@@ -820,7 +820,7 @@ export class NailItAPIService {
           return result;
         }
       } catch (error) {
-        console.log(`❌ Date format ${dateFormat} failed: ${error.message}`);
+        console.log(`❌ Date format ${dateFormat} failed: ${(error as Error).message}`);
       }
     }
     
@@ -1042,7 +1042,7 @@ export class NailItAPIService {
         return null;
       }
     } catch (error: any) {
-      console.error(`❌ Error getting order payment details for Order ID ${orderId}:`, error.response?.data || error.message);
+      console.error(`❌ Error getting order payment details for Order ID ${orderId}:`, (error as any).response?.data || (error as Error).message);
       return null;
     }
   }
@@ -1123,7 +1123,7 @@ export class NailItAPIService {
       };
 
     } catch (error: any) {
-      console.error(`❌ Error verifying payment status for Order ID ${orderId}:`, error.message);
+      console.error(`❌ Error verifying payment status for Order ID ${orderId}:`, (error as Error).message);
       return {
         isPaymentSuccessful: false,
         orderStatus: 'Error',

@@ -149,14 +149,14 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
                     </Badge>
                   </div>
                   <div className="text-sm text-slate-600">
-                    Business: {aiSettings?.businessName || "Not configured"}
+                    Business: {(aiSettings as any)?.businessName || "Not configured"}
                   </div>
                   <div className="text-sm text-slate-600">
-                    Assistant: {aiSettings?.assistantName || "Not configured"}
+                    Assistant: {(aiSettings as any)?.assistantName || "Not configured"}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-slate-500">
                     <Clock className="h-3 w-3" />
-                    Last updated: {aiSettings?.updatedAt ? formatLastUpdated(aiSettings.updatedAt.toString()) : "Never"}
+                    Last updated: {(aiSettings as any)?.updatedAt ? formatLastUpdated((aiSettings as any).updatedAt.toString()) : "Never"}
                   </div>
                 </div>
 
@@ -214,7 +214,9 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
                     {featuredProducts.slice(0, 4).map((product) => (
                       <ProductCard 
                         key={product.id} 
-                        product={product} 
+                        product={product}
+                        onEdit={() => {}} 
+                        onDelete={() => {}}
                       />
                     ))}
                   </div>
@@ -300,6 +302,8 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
                   <ProductCard
                     key={product.id}
                     product={product}
+                    onEdit={() => {}} 
+                    onDelete={() => {}}
                   />
                 ))}
               </div>
