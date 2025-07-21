@@ -41,6 +41,16 @@ export class WhatsAppService {
            !!settings.phoneNumberId;
   }
 
+  async updateConfiguration(config: { phoneNumberId?: string, accessToken?: string, webhookVerifyToken?: string }) {
+    // Force refresh from database
+    await this.initialize();
+    console.log("🔄 WhatsApp configuration updated:", {
+      hasToken: !!this.accessToken,
+      tokenLength: this.accessToken?.length,
+      phoneNumberId: this.phoneNumberId
+    });
+  }
+
   async verifyWebhook(mode: string, token: string, challenge: string): Promise<string | null> {
     await this.initialize();
     
