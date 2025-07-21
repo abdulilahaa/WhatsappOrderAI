@@ -1,109 +1,90 @@
-// Test the exact working API pattern from AI system logs
-import axios from 'axios';
+// Test Complete Conversation Flow with Location-Based Service Filtering
+const fetch = require('node-fetch');
 
-async function testWorkingAPIPattern() {
-  console.log('🧪 TESTING EXACT WORKING API PATTERN FROM AI SYSTEM');
-  console.log('📊 Using Location_Ids: [] (empty array) like successful AI calls\n');
+async function testLocationBasedConversation() {
+  console.log('🧪 Testing Location-Based Conversation Flow');
+  console.log('========================================');
   
-  try {
-    // Use the exact pattern from working AI system logs:
-    // 📤 GetItemsByDate request: { "Lang": "E", "Like": "", "Page_No": 1, "Item_Type_Id": 2, "Group_Id": 0, "Location_Ids": [], "Is_Home_Service": false }
-    // 📥 GetItemsByDate response status: 0 Message: Success Total: 398 Items length: 20
-    
-    const response = await axios.post('http://localhost:5000/api/nailit/get-items-by-date', {
-      lang: 'E',
-      like: '',
-      pageNo: 1,
-      itemTypeId: 2,
-      groupId: 0,
-      locationIds: [], // Empty array like working AI system
-      isHomeService: false,
-      selectedDate: '21-07-2025'
+  const phoneNumber = "96555000999";
+  
+  // Test 1: Customer mentions location and problem in first message
+  console.log('\n👤 Customer: "Hi, I have oily scalp and want treatment at Al-Plaza Mall"');
+  
+  let response = await fetch('http://localhost:5000/api/fresh-ai/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phoneNumber: phoneNumber,
+      message: 'Hi, I have oily scalp and want treatment at Al-Plaza Mall'
+    })
+  });
+  
+  let data = await response.json();
+  console.log('🤖 AI Response:', data.response?.message || 'Error');
+  
+  // Check what services are available for Al-Plaza Mall
+  console.log('\n🔍 Checking Al-Plaza Mall cached services...');
+  const scalpServices = await fetch('http://localhost:5000/api/rag/search?query=scalp&location_id=1');
+  const scalpData = await scalpServices.json();
+  console.log(`📊 Found ${scalpData.results?.length || 0} scalp-related services at Al-Plaza Mall`);
+  
+  if (scalpData.results?.length > 0) {
+    console.log('Available scalp treatments:');
+    scalpData.results.slice(0, 3).forEach((service, index) => {
+      console.log(`  ${index + 1}. ${service.itemName} - ${service.primaryPrice} KWD`);
     });
-    
-    if (response.data && response.data.items) {
-      console.log(`✅ SUCCESS: Found ${response.data.items.length} services`);
-      console.log(`📊 Total available: ${response.data.totalItems || 'Unknown'}`);
-      console.log(`🎯 Status: ${response.data.status}, Message: ${response.data.message}`);
-      
-      // Show first few services as examples
-      console.log('\n📋 Sample services found:');
-      response.data.items.slice(0, 5).forEach((service, index) => {
-        console.log(`   ${index + 1}. ${service.Item_Name} (ID: ${service.Item_Id}) - ${service.Special_Price || service.Primary_Price} KWD`);
-        console.log(`      Locations: [${service.Location_Ids?.join(', ') || 'Unknown'}]`);
-      });
-      
-      // Now test inserting one service directly using working SQL method
-      console.log('\n🔧 Testing direct SQL insertion...');
-      const testService = response.data.items[0];
-      const price = testService.Special_Price || testService.Primary_Price || 0;
-      const duration = parseInt(testService.Duration) || 30;
-      
-      const insertResult = await axios.post('http://localhost:5000/api/execute-sql', {
-        sql_query: `
-          INSERT INTO nailit_services (
-            nailit_id, item_id, name, description, price, duration_minutes, 
-            location_ids, group_id, is_enabled
-          ) VALUES (
-            ${testService.Item_Id + 1000000}, ${testService.Item_Id + 1000000}, 
-            '${testService.Item_Name.replace(/'/g, "''")}', 
-            '${(testService.Item_Desc || testService.Item_Name).replace(/'/g, "''")}',
-            ${price}, ${duration}, 
-            ARRAY[${testService.Location_Ids?.join(',') || '1'}]::integer[], 
-            ${testService.Parent_Group_Id || 0}, true
-          )
-          ON CONFLICT (nailit_id) DO UPDATE SET name = EXCLUDED.name
-        `
-      });
-      
-      if (insertResult.data.success) {
-        console.log('✅ SQL insertion test: SUCCESS');
-        
-        // Verify the insertion
-        const verifyResult = await axios.post('http://localhost:5000/api/execute-sql', {
-          sql_query: `SELECT COUNT(*) as count FROM nailit_services WHERE nailit_id = ${testService.Item_Id + 1000000}`
-        });
-        
-        console.log(`📊 Verification: ${verifyResult.data?.data?.[0]?.count || 0} test service found`);
-      } else {
-        console.log('❌ SQL insertion test: FAILED');
-        console.log(`Error: ${insertResult.data.error}`);
-      }
-      
-      return {
-        success: true,
-        servicesFound: response.data.items.length,
-        totalAvailable: response.data.totalItems,
-        sqlWorking: insertResult.data.success,
-        message: 'Working API pattern confirmed'
-      };
-      
-    } else {
-      console.log('❌ No services returned');
-      return { success: false, message: 'No services found' };
-    }
-    
-  } catch (error) {
-    console.error('❌ Test failed:', error.message);
-    return { success: false, error: error.message };
   }
+  
+  // Test 2: Customer asks for specific location services
+  console.log('\n👤 Customer: "What scalp treatments do you have at Zahra Complex?"');
+  
+  response = await fetch('http://localhost:5000/api/fresh-ai/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phoneNumber: phoneNumber,
+      message: 'What scalp treatments do you have at Zahra Complex?'
+    })
+  });
+  
+  data = await response.json();
+  console.log('🤖 AI Response:', data.response?.message || 'Error');
+  
+  // Check Zahra Complex services
+  console.log('\n🔍 Checking Zahra Complex cached services...');
+  const zahraServices = await fetch('http://localhost:5000/api/rag/search?query=scalp&location_id=52');
+  const zahraData = await zahraServices.json();
+  console.log(`📊 Found ${zahraData.results?.length || 0} scalp-related services at Zahra Complex`);
+  
+  // Test 3: General treatment search without location
+  console.log('\n👤 Customer: "I need a facial treatment"');
+  
+  response = await fetch('http://localhost:5000/api/fresh-ai/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phoneNumber: phoneNumber,
+      message: 'I need a facial treatment'
+    })
+  });
+  
+  data = await response.json();
+  console.log('🤖 AI Response:', data.response?.message || 'Error');
+  
+  // Test 4: Location comparison
+  console.log('\n📊 Location Service Comparison:');
+  for (const location of [
+    { id: 1, name: 'Al-Plaza Mall' },
+    { id: 52, name: 'Zahra Complex' },
+    { id: 53, name: 'Arraya Mall' }
+  ]) {
+    const serviceCount = await fetch(`http://localhost:5000/api/rag/search?query=&location_id=${location.id}`);
+    const serviceData = await serviceCount.json();
+    console.log(`  ${location.name}: ${serviceData.results?.length || 0} services cached`);
+  }
+  
+  console.log('\n✅ Conversation Flow Test Complete');
+  console.log('Expected: AI should filter services by detected location and conversation context');
 }
 
-// Run the test
-testWorkingAPIPattern()
-  .then(result => {
-    console.log('\n🎉 TEST RESULTS:');
-    console.log(`✅ API Pattern: ${result.success ? 'WORKING' : 'FAILED'}`);
-    console.log(`📊 Services Found: ${result.servicesFound || 0}`);
-    console.log(`🔧 SQL System: ${result.sqlWorking ? 'WORKING' : 'NEEDS FIX'}`);
-    
-    if (result.success && result.sqlWorking) {
-      console.log('\n🚀 READY FOR FULL POPULATION!');
-      console.log('💡 Both API calls and SQL insertion confirmed working');
-    } else {
-      console.log('\n🔧 Issues to resolve:');
-      if (!result.success) console.log('   - API call pattern needs adjustment');
-      if (!result.sqlWorking) console.log('   - SQL insertion system needs fixing');
-    }
-  })
-  .catch(error => console.error('Test execution failed:', error.message));
+testLocationBasedConversation().catch(console.error);

@@ -396,14 +396,45 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
            lowerMessage.includes('ما هي خدماتكم');
   }
 
-  private async extractServiceFromMessage(message: string, state: ConversationState): Promise<void> {
+    private async extractServiceFromMessage(message: string, state: ConversationState): Promise<void> {
     try {
       console.log(`🔍 Analyzing customer needs from message: "${message}"`);
       
       // Import RAG search service for cached services
       const { ragSearchService } = await import('./rag-search');
       
-      // Analyze keywords for specific problems/needs (Fix #1: Understand user's initial question)
+      // Step 1: Determine location from conversation
+      let locationId = state.collectedData.locationId;
+      let locationName = state.collectedData.locationName;
+      
+      if (!locationId) {
+        const lowerMessage = message.toLowerCase();
+        if (lowerMessage.includes('al-plaza') || lowerMessage.includes('al plaza')) {
+          locationId = 1;
+          locationName = 'Al-Plaza Mall';
+          state.collectedData.locationId = 1;
+          state.collectedData.locationName = 'Al-Plaza Mall';
+          console.log(`📍 Location detected: Al-Plaza Mall (ID: 1)`);
+        } else if (lowerMessage.includes('zahra')) {
+          locationId = 52;
+          locationName = 'Zahra Complex';
+          state.collectedData.locationId = 52;
+          state.collectedData.locationName = 'Zahra Complex';
+          console.log(`📍 Location detected: Zahra Complex (ID: 52)`);
+        } else if (lowerMessage.includes('arraya')) {
+          locationId = 53;
+          locationName = 'Arraya Mall';
+          state.collectedData.locationId = 53;
+          state.collectedData.locationName = 'Arraya Mall';
+          console.log(`📍 Location detected: Arraya Mall (ID: 53)`);
+        } else {
+          console.log(`❓ No location specified in message`);
+        }
+      } else {
+        console.log(`📍 Using existing location: ${locationName} (ID: ${locationId})`);
+      }
+      
+      // Step 2: Analyze conversation context for service needs
       const problemKeywords = {
         'oily scalp': ['scalp', 'treatment', 'cleansing', 'detox'],
         'dandruff': ['scalp', 'treatment', 'anti-dandruff', 'medicated'],
@@ -414,170 +445,90 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
         'acne': ['facial', 'cleansing', 'acne']
       };
       
-      // Use RAG search for cached services instead of live API
-      const dateStr = new Date().toISOString().split('T')[0].split('-').reverse().join('-'); // DD-MM-YYYY format
-      const allServices = await nailItAPI.getItemsByDate({
-        Lang: 'E',
-        Like: '',
-        Page_No: 1,
-        Item_Type_Id: 2,
-        Group_Id: 0,
-        Location_Ids: [1, 52, 53],
-        Is_Home_Service: false,
-        Selected_Date: dateStr
-      });
-      
-      if (!allServices || !allServices.items || allServices.items.length === 0) {
-        console.log('❌ No services available from NailIt API, trying fallback search...');
-        
-        // Try multiple pages to get more services
-        let allItems = [];
-        for (let page = 1; page <= 3; page++) {
-          const pageResults = await nailItAPI.getItemsByDate({
-            Lang: 'E',
-            Like: '',
-            Page_No: page,
-            Item_Type_Id: 2,
-            Group_Id: 0,
-            Location_Ids: [1, 52, 53],
-            Is_Home_Service: false,
-            Selected_Date: dateStr
-          });
-          
-          if (pageResults && pageResults.items) {
-            allItems.push(...pageResults.items);
-            console.log(`📄 Page ${page}: Found ${pageResults.items.length} services`);
-          }
-        }
-        
-        if (allItems.length === 0) {
-          console.log('❌ No services found even with multiple pages');
-          return;
-        }
-        
-        allServices.items = allItems;
-        console.log(`✅ Total services loaded: ${allItems.length}`);
-      }
-      
       const lowerMessage = message.toLowerCase();
-      let recommendations = [];
-      let userProblem = null;
+      let searchQuery = '';
+      let detectedProblem = null;
       
-      // Fix #1: Analyze user's specific problems/needs
+      // Detect specific problems
       for (const [problem, keywords] of Object.entries(problemKeywords)) {
         if (lowerMessage.includes(problem)) {
-          userProblem = problem;
-          console.log(`🎯 Detected customer problem: ${problem}`);
-          
-          // Find services matching the problem keywords
-          for (const service of allServices.items) {
-            const serviceName = service.Item_Name.toLowerCase();
-            const serviceDesc = (service.Item_Desc || '').toLowerCase();
-            
-            if (keywords.some(keyword => serviceName.includes(keyword) || serviceDesc.includes(keyword))) {
-              recommendations.push({
-                service: service,
-                relevance: 90,
-                reason: `Recommended for ${problem}`
-              });
-            }
-          }
+          searchQuery = keywords.join(' ');
+          detectedProblem = problem;
+          console.log(`🎯 Problem detected: "${problem}" → searching for: "${searchQuery}"`);
           break;
         }
       }
       
-      // If no specific problem detected, look for direct service mentions
-      if (!userProblem) {
-        // Quick fix: If French Manicure is mentioned, recommend it
-        if (lowerMessage.includes('french') && lowerMessage.includes('manicure')) {
-          console.log('✅ Direct French Manicure request detected');
-          const frenchManicure = allServices.items.find(s => s.Item_Name.toLowerCase().includes('french manicure'));
-          if (frenchManicure) {
-            recommendations.push({
-              service: frenchManicure,
-              relevance: 100,
-              reason: 'Exact match for your request'
-            });
-          }
-        }
-        
-        // Search for other service matches
-        for (const service of allServices.items) {
-          const serviceName = service.Item_Name.toLowerCase();
-          let score = 0;
-          let reason = '';
-          
-          // Exact name match gets highest score
-          if (serviceName === lowerMessage.trim()) {
-            score = 100;
-            reason = 'Exact match';
-          }
-          // Service name contains the search term
-          else if (serviceName.includes(lowerMessage.trim()) && lowerMessage.trim().length > 3) {
-            score = 90;
-            reason = 'Close match';
-          }
-          // Search term contains service name
-          else if (lowerMessage.includes(serviceName) && serviceName.length > 5) {
-            score = 80;
-            reason = 'Related to your request';
-          }
-          // Keyword matching for common terms
-          else if (lowerMessage.includes('manicure') && serviceName.includes('manicure')) {
-            score = 75;
-            reason = 'Manicure service';
-          }
-          else if (lowerMessage.includes('pedicure') && serviceName.includes('pedicure')) {
-            score = 75;
-            reason = 'Pedicure service';
-          }
-          else if (lowerMessage.includes('facial') && serviceName.includes('facial')) {
-            score = 75;
-            reason = 'Facial treatment';
-          }
-          else if (lowerMessage.includes('hair') && serviceName.includes('hair')) {
-            score = 75;
-            reason = 'Hair service';
-          }
-          
-          if (score > 70) {
-            recommendations.push({
-              service: service,
-              relevance: score,
-              reason: reason
-            });
+      // Extract service type keywords if no problem detected
+      if (!searchQuery) {
+        const serviceWords = ['manicure', 'pedicure', 'facial', 'hair', 'massage', 'scalp', 'nail', 'treatment'];
+        for (const word of serviceWords) {
+          if (lowerMessage.includes(word)) {
+            searchQuery = word;
+            console.log(`🔍 Service type detected: "${word}"`);
+            break;
           }
         }
       }
       
-      // Fix #2: Store recommendations, don't auto-select
-      if (recommendations.length > 0) {
-        // Sort by relevance and take top 5
-        recommendations.sort((a, b) => b.relevance - a.relevance);
-        state.collectedData.availableServices = recommendations.slice(0, 5).map(rec => rec.service);
-        
-        console.log(`📋 Found ${recommendations.length} service recommendations`);
-        
-        // Store the recommendation details for the AI to present
-        state.collectedData['serviceRecommendations'] = recommendations.slice(0, 5).map(rec => ({
-          itemId: rec.service.Item_Id,
-          itemName: rec.service.Item_Name,
-          price: rec.service.Special_Price || rec.service.Primary_Price,
-          duration: rec.service.Duration_Min ? `${rec.service.Duration_Min} minutes` : '30 minutes',
-          description: rec.service.Item_Desc?.replace(/<[^>]*>/g, '') || '',
-          reason: rec.reason
-        }));
-        
-        // If user asked about a specific problem, set flag for follow-up questions
-        if (userProblem) {
-          state.collectedData['userProblem'] = userProblem;
-          state.collectedData['needsFollowUp'] = true;
-        }
-      } else {
-        console.log(`❌ No matching services found for: "${message}"`);
+      if (!searchQuery) {
+        searchQuery = 'treatment';
+        console.log(`🔍 Using default search: "treatment"`);
       }
+      
+      // Step 3: Search location-specific cached services using RAG
+      console.log(`💾 Searching cached services for location ${locationId} with query: "${searchQuery}"`);
+      
+      const ragResults = await ragSearchService.searchServices(searchQuery, 
+        locationId ? { locationId } : {}, 15);
+      
+      console.log(`📊 RAG search results: ${ragResults.length} services found`);
+      if (locationId) {
+        console.log(`📍 Filtered for location: ${locationName} (ID: ${locationId})`);
+      }
+      
+      if (ragResults.length === 0) {
+        console.log(`❌ No matching services found for: "${searchQuery}"`);
+        console.log(`🔄 Trying broader search for location ${locationId}...`);
+        
+        const broadResults = await ragSearchService.searchServices('', 
+          locationId ? { locationId } : {}, 20);
+        
+        if (broadResults.length > 0) {
+          ragResults.push(...broadResults.slice(0, 10));
+          console.log(`✅ Found ${broadResults.length} general services for location ${locationId}`);
+        } else {
+          console.log(`❌ No services available for location ${locationId}`);
+          return;
+        }
+      }
+      
+      // Log first few services for debugging
+      ragResults.slice(0, 3).forEach((service, index) => {
+        console.log(`  ${index + 1}. ${service.itemName} - ${service.primaryPrice} KWD`);
+      });
+      
+      console.log(`🔍 Service extraction result: ${ragResults.map(s => s.itemName).slice(0, 3)}`);
+      
+      // Store found services in state for later use
+      if (ragResults.length > 0) {
+        const topServices = ragResults.slice(0, 3);
+        
+        for (const service of topServices) {
+          state.collectedData.selectedServices.push({
+            itemId: service.itemId,
+            itemName: service.itemName,
+            price: parseFloat(service.primaryPrice),
+            duration: service.durationMinutes || 45,
+            reason: detectedProblem ? `Recommended for ${detectedProblem}` : 'Popular service'
+          });
+        }
+        
+        console.log(`✅ Added ${topServices.length} services to conversation state`);
+      }
+      
     } catch (error) {
-      console.error('Service extraction error:', error);
+      console.error('❌ Error in extractServiceFromMessage:', error);
     }
   }
 

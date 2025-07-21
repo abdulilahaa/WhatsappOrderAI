@@ -1,146 +1,197 @@
-// Direct RAG population using working API endpoint for location 1
-import axios from 'axios';
+// Direct RAG Integration Fix
+import fs from 'fs/promises';
 
-async function populateLocation1Services() {
-  console.log('🎯 POPULATING ALL 378 SERVICES FOR LOCATION 1 (AL-PLAZA MALL)');
-  console.log('📊 Using working API endpoint that fetches authentic services\n');
+async function fixRAGIntegration() {
+  console.log('🔧 Fixing AI Agent to Use RAG Database Instead of Live API');
+  console.log('=========================================================');
   
   try {
-    // Use the working endpoint that successfully fetches all 378 services
-    console.log('📡 Fetching all 378 authentic services for Al-Plaza Mall...');
+    // Read the current AI Fresh file
+    const aiFilePath = './server/ai-fresh.ts';
+    let content = await fs.readFile(aiFilePath, 'utf8');
     
-    const response = await axios.get('http://localhost:5000/api/nailit/products-by-location/1');
-    
-    if (!response.data.success || !response.data.services) {
-      throw new Error('Failed to fetch services from working endpoint');
+    // Find the extractServiceFromMessage method
+    const methodStart = content.indexOf('private async extractServiceFromMessage');
+    if (methodStart === -1) {
+      console.log('❌ Method not found');
+      return;
     }
     
-    const services = response.data.services;
-    console.log(`✅ Successfully fetched ${services.length} authentic services`);
+    // Find the end of the method (next method or end of class)
+    let braceCount = 0;
+    let methodEnd = methodStart;
+    let inMethod = false;
     
-    if (services.length !== 378) {
-      console.log(`⚠️ Expected 378 services but got ${services.length}`);
+    for (let i = methodStart; i < content.length; i++) {
+      if (content[i] === '{') {
+        braceCount++;
+        inMethod = true;
+      } else if (content[i] === '}') {
+        braceCount--;
+        if (inMethod && braceCount === 0) {
+          methodEnd = i + 1;
+          break;
+        }
+      }
     }
     
-    // Show sample of services being cached
-    console.log('\n📋 Sample authentic services to be cached:');
-    services.slice(0, 5).forEach((service, index) => {
-      console.log(`   ${index + 1}. ${service.Item_Name} (ID: ${service.Item_Id}) - ${service.Primary_Price || service.Special_Price} KWD`);
-    });
+    console.log('✅ Found method boundaries');
+    console.log('Method starts at:', methodStart);
+    console.log('Method ends at:', methodEnd);
     
-    // Cache all services in batches
-    console.log('\n💾 Caching all services to RAG database...');
-    let successCount = 0;
-    let errorCount = 0;
-    const batchSize = 20;
-    
-    for (let i = 0; i < services.length; i += batchSize) {
-      const batch = services.slice(i, i + batchSize);
+    // Create the new RAG-based method
+    const newMethod = `  private async extractServiceFromMessage(message: string, state: ConversationState): Promise<void> {
+    try {
+      console.log(\`🔍 Analyzing customer needs from message: "\${message}"\`);
       
-      console.log(`   📦 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(services.length/batchSize)} (services ${i + 1}-${Math.min(i + batchSize, services.length)})...`);
+      // Import RAG search service for cached services
+      const { ragSearchService } = await import('./rag-search');
       
-      for (const service of batch) {
-        try {
-          const price = service.Special_Price || service.Primary_Price || 0;
-          const duration = parseInt(service.Duration) || 30;
-          const description = (service.Item_Desc || service.Item_Name || '').replace(/'/g, "''");
-          const name = service.Item_Name.replace(/'/g, "''");
-          
-          const insertResponse = await axios.post('http://localhost:5000/api/execute-sql', {
-            sql_query: `
-              INSERT INTO nailit_services (
-                nailit_id, item_id, name, item_name,
-                description, item_desc, price, primary_price, special_price,
-                duration_minutes, location_ids, group_id, item_type_id, is_enabled
-              ) VALUES (
-                ${service.Item_Id}, ${service.Item_Id}, 
-                '${name}', '${name}',
-                '${description}', '${description}',
-                ${price}, ${service.Primary_Price || price}, ${service.Special_Price || 'NULL'},
-                ${duration}, ARRAY[1]::integer[], ${service.Parent_Group_Id || 0}, 
-                ${service.Item_Type_Id || 2}, true
-              )
-              ON CONFLICT (nailit_id) DO UPDATE SET
-                location_ids = ARRAY[1]::integer[],
-                name = EXCLUDED.name,
-                price = EXCLUDED.price,
-                duration_minutes = EXCLUDED.duration_minutes
-            `
-          });
-          
-          if (insertResponse.data.success) {
-            successCount++;
-          } else {
-            errorCount++;
-          }
-        } catch (serviceError) {
-          errorCount++;
-          if (errorCount <= 3) {
-            console.log(`   ⚠️ Service ${service.Item_Id} error: ${serviceError.message}`);
+      // Step 1: Determine location from conversation
+      let locationId = state.collectedData.locationId;
+      let locationName = state.collectedData.locationName;
+      
+      if (!locationId) {
+        const lowerMessage = message.toLowerCase();
+        if (lowerMessage.includes('al-plaza') || lowerMessage.includes('al plaza')) {
+          locationId = 1;
+          locationName = 'Al-Plaza Mall';
+          state.collectedData.locationId = 1;
+          state.collectedData.locationName = 'Al-Plaza Mall';
+          console.log(\`📍 Location detected: Al-Plaza Mall (ID: 1)\`);
+        } else if (lowerMessage.includes('zahra')) {
+          locationId = 52;
+          locationName = 'Zahra Complex';
+          state.collectedData.locationId = 52;
+          state.collectedData.locationName = 'Zahra Complex';
+          console.log(\`📍 Location detected: Zahra Complex (ID: 52)\`);
+        } else if (lowerMessage.includes('arraya')) {
+          locationId = 53;
+          locationName = 'Arraya Mall';
+          state.collectedData.locationId = 53;
+          state.collectedData.locationName = 'Arraya Mall';
+          console.log(\`📍 Location detected: Arraya Mall (ID: 53)\`);
+        } else {
+          console.log(\`❓ No location specified in message\`);
+        }
+      } else {
+        console.log(\`📍 Using existing location: \${locationName} (ID: \${locationId})\`);
+      }
+      
+      // Step 2: Analyze conversation context for service needs
+      const problemKeywords = {
+        'oily scalp': ['scalp', 'treatment', 'cleansing', 'detox'],
+        'dandruff': ['scalp', 'treatment', 'anti-dandruff', 'medicated'],
+        'dry hair': ['hair', 'hydrating', 'moisturizing', 'conditioning'],
+        'damaged hair': ['hair', 'repair', 'reconstruction', 'keratin'],
+        'thinning hair': ['hair', 'volumizing', 'growth', 'strengthening'],
+        'anti-aging': ['facial', 'anti-aging', 'rejuvenating'],
+        'acne': ['facial', 'cleansing', 'acne']
+      };
+      
+      const lowerMessage = message.toLowerCase();
+      let searchQuery = '';
+      let detectedProblem = null;
+      
+      // Detect specific problems
+      for (const [problem, keywords] of Object.entries(problemKeywords)) {
+        if (lowerMessage.includes(problem)) {
+          searchQuery = keywords.join(' ');
+          detectedProblem = problem;
+          console.log(\`🎯 Problem detected: "\${problem}" → searching for: "\${searchQuery}"\`);
+          break;
+        }
+      }
+      
+      // Extract service type keywords if no problem detected
+      if (!searchQuery) {
+        const serviceWords = ['manicure', 'pedicure', 'facial', 'hair', 'massage', 'scalp', 'nail', 'treatment'];
+        for (const word of serviceWords) {
+          if (lowerMessage.includes(word)) {
+            searchQuery = word;
+            console.log(\`🔍 Service type detected: "\${word}"\`);
+            break;
           }
         }
       }
       
-      // Small delay between batches to avoid overwhelming the server
-      await new Promise(resolve => setTimeout(resolve, 100));
+      if (!searchQuery) {
+        searchQuery = 'treatment';
+        console.log(\`🔍 Using default search: "treatment"\`);
+      }
+      
+      // Step 3: Search location-specific cached services using RAG
+      console.log(\`💾 Searching cached services for location \${locationId} with query: "\${searchQuery}"\`);
+      
+      const ragResults = await ragSearchService.searchServices(searchQuery, 
+        locationId ? { locationId } : {}, 15);
+      
+      console.log(\`📊 RAG search results: \${ragResults.length} services found\`);
+      if (locationId) {
+        console.log(\`📍 Filtered for location: \${locationName} (ID: \${locationId})\`);
+      }
+      
+      if (ragResults.length === 0) {
+        console.log(\`❌ No matching services found for: "\${searchQuery}"\`);
+        console.log(\`🔄 Trying broader search for location \${locationId}...\`);
+        
+        const broadResults = await ragSearchService.searchServices('', 
+          locationId ? { locationId } : {}, 20);
+        
+        if (broadResults.length > 0) {
+          ragResults.push(...broadResults.slice(0, 10));
+          console.log(\`✅ Found \${broadResults.length} general services for location \${locationId}\`);
+        } else {
+          console.log(\`❌ No services available for location \${locationId}\`);
+          return;
+        }
+      }
+      
+      // Log first few services for debugging
+      ragResults.slice(0, 3).forEach((service, index) => {
+        console.log(\`  \${index + 1}. \${service.itemName} - \${service.primaryPrice} KWD\`);
+      });
+      
+      console.log(\`🔍 Service extraction result: \${ragResults.map(s => s.itemName).slice(0, 3)}\`);
+      
+      // Store found services in state for later use
+      if (ragResults.length > 0) {
+        const topServices = ragResults.slice(0, 3);
+        
+        for (const service of topServices) {
+          state.collectedData.selectedServices.push({
+            itemId: service.itemId,
+            itemName: service.itemName,
+            price: parseFloat(service.primaryPrice),
+            duration: service.durationMinutes || 45,
+            reason: detectedProblem ? \`Recommended for \${detectedProblem}\` : 'Popular service'
+          });
+        }
+        
+        console.log(\`✅ Added \${topServices.length} services to conversation state\`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in extractServiceFromMessage:', error);
     }
+  }`;
     
-    console.log(`\n✅ Caching completed: ${successCount}/${services.length} services cached`);
-    if (errorCount > 0) {
-      console.log(`⚠️ Errors: ${errorCount} services failed`);
-    }
+    // Replace the old method with the new one
+    const beforeMethod = content.substring(0, methodStart);
+    const afterMethod = content.substring(methodEnd);
+    const newContent = beforeMethod + newMethod + afterMethod;
     
-    // Verify the final count
-    console.log('\n🔍 Verifying cached service count for Al-Plaza Mall...');
-    const verifyResponse = await axios.post('http://localhost:5000/api/execute-sql', {
-      sql_query: 'SELECT COUNT(*) as count FROM nailit_services WHERE 1 = ANY(location_ids) AND is_enabled = true'
-    });
+    // Write the fixed file
+    await fs.writeFile(aiFilePath, newContent, 'utf8');
     
-    const finalCount = verifyResponse.data?.data?.[0]?.count || 0;
-    console.log(`📊 Final verification: ${finalCount} services cached for Al-Plaza Mall`);
-    
-    // Test AI agent access to cached services
-    console.log('\n🧪 Testing AI agent access to cached services...');
-    const testResponse = await axios.post('http://localhost:5000/api/fresh-ai/test', {
-      phoneNumber: '96599999999',
-      message: 'What services do you have at Al-Plaza Mall?'
-    });
-    
-    console.log('\n🎉 LOCATION 1 POPULATION RESULTS:');
-    console.log(`📊 Services fetched from API: ${services.length}`);
-    console.log(`💾 Services cached successfully: ${successCount}`);
-    console.log(`📍 Final verification count: ${finalCount}`);
-    console.log(`🎯 Target achieved: ${finalCount >= 370 ? '✅ YES' : '❌ NO'}`);
-    
-    if (finalCount >= 370) {
-      console.log('\n🚀 SUCCESS: All 378 services for Al-Plaza Mall are now cached!');
-      console.log('💡 AI agent can now see and recommend from complete authentic service catalog');
-    } else {
-      console.log('\n⚠️ PARTIAL SUCCESS: Need to cache more services to reach 378 target');
-    }
-    
-    return {
-      success: true,
-      servicesFetched: services.length,
-      servicesCached: successCount,
-      finalVerificationCount: finalCount,
-      targetAchieved: finalCount >= 370
-    };
+    console.log('✅ Successfully replaced AI method with RAG-based implementation');
+    console.log('🔧 AI agent now uses cached services instead of live API');
+    console.log('📍 Location detection and filtering implemented');
+    console.log('🎯 Problem-based service matching enabled');
     
   } catch (error) {
-    console.error('❌ Location 1 population failed:', error.message);
-    return { success: false, error: error.message };
+    console.error('❌ Error fixing RAG integration:', error);
   }
 }
 
-// Execute the population
-populateLocation1Services()
-  .then(result => {
-    console.log('\n🏁 LOCATION 1 POPULATION COMPLETE');
-    if (result.success && result.targetAchieved) {
-      console.log('🎉 SUCCESS: All 378 Al-Plaza Mall services cached and verified!');
-    } else if (result.success) {
-      console.log(`📈 PROGRESS: ${result.servicesCached} services cached, continuing work needed`);
-    }
-  })
-  .catch(error => console.error('Population execution failed:', error.message));
+fixRAGIntegration();
