@@ -91,7 +91,7 @@ export default function AIAgentSettings() {
         openaiTemperature: typeof settings.openaiTemperature === 'string' 
           ? parseFloat(settings.openaiTemperature) 
           : settings.openaiTemperature
-      };
+      } as AIAgentSettings; // Type assertion to fix TypeScript error
       form.reset(formData);
       setIsDraft(false);
     }
@@ -218,7 +218,7 @@ export default function AIAgentSettings() {
     const backendData = {
       ...data,
       openaiTemperature: data.openaiTemperature.toString()
-    };
+    } as any; // Type assertion for backend compatibility
     saveDraftMutation.mutate(backendData);
   };
 
@@ -286,7 +286,11 @@ export default function AIAgentSettings() {
           </Button>
           
           <Button 
-            onClick={form.handleSubmit(onSubmit)} 
+            type="button"
+            onClick={() => {
+              console.log("🔥 Publish button clicked!");
+              form.handleSubmit(onSubmit)();
+            }}
             disabled={publishMutation.isPending || isPublishing}
             className="bg-green-600 hover:bg-green-700"
           >
