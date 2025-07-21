@@ -85,7 +85,14 @@ export default function AIAgentSettings() {
   // Update form when settings are loaded
   useEffect(() => {
     if (settings) {
-      form.reset(settings);
+      // Convert string openaiTemperature to number for form validation
+      const formData = {
+        ...settings,
+        openaiTemperature: typeof settings.openaiTemperature === 'string' 
+          ? parseFloat(settings.openaiTemperature) 
+          : settings.openaiTemperature
+      };
+      form.reset(formData);
       setIsDraft(false);
     }
   }, [settings, form]);
@@ -121,10 +128,15 @@ export default function AIAgentSettings() {
   const publishMutation = useMutation({
     mutationFn: async (data: AIAgentSettings) => {
       setIsPublishing(true);
+      // Convert number back to string for backend compatibility
+      const backendData = {
+        ...data,
+        openaiTemperature: data.openaiTemperature.toString()
+      };
       const response = await fetch("/api/fresh-ai-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(backendData),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
@@ -183,7 +195,12 @@ export default function AIAgentSettings() {
 
   const saveDraft = () => {
     const data = form.getValues();
-    saveDraftMutation.mutate(data);
+    // Convert number back to string for backend compatibility
+    const backendData = {
+      ...data,
+      openaiTemperature: data.openaiTemperature.toString()
+    };
+    saveDraftMutation.mutate(backendData);
   };
 
   const testAgent = () => {
