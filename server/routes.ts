@@ -587,6 +587,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CRITICAL: Direct Natural Conversation Test Route
+  app.post('/api/test-natural-conversation', async (req, res) => {
+    const { testNaturalConversation } = await import('./routes/natural-conversation-test');
+    await testNaturalConversation(req, res);
+  });
+
   // Fresh AI Test Route
   app.post("/api/fresh-ai/test", async (req, res) => {
     const { testFreshAI } = await import("./routes/fresh-ai");

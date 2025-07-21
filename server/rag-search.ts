@@ -96,7 +96,7 @@ class RAGSearchService {
           primaryPrice: nailItServices.primaryPrice,
           durationMinutes: nailItServices.durationMinutes,
           locationIds: nailItServices.locationIds,
-          categoryTags: nailItServices.categoryTags
+          categoryTags: sql`COALESCE(${nailItServices.categoryTags}, '{}')`
         })
         .from(nailItServices)
         .where(
@@ -191,7 +191,7 @@ class RAGSearchService {
           primaryPrice: nailItServices.primaryPrice,
           durationMinutes: nailItServices.durationMinutes,
           locationIds: nailItServices.locationIds,
-          categoryTags: nailItServices.categoryTags
+          categoryTags: sql`COALESCE(${nailItServices.categoryTags}, '{}')`
         })
         .from(nailItServices)
         .where(and(...conditions))
