@@ -22,11 +22,15 @@ export class WhatsAppService {
 
   constructor() {
     this.initialize();
+    // Use fresh access token from environment if available
+    if (process.env.WHATSAPP_ACCESS_TOKEN) {
+      this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    }
   }
 
   private async initialize() {
     const settings = await storage.getWhatsAppSettings();
-    this.accessToken = settings.accessToken;
+    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN || settings.accessToken;
     this.phoneNumberId = settings.phoneNumberId;
     this.webhookVerifyToken = settings.webhookVerifyToken;
   }
