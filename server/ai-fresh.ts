@@ -497,9 +497,9 @@ Current conversation context: Customer wants ${customerMessage}`;
       const appointmentDate = state.collectedData.appointmentDate || 
         tomorrow.toLocaleDateString('en-GB').replace(/\//g, '/');
       
-      // Convert date to MM/dd/yyyy format for SaveOrder API  
+      // Convert date to DD/MM/yyyy format for SaveOrder API  
       const dateForAPI = new Date(appointmentDate.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2/$1/$3'));
-      const formattedDate = `${(dateForAPI.getMonth() + 1).toString().padStart(2, '0')}/${dateForAPI.getDate().toString().padStart(2, '0')}/${dateForAPI.getFullYear()}`;
+      const formattedDate = `${dateForAPI.getDate().toString().padStart(2, '0')}/${(dateForAPI.getMonth() + 1).toString().padStart(2, '0')}/${dateForAPI.getFullYear()}`;
       console.log(`📅 Appointment date: ${appointmentDate} → ${formattedDate}`);
 
       const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 

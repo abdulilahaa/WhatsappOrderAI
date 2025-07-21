@@ -791,13 +791,13 @@ export class NailItAPIService {
     }
   }
 
-  // Helper method to format date for SaveOrder API (NailIt expects MM/dd/yyyy format)
+  // Helper method to format date for SaveOrder API (NailIt expects DD/MM/yyyy format)
   formatDateForSaveOrder(date: Date): string {
-    // SaveOrder API expects MM/dd/yyyy format as shown in documentation
+    // SaveOrder API expects DD/MM/yyyy format as shown in documentation
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
-    return `${month}/${day}/${year}`;
+    return `${day}/${month}/${year}`;
   }
 
   // Helper method for other API calls (DD-MM-YYYY format)
@@ -898,8 +898,8 @@ export class NailItAPIService {
             Discount_Amount: 0.0,
             Net_Amount: 15.0,
             Staff_Id: 48,
-            TimeFrame_Ids: [1, 2],
-            Appointment_Date: this.formatDateForSaveOrder(tomorrow) // Use MM/dd/yyyy format for SaveOrder
+            TimeFrame_Ids: [7, 8], // 1PM-2PM slots (after 11AM opening)
+            Appointment_Date: this.formatDateForSaveOrder(tomorrow) // Use DD/MM/yyyy format for SaveOrder
           }
         ]
       };
@@ -935,8 +935,8 @@ export class NailItAPIService {
             Discount_Amount: 0.0,
             Net_Amount: 15.0,
             Staff_Id: 48,
-            TimeFrame_Ids: [1, 2],
-            Appointment_Date: this.formatDateForSaveOrder(tomorrow) // MM/dd/yyyy format for SaveOrder
+            TimeFrame_Ids: [7, 8], // 1PM-2PM slots (after 11AM opening)  
+            Appointment_Date: this.formatDateForSaveOrder(tomorrow) // DD/MM/yyyy format for SaveOrder
           }
         ]
       };
