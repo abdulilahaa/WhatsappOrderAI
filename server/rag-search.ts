@@ -89,7 +89,15 @@ class RAGSearchService {
 
       // Perform search with ranking
       const searchResults = await db
-        .select()
+        .select({
+          itemId: nailItServices.itemId,
+          itemName: nailItServices.itemName,
+          itemDesc: nailItServices.itemDesc,
+          primaryPrice: nailItServices.primaryPrice,
+          durationMinutes: nailItServices.durationMinutes,
+          locationIds: nailItServices.locationIds,
+          categoryTags: nailItServices.categoryTags
+        })
         .from(nailItServices)
         .where(
           searchConditions.length > 0 
@@ -176,7 +184,15 @@ class RAGSearchService {
 
       // Get popular hair and beauty services
       const popularServices = await db
-        .select()
+        .select({
+          itemId: nailItServices.itemId,
+          itemName: nailItServices.itemName,
+          itemDesc: nailItServices.itemDesc,
+          primaryPrice: nailItServices.primaryPrice,
+          durationMinutes: nailItServices.durationMinutes,
+          locationIds: nailItServices.locationIds,
+          categoryTags: nailItServices.categoryTags
+        })
         .from(nailItServices)
         .where(and(...conditions))
         .orderBy(sql`CAST(${nailItServices.primaryPrice} AS DECIMAL) ASC`)

@@ -510,21 +510,24 @@ Respond in ${state.language === 'ar' ? 'Arabic' : 'English'}.`;
       
       console.log(`🔍 Service extraction result: ${ragResults.map(s => s.itemName).slice(0, 3)}`);
       
-      // Store found services in state for later use
+      // Fix #2: Don't auto-select services, just store them as recommendations
       if (ragResults.length > 0) {
-        const topServices = ragResults.slice(0, 3);
+        // Store recommendations but don't auto-select
+        state.collectedData.availableServices = ragResults.slice(0, 5).map(service => ({
+          Item_Id: service.itemId,
+          Item_Name: service.itemName,
+          Item_Desc: service.itemDesc,
+          Primary_Price: parseFloat(service.primaryPrice),
+          Duration: service.durationMinutes ? service.durationMinutes.toString() : '45',
+          Special_Price: parseFloat(service.primaryPrice)
+        }));
         
-        for (const service of topServices) {
-          state.collectedData.selectedServices.push({
-            itemId: service.itemId,
-            itemName: service.itemName,
-            price: parseFloat(service.primaryPrice),
-            duration: service.durationMinutes || 45,
-            reason: detectedProblem ? `Recommended for ${detectedProblem}` : 'Popular service'
-          });
+        console.log(`✅ Found ${ragResults.length} service recommendations (not auto-selected)`);
+        
+        // Only add to selectedServices if customer explicitly chooses
+        if (detectedProblem) {
+          console.log(`🎯 Problem-based recommendations ready for customer selection`);
         }
-        
-        console.log(`✅ Added ${topServices.length} services to conversation state`);
       }
       
     } catch (error) {
