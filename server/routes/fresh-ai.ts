@@ -5,29 +5,32 @@ import { storage } from '../storage';
 // Test endpoint for fresh AI agent
 export async function testFreshAI(req: Request, res: Response) {
   try {
-    const { message, customerId } = req.body;
+    const { message, customerId, phoneNumber } = req.body;
     
-    if (!message || !customerId) {
-      return res.status(400).json({ error: 'Message and customerId are required' });
+    // Accept either phoneNumber or customerId for compatibility
+    const identifier = phoneNumber || customerId;
+    
+    if (!message || !identifier) {
+      return res.status(400).json({ error: 'Message and phoneNumber (or customerId) are required' });
     }
 
     // Get or create customer by phone number (for WhatsApp compatibility)
     let customer;
     
-    // Check if customerId is actually a phone number
-    if (customerId.startsWith('+') || customerId.length > 10) {
+    // Check if identifier is actually a phone number
+    if (identifier.startsWith('+') || identifier.length > 10) {
       // It's a phone number, find by phone number
-      customer = await storage.getCustomerByPhoneNumber(customerId);
+      customer = await storage.getCustomerByPhoneNumber(identifier);
       if (!customer) {
         customer = await storage.createCustomer({
           name: 'Test Customer',
-          phoneNumber: customerId,
+          phoneNumber: identifier,
           email: 'test@example.com'
         });
       }
     } else {
       // It's a regular customer ID
-      const customerIdNum = parseInt(customerId);
+      const customerIdNum = parseInt(identifier);
       if (isNaN(customerIdNum)) {
         return res.status(400).json({ error: "Invalid customer ID format" });
       }

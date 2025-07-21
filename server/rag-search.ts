@@ -113,7 +113,7 @@ class RAGSearchService {
         itemName: service.itemName,
         itemDesc: service.itemDesc,
         primaryPrice: service.primaryPrice,
-        specialPrice: service.specialPrice,
+        specialPrice: service.promotionPrice || null, // Use promotionPrice instead of specialPrice
         durationMinutes: service.durationMinutes,
         categoryTags: Array.isArray(service.categoryTags) ? service.categoryTags : [],
         locationIds: Array.isArray(service.locationIds) ? service.locationIds : [],
@@ -149,7 +149,7 @@ class RAGSearchService {
         itemName: service.itemName,
         itemDesc: service.itemDesc,
         primaryPrice: service.primaryPrice,
-        specialPrice: service.specialPrice,
+        specialPrice: service.promotionPrice || null, // Fix for database schema mismatch
         durationMinutes: service.durationMinutes,
         categoryTags: Array.isArray(service.categoryTags) ? service.categoryTags : [],
         locationIds: Array.isArray(service.locationIds) ? service.locationIds : [],
@@ -189,7 +189,7 @@ class RAGSearchService {
         itemName: service.itemName,
         itemDesc: service.itemDesc,
         primaryPrice: service.primaryPrice,
-        specialPrice: service.specialPrice,
+        specialPrice: null, // Database doesn't have special_price column
         durationMinutes: service.durationMinutes,
         categoryTags: Array.isArray(service.categoryTags) ? service.categoryTags : [],
         locationIds: Array.isArray(service.locationIds) ? service.locationIds : [],

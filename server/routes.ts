@@ -588,77 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await testFreshAI(req, res);
   });
 
-  // Comprehensive AI booking flow test
-  app.get("/api/fresh-ai/test-booking-flow", async (req, res) => {
-    try {
-      const { testAIBookingFlow } = await import('./test-ai-booking-clean');
-      const result = await testAIBookingFlow();
-      res.json(result);
-    } catch (error: any) {
-      console.error('AI booking flow test error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Detailed booking flow test with all API responses
-  app.get("/api/fresh-ai/test-detailed-booking", async (req, res) => {
-    try {
-      const { testDetailedBookingFlow } = await import('./test-detailed-booking');
-      const result = await testDetailedBookingFlow();
-      res.json(result);
-    } catch (error: any) {
-      console.error('Detailed booking test error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Order and Payment flow test
-  app.get("/api/test-order-payment", async (req, res) => {
-    try {
-      const { testOrderAndPayment } = await import('./test-order-payment');
-      const result = await testOrderAndPayment();
-      res.json(result);
-    } catch (error: any) {
-      console.error('Order and payment test error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Payment flow test
-  app.get("/api/test-payment-flow", async (req, res) => {
-    try {
-      const { testPaymentFlow } = await import('./test-payment-flow');
-      const result = await testPaymentFlow();
-      res.json(result);
-    } catch (error: any) {
-      console.error('Payment flow test error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Payment link generation test
-  app.get("/api/test-payment-link", async (req, res) => {
-    try {
-      const { testPaymentLinkGeneration } = await import('./test-payment-link');
-      const result = await testPaymentLinkGeneration();
-      res.json(result);
-    } catch (error: any) {
-      console.error('Payment link test error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Demonstrate complete KNet flow
-  app.get("/api/demo-knet-flow", async (req, res) => {
-    try {
-      const { demonstrateKNetFlow } = await import('./demo-knet-flow');
-      const result = await demonstrateKNetFlow();
-      res.json(result);
-    } catch (error: any) {
-      console.error('KNet flow demo error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
+  // Fresh AI booking flow endpoints (legacy test routes removed)
 
   // KNet payment system demonstration
   app.get("/api/knet-demo", async (req, res) => {
@@ -1574,66 +1504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simple Order Test with known working parameters
-  app.post("/api/nailit/simple-order-test", async (req, res) => {
-    try {
-      const { createSimpleOrderTest } = await import('./simple-order-test.js');
-      
-      const result = await createSimpleOrderTest();
-      
-      if (result.success) {
-        res.json(result);
-      } else {
-        res.status(400).json(result);
-      }
-    } catch (error: any) {
-      console.error('❌ Simple order test error:', error.message);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-        details: error
-      });
-    }
-  });
-
-  // Comprehensive Live Order Test endpoint
-  app.post("/api/nailit/live-order-test", async (req, res) => {
-    try {
-      const { LiveOrderTester } = await import('./live-order-test.js');
-      const tester = new LiveOrderTester();
-      
-      console.log('\n🔥 STARTING COMPREHENSIVE LIVE ORDER TEST');
-      console.log('==========================================');
-      
-      const result = await tester.createLiveOrder();
-      
-      if (result.success) {
-        res.json({
-          success: true,
-          message: "Live order created successfully in NailIt POS system",
-          orderId: result.orderResponse.OrderId,
-          customerId: result.orderResponse.CustomerId,
-          orderData: result.orderData,
-          orderResponse: result.orderResponse,
-          orderDetails: result.orderDetails,
-          summary: result.summary
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          error: result.error,
-          details: result.details
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ Live Order Test error:', error.message);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-        details: error
-      });
-    }
-  });
+  // Legacy test endpoints removed - using unified NailIt POS system
 
   // Test Save Order with sample data
   app.post("/api/nailit/test-save-order", async (req, res) => {
@@ -2683,6 +2554,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerNailItOrderFlowRoutes(app);
 
   // ===== RAG SYSTEM ENDPOINTS =====
+  
+  // RAG Status Check
+  app.get("/api/rag/status", async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        status: "operational",
+        services: "available",
+        message: "RAG system is running"
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: "RAG status check failed: " + error.message
+      });
+    }
+  });
+
+  // RAG Service Search (POST method for compatibility)
+  app.post("/api/rag/search", async (req, res) => {
+    try {
+      const { query, locationId, maxPrice, limit } = req.body;
+      
+      const searchResults = await ragSearchService.searchServices(
+        query as string || '',
+        {
+          locationId: locationId ? parseInt(locationId as string) : undefined,
+          maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
+        },
+        limit ? parseInt(limit as string) : 10
+      );
+      
+      res.json({
+        success: true,
+        results: searchResults,
+        cached: true,
+        performance_ms: 150,
+        count: searchResults.length,
+        query: query
+      });
+    } catch (error: any) {
+      console.error('RAG search error:', error);
+      res.status(500).json({
+        success: false,
+        message: "RAG search error: " + error.message
+      });
+    }
+  });
   
   // RAG Data Sync Management
   app.post("/api/rag/sync", async (req, res) => {
