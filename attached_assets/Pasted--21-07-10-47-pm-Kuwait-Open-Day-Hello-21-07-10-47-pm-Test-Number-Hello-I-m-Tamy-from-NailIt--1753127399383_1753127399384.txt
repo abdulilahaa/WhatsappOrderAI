@@ -1,0 +1,58 @@
+[21/07, 10:47 pm] Kuwait Open Day: Hello
+[21/07, 10:47 pm] Test Number: Hello! I'm Tamy from NailIt 🌟
+
+Hello! I understand you need beauty treatments - I am here to help you feel amazing! 💆‍♀
+
+We specialize in nail care and beauty services in Kuwait.
+
+We have 3 locations:
+• Al-Plaza Mall
+• Zahra Complex
+• Arraya Mall
+
+How can I help you today?
+[21/07, 10:48 pm] Kuwait Open Day: I want to book an nail appointment at plaza
+[21/07, 10:48 pm] Test Number: Here are some of our available services:
+
+1. Hair Growth Helmet Treatment  - undefined KWD
+2. Hair Wash - undefined KWD
+3. Macadamia Hair Treatment - undefined KWD
+4. Olaplex with Hair Color Treatment - undefined KWD
+5. Olaplex Hair Treatment - undefined KWD
+6. Tea Tree Hair Treatment - undefined KWD
+7. Ginger Scalp Scrub Treatment - undefined KWD
+8. Garlic scalp scrub treatment - undefined KWD
+9. Pumpkin Treatment - undefined KWD
+10. Banana Treatment - undefined KWD
+
+Choose the services you want (type numbers like: 1, 3, 5)
+[21/07, 10:48 pm] Kuwait Open Day: No I'm looking for gel
+[21/07, 10:48 pm] Test Number: Here are some of our available services:
+
+1. Hair Growth Helmet Treatment  - undefined KWD
+2. Hair Wash - undefined KWD
+3. Macadamia Hair Treatment - undefined KWD
+4. Olaplex with Hair Color Treatment - undefined KWD
+5. Olaplex Hair Treatment - undefined KWD
+6. Tea Tree Hair Treatment - undefined KWD
+7. Ginger Scalp Scrub Treatment - undefined KWD
+8. Garlic scalp scrub treatment - undefined KWD
+9. Pumpkin Treatment - undefined KWD
+10. Banana Treatment - undefined KWD
+
+Choose the services you want (type numbers like: 1, 3, 5)
+[21/07, 10:49 pm] Kuwait Open Day: I want to do gel and a manicure
+[21/07, 10:49 pm] Test Number: Here are some of our available services:
+
+1. Hair Growth Helmet Treatment  - undefined KWD
+2. Hair Wash - undefined KWD
+3. Macadamia Hair Treatment - undefined KWD
+4. Olaplex with Hair Color Treatment - undefined KWD
+5. Olaplex Hair Treatment - undefined KWD
+6. Tea Tree Hair Treatment - undefined KWD
+7. Ginger Scalp Scrub Treatment - undefined KWD
+8. Garlic scalp scrub treatment - undefined KWD
+9. Pumpkin Treatment - undefined KWD
+10. Banana Treatment - undefined KWD
+
+Choose the services you want (type numbers like: 1, 3, 5)
