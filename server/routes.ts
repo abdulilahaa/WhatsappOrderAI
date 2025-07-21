@@ -2737,7 +2737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/execute-sql", async (req, res) => {
     try {
       const { sql_query } = req.body;
-      const result = await storage.db.execute(storage.sql.raw(sql_query));
+      const result = await storage.execute(sql_query);
       res.json({ success: true, data: result });
     } catch (error: any) {
       console.error('SQL execution error:', error);
