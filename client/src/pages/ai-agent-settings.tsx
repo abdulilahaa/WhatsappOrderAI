@@ -64,6 +64,7 @@ export default function AIAgentSettings() {
   const [isDraft, setIsDraft] = useState(false);
   const [showSecrets, setShowSecrets] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const queryClientInstance = queryClient;
 
   // Fetch current settings
   const { data: settings, isLoading, error } = useQuery<AIAgentSettings>({
@@ -129,7 +130,7 @@ export default function AIAgentSettings() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/fresh-ai-settings"] });
+      queryClientInstance.invalidateQueries({ queryKey: ["/api/fresh-ai-settings"] });
       setIsDraft(false);
       setIsPublishing(false);
       toast({
