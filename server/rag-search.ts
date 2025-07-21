@@ -10,7 +10,7 @@ interface ServiceSearchResult {
   itemName: string;
   itemDesc: string | null;
   primaryPrice: string;
-  // specialPrice: string | null; // Column doesn't exist in database
+
   durationMinutes: number | null;
   categoryTags: string[];
   locationIds: number[];
@@ -212,7 +212,7 @@ class RAGSearchService {
         .orderBy(nailItLocations.locationName);
 
       return locations.map(location => ({
-        locationId: location.locationId,
+        locationId: location.id,
         locationName: location.locationName,
         address: location.address,
         fromTime: location.fromTime,
@@ -235,12 +235,12 @@ class RAGSearchService {
         .select()
         .from(nailItPaymentTypes)
         .where(eq(nailItPaymentTypes.isEnabled, true))
-        .orderBy(nailItPaymentTypes.paymentTypeId);
+        .orderBy(nailItPaymentTypes.nailitId);
 
       return {
         success: true,
         paymentTypes: paymentTypes.map(pt => ({
-          Payment_Type_Id: pt.paymentTypeId,
+          Payment_Type_Id: pt.nailitId,
           Payment_Type_Name: pt.paymentTypeName,
           Payment_Type_Code: pt.paymentTypeCode,
           Is_Enabled: pt.isEnabled,
@@ -267,7 +267,7 @@ class RAGSearchService {
         .from(nailItStaff)
         .where(
           and(
-            eq(nailItStaff.locationId, locationId),
+            eq(nailItStaff.nailitLocationId, locationId),
             eq(nailItStaff.isActive, true)
           )
         )
@@ -276,7 +276,7 @@ class RAGSearchService {
       return staff.map(member => ({
         staffId: member.staffId,
         staffName: member.staffName,
-        locationId: member.locationId,
+        locationId: member.nailitLocationId,
         qualifiedServices: [], // Will be populated with real-time data
         isAvailable: true, // Will be checked in real-time
       }));
@@ -389,7 +389,7 @@ class RAGSearchService {
       const serviceCount = await db
         .select({ count: sql`count(*)` })
         .from(nailItServices)
-        .where(eq(nailItServices.isActive, true));
+        .where(eq(nailItServices.isEnabled, true));
       
       const locationCount = await db
         .select({ count: sql`count(*)` })
