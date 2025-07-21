@@ -2724,8 +2724,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Complete RAG population using documented NailIt API
   app.post("/api/rag/populate-complete", async (req, res) => {
     try {
-      const { populateRAGComplete } = await import('./rag-population-fix');
-      const result = await populateRAGComplete();
+      const { batchPopulateRAG } = await import('./rag-batch-population');
+      const result = await batchPopulateRAG();
       res.json(result);
     } catch (error: any) {
       console.error('Complete RAG populate error:', error);
