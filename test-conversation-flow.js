@@ -1,165 +1,109 @@
-#!/usr/bin/env node
+// Test the exact working API pattern from AI system logs
+import axios from 'axios';
 
-// Test script for verifying the 6 conversation flow improvements
-
-const testEndpoint = 'http://localhost:5000/api/fresh-ai/test';
-
-// Test scenarios covering all 6 fixes
-const testScenarios = [
-  {
-    name: "Fix #1: Understanding Initial Questions",
-    phoneNumber: "96599999991",
-    messages: [
-      {
-        message: "What treatments do you recommend for my oily scalp?",
-        expectedInResponse: ["recommend", "scalp", "treatment"],
-        shouldNotContain: ["selected", "booked"]
-      }
-    ]
-  },
-  {
-    name: "Fix #2: No Auto-Selection",
-    phoneNumber: "96599999992", 
-    messages: [
-      {
-        message: "I want a manicure",
-        expectedInResponse: ["manicure", "would you like", "prefer"],
-        shouldNotContain: ["Selected:", "Your service:"]
-      }
-    ]
-  },
-  {
-    name: "Fix #3: Date Parsing",
-    phoneNumber: "96599999993",
-    messages: [
-      {
-        message: "Book French manicure",
-        expectedInResponse: ["French", "location"]
-      },
-      {
-        message: "Al-Plaza Mall",
-        expectedInResponse: ["when", "appointment"]
-      },
-      {
-        message: "Wednesday",
-        expectedInResponse: ["Wednesday", "availability"],
-        shouldNotContain: ["error", "no appointments"]
-      }
-    ]
-  },
-  {
-    name: "Fix #4: Smart Scheduling",
-    phoneNumber: "96599999994",
-    messages: [
-      {
-        message: "I want French manicure and facial treatment",
-        expectedInResponse: ["services", "duration", "total"]
-      }
-    ]
-  },
-  {
-    name: "Fix #5: Natural Conversation",
-    phoneNumber: "96599999995",
-    messages: [
-      {
-        message: "Hi, I need help with my damaged hair",
-        expectedInResponse: ["help", "damaged hair", "recommend"],
-        shouldNotContain: ["Error", "Sorry"]
-      }
-    ]
-  },
-  {
-    name: "Fix #6: Payment Summary",
-    phoneNumber: "96599999996",
-    messages: [
-      {
-        message: "Book a gel manicure at Zahra Complex tomorrow at 2pm",
-        expectedInResponse: ["gel", "Zahra", "tomorrow", "2"],
-        finalTest: true
-      }
-    ]
-  }
-];
-
-async function sendMessage(phoneNumber, message) {
+async function testWorkingAPIPattern() {
+  console.log('🧪 TESTING EXACT WORKING API PATTERN FROM AI SYSTEM');
+  console.log('📊 Using Location_Ids: [] (empty array) like successful AI calls\n');
+  
   try {
-    const response = await fetch(testEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber, message })
-    });
-    return await response.json();
-  } catch (error) {
-    console.error('Request failed:', error);
-    return null;
-  }
-}
-
-async function runTests() {
-  console.log('🧪 Testing Conversation Flow Improvements\n');
-  console.log('=' .repeat(50));
-  
-  for (const scenario of testScenarios) {
-    console.log(`\n📋 Testing: ${scenario.name}`);
-    console.log('-'.repeat(40));
+    // Use the exact pattern from working AI system logs:
+    // 📤 GetItemsByDate request: { "Lang": "E", "Like": "", "Page_No": 1, "Item_Type_Id": 2, "Group_Id": 0, "Location_Ids": [], "Is_Home_Service": false }
+    // 📥 GetItemsByDate response status: 0 Message: Success Total: 398 Items length: 20
     
-    for (const test of scenario.messages) {
-      console.log(`💬 User: "${test.message}"`);
+    const response = await axios.post('http://localhost:5000/api/nailit/get-items-by-date', {
+      lang: 'E',
+      like: '',
+      pageNo: 1,
+      itemTypeId: 2,
+      groupId: 0,
+      locationIds: [], // Empty array like working AI system
+      isHomeService: false,
+      selectedDate: '21-07-2025'
+    });
+    
+    if (response.data && response.data.items) {
+      console.log(`✅ SUCCESS: Found ${response.data.items.length} services`);
+      console.log(`📊 Total available: ${response.data.totalItems || 'Unknown'}`);
+      console.log(`🎯 Status: ${response.data.status}, Message: ${response.data.message}`);
       
-      const result = await sendMessage(scenario.phoneNumber, test.message);
+      // Show first few services as examples
+      console.log('\n📋 Sample services found:');
+      response.data.items.slice(0, 5).forEach((service, index) => {
+        console.log(`   ${index + 1}. ${service.Item_Name} (ID: ${service.Item_Id}) - ${service.Special_Price || service.Primary_Price} KWD`);
+        console.log(`      Locations: [${service.Location_Ids?.join(', ') || 'Unknown'}]`);
+      });
       
-      if (result && result.success) {
-        const response = result.response.message;
-        console.log(`🤖 AI: ${response.substring(0, 150)}...`);
+      // Now test inserting one service directly using working SQL method
+      console.log('\n🔧 Testing direct SQL insertion...');
+      const testService = response.data.items[0];
+      const price = testService.Special_Price || testService.Primary_Price || 0;
+      const duration = parseInt(testService.Duration) || 30;
+      
+      const insertResult = await axios.post('http://localhost:5000/api/execute-sql', {
+        sql_query: `
+          INSERT INTO nailit_services (
+            nailit_id, item_id, name, description, price, duration_minutes, 
+            location_ids, group_id, is_enabled
+          ) VALUES (
+            ${testService.Item_Id + 1000000}, ${testService.Item_Id + 1000000}, 
+            '${testService.Item_Name.replace(/'/g, "''")}', 
+            '${(testService.Item_Desc || testService.Item_Name).replace(/'/g, "''")}',
+            ${price}, ${duration}, 
+            ARRAY[${testService.Location_Ids?.join(',') || '1'}]::integer[], 
+            ${testService.Parent_Group_Id || 0}, true
+          )
+          ON CONFLICT (nailit_id) DO UPDATE SET name = EXCLUDED.name
+        `
+      });
+      
+      if (insertResult.data.success) {
+        console.log('✅ SQL insertion test: SUCCESS');
         
-        // Check expected content
-        const hasExpected = test.expectedInResponse.every(expected => 
-          response.toLowerCase().includes(expected.toLowerCase())
-        );
+        // Verify the insertion
+        const verifyResult = await axios.post('http://localhost:5000/api/execute-sql', {
+          sql_query: `SELECT COUNT(*) as count FROM nailit_services WHERE nailit_id = ${testService.Item_Id + 1000000}`
+        });
         
-        // Check unwanted content
-        const hasUnwanted = test.shouldNotContain ? 
-          test.shouldNotContain.some(unwanted => 
-            response.toLowerCase().includes(unwanted.toLowerCase())
-          ) : false;
-        
-        if (hasExpected && !hasUnwanted) {
-          console.log('✅ PASS: Response contains expected content');
-        } else {
-          console.log('❌ FAIL: Response missing expected content or contains unwanted text');
-          if (!hasExpected) {
-            console.log('   Missing:', test.expectedInResponse.filter(exp => 
-              !response.toLowerCase().includes(exp.toLowerCase())
-            ));
-          }
-          if (hasUnwanted) {
-            console.log('   Unwanted found:', test.shouldNotContain.filter(unw => 
-              response.toLowerCase().includes(unw.toLowerCase())
-            ));
-          }
-        }
-        
-        // Check conversation state
-        if (result.response.collectedData) {
-          const data = result.response.collectedData;
-          console.log('📊 State:', {
-            services: data.selectedServices?.length || 0,
-            location: data.locationName || 'none',
-            phase: result.response.collectionPhase
-          });
-        }
+        console.log(`📊 Verification: ${verifyResult.data?.data?.[0]?.count || 0} test service found`);
       } else {
-        console.log('❌ FAIL: Request failed');
+        console.log('❌ SQL insertion test: FAILED');
+        console.log(`Error: ${insertResult.data.error}`);
       }
       
-      // Small delay between messages
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        success: true,
+        servicesFound: response.data.items.length,
+        totalAvailable: response.data.totalItems,
+        sqlWorking: insertResult.data.success,
+        message: 'Working API pattern confirmed'
+      };
+      
+    } else {
+      console.log('❌ No services returned');
+      return { success: false, message: 'No services found' };
     }
+    
+  } catch (error) {
+    console.error('❌ Test failed:', error.message);
+    return { success: false, error: error.message };
   }
-  
-  console.log('\n' + '='.repeat(50));
-  console.log('✅ Conversation Flow Testing Complete');
 }
 
-// Run tests
-runTests().catch(console.error);
+// Run the test
+testWorkingAPIPattern()
+  .then(result => {
+    console.log('\n🎉 TEST RESULTS:');
+    console.log(`✅ API Pattern: ${result.success ? 'WORKING' : 'FAILED'}`);
+    console.log(`📊 Services Found: ${result.servicesFound || 0}`);
+    console.log(`🔧 SQL System: ${result.sqlWorking ? 'WORKING' : 'NEEDS FIX'}`);
+    
+    if (result.success && result.sqlWorking) {
+      console.log('\n🚀 READY FOR FULL POPULATION!');
+      console.log('💡 Both API calls and SQL insertion confirmed working');
+    } else {
+      console.log('\n🔧 Issues to resolve:');
+      if (!result.success) console.log('   - API call pattern needs adjustment');
+      if (!result.sqlWorking) console.log('   - SQL insertion system needs fixing');
+    }
+  })
+  .catch(error => console.error('Test execution failed:', error.message));

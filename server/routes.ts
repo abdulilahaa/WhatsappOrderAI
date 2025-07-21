@@ -2732,6 +2732,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ success: false, error: error.message });
     }
   });
+
+  // Execute SQL queries directly for RAG population
+  app.post("/api/execute-sql", async (req, res) => {
+    try {
+      const { sql_query } = req.body;
+      const result = await storage.db.execute(storage.sql.raw(sql_query));
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      console.error('SQL execution error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
   
   // RAG Data Sync Management
   app.post("/api/rag/sync", async (req, res) => {
