@@ -66,7 +66,7 @@ class RAGSearchService {
       // Location filter
       if (filters.locationId) {
         searchConditions.push(
-          sql`${nailItServices.locationIds} @> ${JSON.stringify([filters.locationId])}`
+          sql`${nailItServices.locationIds}::jsonb @> ${JSON.stringify([filters.locationId])}`
         );
       }
       
