@@ -491,11 +491,16 @@ Current conversation context: Customer wants ${customerMessage}`;
         console.log('User registration failed, trying to proceed with existing customer data');
       }
 
-      // Prepare order data
+      // Prepare order data with correct date format
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const appointmentDate = state.collectedData.appointmentDate || 
         tomorrow.toLocaleDateString('en-GB').replace(/\//g, '/');
+      
+      // Convert date to MM/dd/yyyy format for SaveOrder API  
+      const dateForAPI = new Date(appointmentDate.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2/$1/$3'));
+      const formattedDate = `${(dateForAPI.getMonth() + 1).toString().padStart(2, '0')}/${dateForAPI.getDate().toString().padStart(2, '0')}/${dateForAPI.getFullYear()}`;
+      console.log(`📅 Appointment date: ${appointmentDate} → ${formattedDate}`);
 
       const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 
         total + (service.price * (service.quantity || 1)), 0);
@@ -503,7 +508,7 @@ Current conversation context: Customer wants ${customerMessage}`;
       const orderData = {
         Gross_Amount: grossAmount,
         Payment_Type_Id: state.collectedData.paymentTypeId || 2,
-        Order_Type: 1,
+        Order_Type: 2, // Services per API documentation
         UserId: userResult?.App_User_Id || 1,
         FirstName: state.collectedData.customerName || 'Customer',
         Mobile: customer.phoneNumber,
@@ -511,6 +516,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         Discount_Amount: 0,
         Net_Amount: grossAmount,
         POS_Location_Id: state.collectedData.locationId,
+        ChannelId: 4, // Required by API documentation
         OrderDetails: state.collectedData.selectedServices.map(service => ({
           Prod_Id: service.itemId,
           Prod_Name: service.itemName,
@@ -524,8 +530,8 @@ Current conversation context: Customer wants ${customerMessage}`;
           Discount_Amount: 0,
           Net_Amount: service.price * (service.quantity || 1),
           Staff_Id: state.collectedData.staffId || 1,
-          TimeFrame_Ids: state.collectedData.timeSlotIds || [1, 2],
-          Appointment_Date: appointmentDate
+          TimeFrame_Ids: state.collectedData.timeSlotIds || [7, 8], // Default 1PM-2PM slots
+          Appointment_Date: formattedDate
         }))
       };
 
@@ -534,7 +540,7 @@ Current conversation context: Customer wants ${customerMessage}`;
       // Create order in NailIt POS system
       const orderResult = await this.nailItAPIClient.saveOrder(orderData);
 
-      if (orderResult && orderResult.Status === 200 && orderResult.OrderId) {
+      if (orderResult && orderResult.Status === 0 && orderResult.OrderId) {
         console.log(`✅ Order created successfully: ${orderResult.OrderId}`);
         return {
           success: true,
@@ -542,7 +548,11 @@ Current conversation context: Customer wants ${customerMessage}`;
           message: 'Booking created successfully'
         };
       } else {
-        console.error('❌ Order creation failed:', orderResult?.Message);
+        console.error('❌ Order creation failed:', {
+          status: orderResult?.Status,
+          message: orderResult?.Message,
+          fullResponse: orderResult
+        });
         return {
           success: false,
           message: orderResult?.Message || 'Failed to create booking'

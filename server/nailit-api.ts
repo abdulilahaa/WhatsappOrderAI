@@ -97,6 +97,7 @@ export interface NailItSaveOrderRequest {
   Discount_Amount: number;
   Net_Amount: number;
   POS_Location_Id: number;
+  ChannelId: number; // Missing field - required as 4
   OrderDetails: NailItOrderDetail[];
 }
 
@@ -756,7 +757,7 @@ export class NailItAPIService {
       const unifiedOrder: NailItSaveOrderRequest = {
         Gross_Amount: unifiedOrderData.totalAmount,
         Payment_Type_Id: unifiedOrderData.paymentTypeId,
-        Order_Type: 2,
+        Order_Type: 2, // Services
         UserId: unifiedOrderData.customer.appUserId,
         FirstName: unifiedOrderData.customer.name,
         Mobile: unifiedOrderData.customer.phone,
@@ -764,6 +765,7 @@ export class NailItAPIService {
         Discount_Amount: 0.0,
         Net_Amount: unifiedOrderData.totalAmount,
         POS_Location_Id: unifiedOrderData.locationId,
+        ChannelId: 4, // Required by API documentation
         OrderDetails: orderDetails
       };
 
@@ -789,9 +791,18 @@ export class NailItAPIService {
     }
   }
 
-  // Helper method to format date for API calls (NailIt expects MM/dd/yyyy format)
+  // Helper method to format date for SaveOrder API (NailIt expects MM/dd/yyyy format)
+  formatDateForSaveOrder(date: Date): string {
+    // SaveOrder API expects MM/dd/yyyy format as shown in documentation
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${month}/${day}/${year}`;
+  }
+
+  // Helper method for other API calls (DD-MM-YYYY format)
   formatDateForAPI(date: Date): string {
-    // NailIt API expects DD-MM-YYYY format as shown in documentation
+    // Most APIs expect DD-MM-YYYY format
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
