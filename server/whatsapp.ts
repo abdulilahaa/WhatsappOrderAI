@@ -1,6 +1,6 @@
 import { storage } from "./storage";
 
-import { directOrchestrator } from "./direct-nailit-orchestrator";
+
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
 
@@ -168,48 +168,36 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // Use ReAct Orchestrator with full component integration
-      console.log('🚀 Using ReAct Orchestrator with full component integration...');
-      const { ReactOrchestrator } = await import('./react-orchestrator.js');
-      const reactOrchestrator = new ReactOrchestrator();
+      // Use Fresh AI Agent for natural conversations and booking
+      console.log('🚀 Using Fresh AI Agent for natural conversation and booking...');
+      const { freshAI } = await import('./ai-fresh.js');
       
-      // Build proper booking context
-      const bookingContext = {
-        customerId: customer.id,
-        phoneNumber: customer.phoneNumber,
-        conversationId: conversation.id,
-        sessionData: {
-          customerName: customer.name || undefined,
-          customerEmail: customer.email || undefined
-        },
-        conversationHistory: conversationHistory.map(msg => ({
-          role: msg.isFromAI ? 'assistant' as const : 'user' as const,
-          content: msg.content
-        }))
-      };
-      
-      const orchestratorResponse = await reactOrchestrator.processBookingConversation(bookingContext, message.text);
-      
-      const aiResponse = {
-        message: orchestratorResponse,
-        suggestedServices: [],
-        collectedData: {
-          readyForBooking: false,
-          services: [],
-          location: null,
-          nextAction: 'CONTINUE'
+      // Process message with Fresh AI
+      const aiResponse = await freshAI.processMessage(
+        message.text,
+        customer,
+        conversationHistory
+      );
+
+      if (aiResponse && aiResponse.message) {
+        // Save AI response
+        await storage.createMessage({
+          conversationId: conversation.id,
+          content: aiResponse.message,
+          isFromAI: true,
+        });
+        
+        // Send response to WhatsApp
+        await this.sendMessage(customer.phoneNumber, aiResponse.message);
+        
+        // Handle booking completion if needed
+        if (aiResponse.collectedData?.readyForBooking) {
+          console.log("Booking completed through Fresh AI:", aiResponse.collectedData);
         }
-      };
-
-      // Send AI response
-      await this.sendMessage(customer.phoneNumber, aiResponse.message);
-
-      // Save AI response message
-      await storage.createMessage({
-        conversationId: conversation.id,
-        content: aiResponse.message,
-        isFromAI: true,
-      });
+      } else {
+        console.error("Fresh AI processing error");
+        await this.sendMessage(customer.phoneNumber, "I'm sorry, I'm having trouble processing your request. Could you please try again?");
+      }
 
       // Note: Service suggestions are already included in the main AI response from Direct Orchestrator
       // No need to send separate service suggestions to avoid duplication
