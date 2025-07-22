@@ -47,7 +47,7 @@ export default function IntegrationDashboard() {
     appointmentDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit', year: 'numeric'}), // Tomorrow
     appointmentTime: "10:00",
     paymentTypeId: 2,  // KNet payment
-    staffId: 1, // Default staff ID
+    staffId: 16, // Using authentic staff ID from NailIt API
     customerInfo: {
       name: "Sarah Ahmed",
       mobile: "96512345678",
@@ -553,7 +553,7 @@ export default function IntegrationDashboard() {
                     type="number"
                     placeholder="Auto-assign if empty"
                     value={orderTestData.staffId || ""}
-                    onChange={(e) => setOrderTestData({...orderTestData, staffId: Number(e.target.value) || 1})}
+                    onChange={(e) => setOrderTestData({...orderTestData, staffId: Number(e.target.value) || 16})}
                   />
                 </div>
               </div>

@@ -252,18 +252,20 @@ Current conversation context: Customer wants ${customerMessage}`;
     
     // Extract location naturally
     if (!state.collectedData.locationId) {
-      if (lowerMessage.includes('plaza') || lowerMessage.includes('al-plaza')) {
-        state.collectedData.locationId = 1;
-        state.collectedData.locationName = 'Al-Plaza Mall';
-        console.log('📍 Extracted location: Al-Plaza Mall');
-      } else if (lowerMessage.includes('zahra')) {
-        state.collectedData.locationId = 52;
-        state.collectedData.locationName = 'Zahra Complex';
-        console.log('📍 Extracted location: Zahra Complex');
-      } else if (lowerMessage.includes('arraya')) {
-        state.collectedData.locationId = 53;
-        state.collectedData.locationName = 'Arraya Mall';
-        console.log('📍 Extracted location: Arraya Mall');
+      // Extract location using authentic NailIt API data
+      const nailItAPI = new (await import('./nailit-api')).NailItAPIService();
+      const locations = await nailItAPI.getLocations();
+      for (const location of locations) {
+        const locationName = location.Location_Name?.toLowerCase() || '';
+        if ((lowerMessage.includes('plaza') && locationName.includes('plaza')) ||
+            (lowerMessage.includes('zahra') && locationName.includes('zahra')) ||
+            (lowerMessage.includes('arraya') && locationName.includes('arraya')) ||
+            lowerMessage.includes(locationName)) {
+          state.collectedData.locationId = location.Location_Id;
+          state.collectedData.locationName = location.Location_Name;
+          console.log(`📍 Extracted location: ${location.Location_Name} (ID: ${location.Location_Id})`);
+          break;
+        }
       }
     }
     
@@ -282,13 +284,8 @@ Current conversation context: Customer wants ${customerMessage}`;
       console.log('🔍 Service selection now uses only authentic NailIt API data - no hardcoded services');
       
       // Service selection now handled through authentic NailIt API calls only
-      if (false) { // Disabled hardcoded service selection
-        const existingIds = state.collectedData.selectedServices.map(s => s.itemId);
-        const uniqueServices = directServices.filter(s => !existingIds.includes(s.itemId));
-        
-        state.collectedData.selectedServices = [...state.collectedData.selectedServices, ...uniqueServices];
-        console.log(`💅 Services extracted: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}`);
-      }
+      // All hardcoded service selection has been removed per user requirements
+      console.log('🔄 Service extraction delegated to authentic NailIt API - no hardcoded service data used');
     }
     
     // Service extraction is now handled by direct keyword matching above

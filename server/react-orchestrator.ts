@@ -597,7 +597,12 @@ Respond with JSON: {"action": "action_name", "reasoning": "why this action", "pa
     const { selectedServices, locationId } = context.sessionData;
     
     if (!locationId) {
-      return "Please choose your preferred location:\n1. Al-Plaza Mall - Full service salon\n2. Zahra Complex - Premium treatments\n3. Arraya Mall - Express services\n\nJust let me know the number or name!";
+      // Use authentic location data from NailIt API
+      const locations = await this.nailItAPI.getLocations();
+      const locationList = locations.map((loc, index) => 
+        `${index + 1}. ${loc.Location_Name} - ${loc.Address || 'Premium salon services'}`
+      ).join('\n');
+      return `Please choose your preferred location:\n${locationList}\n\nJust let me know the number or name!`;
     }
     
     if (!selectedServices?.length) {

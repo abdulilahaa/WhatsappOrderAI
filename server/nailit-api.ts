@@ -846,13 +846,7 @@ export class NailItAPIService {
     return `${day}-${month}-${year}`;
   }
 
-  // Helper method to format date for SaveOrder API (dd/MM/yyyy format - CONFIRMED WORKING)
-  formatDateForSaveOrder(date: Date): string {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
+
 
   // Helper method to create a test order for API validation with authentic user
   async createTestOrder(): Promise<NailItSaveOrderRequest> {
@@ -999,6 +993,7 @@ export class NailItAPIService {
         Discount_Amount: 0,
         Net_Amount: orderData.orderDetails.price,
         POS_Location_Id: orderData.orderDetails.locationId,
+        ChannelId: 4, // Required by API documentation
         OrderDetails: [{
           Prod_Id: orderData.orderDetails.serviceId,
           Prod_Name: orderData.orderDetails.serviceName,
@@ -1012,7 +1007,7 @@ export class NailItAPIService {
           Discount_Amount: 0,
           Net_Amount: orderData.orderDetails.price,
           Staff_Id: orderData.orderDetails.staffId || 48, // Known working staff ID
-          TimeFrame_Ids: orderData.orderDetails.timeFrameIds || [1, 2], // Earlier time slots that should be available
+          TimeFrame_Ids: orderData.orderDetails.timeFrameIds || [9, 10], // Default afternoon slots
           Appointment_Date: formattedDate // Use tomorrow's date
         }]
       };

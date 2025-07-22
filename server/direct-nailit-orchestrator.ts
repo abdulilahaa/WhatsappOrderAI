@@ -284,47 +284,62 @@ Response Guidelines:
       // First register/get customer with proper mobile format
       const cleanPhone = context.phoneNumber.replace(/\+/g, ''); // Remove + sign
       const customer = await this.nailItAPI.registerUser({
-        name: context.customerName || 'Customer',
-        email: context.customerEmail || `customer${Date.now()}@email.com`,
-        mobile: cleanPhone, // NailIt expects phone without +
-        address: 'Kuwait City, Kuwait'
+        Name: context.customerName || 'Customer',
+        Email_Id: context.customerEmail || `customer${Date.now()}@email.com`,
+        Mobile: cleanPhone, // NailIt expects phone without +
+        Address: 'Kuwait City, Kuwait',
+        Login_Type: 1,
+        Image_Name: ''
       });
       
-      if (!customer.App_User_Id) {
+      if (!customer || !customer.App_User_Id) {
         throw new Error('Failed to register customer');
       }
       
-      // Create order
-      const orderData = {
-        appUserId: customer.App_User_Id,
-        locationId: context.locationId || 1,
-        orderType: 2,
-        paymentTypeId: 2, // KNet
-        channelId: 4, // WhatsApp
-        appointmentDate: context.appointmentDate || this.nailItAPI.formatDateForSaveOrder(new Date()),
-        timeFrameIds: await this.getAvailableTimeSlots(context.locationId || 1), // Dynamic time slots from API
-        orderDetails: await Promise.all(context.services?.map(async service => ({
-          itemId: service.itemId,
-          qty: 1,
-          staffId: await this.getAvailableStaff(service.itemId, context.locationId || 1),
-          price: service.price
-        })) || []),
-        totalAmount: context.services?.reduce((sum, s) => sum + s.price, 0) || 0
+      // Create proper NailIt order structure
+      const nailItOrder = {
+        Gross_Amount: context.services?.reduce((sum, s) => sum + s.price, 0) || 0,
+        Payment_Type_Id: 2, // KNet
+        Order_Type: 2,
+        UserId: customer.App_User_Id,
+        FirstName: context.customerName || 'Customer',
+        Mobile: context.phoneNumber.replace(/\+/g, ''),
+        Email: context.customerEmail || `customer${Date.now()}@email.com`,
+        Discount_Amount: 0.0,
+        Net_Amount: context.services?.reduce((sum, s) => sum + s.price, 0) || 0,
+        POS_Location_Id: context.locationId || 1,
+        ChannelId: 4, // WhatsApp
+        OrderDetails: context.services?.map(service => ({
+          Prod_Id: service.itemId,
+          Prod_Name: service.itemName,
+          Qty: 1,
+          Rate: service.price,
+          Amount: service.price,
+          Size_Id: null,
+          Size_Name: "",
+          Promotion_Id: 0,
+          Promo_Code: "",
+          Discount_Amount: 0.0,
+          Net_Amount: service.price,
+          Staff_Id: 16, // Default staff
+          TimeFrame_Ids: [9, 10], // 2PM-3PM
+          Appointment_Date: context.appointmentDate || this.nailItAPI.formatDateForSaveOrder(new Date())
+        })) || []
       };
       
-      const order = await this.nailItAPI.saveOrder(orderData);
+      const order = await this.nailItAPI.saveOrder(nailItOrder);
       
-      if (order.Status === 0 && order.OrderId) {
+      if (order && order.Status === 0 && order.OrderId) {
         return {
           success: true,
           orderId: order.OrderId,
           customerId: customer.App_User_Id,
           paymentLink: `http://nailit.innovasolution.net/knet.aspx?orderId=${order.OrderId}`,
-          totalAmount: orderData.totalAmount
+          totalAmount: nailItOrder.Net_Amount
         };
       }
       
-      throw new Error(order.Message || 'Order creation failed');
+      throw new Error(order?.Message || 'Order creation failed');
     } catch (error: any) {
       console.error('Booking creation error:', error);
       return {

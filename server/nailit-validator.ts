@@ -21,8 +21,9 @@ export class NailItValidator {
    * Parse business hours from NailIt location data
    */
   private parseBusinessHours(location: NailItLocation): BusinessHours {
-    const fromTime = location.From_Time || '09:00 AM';
-    const toTime = location.To_Time || '10:00 PM';
+    // Use only authentic NailIt API data - no hardcoded fallbacks
+    const fromTime = location.From_Time;
+    const toTime = location.To_Time;
     
     const openingTime = this.timeToMinutes(fromTime);
     const closingTime = this.timeToMinutes(toTime);
@@ -91,7 +92,7 @@ export class NailItValidator {
       }
       
       // Check actual time slot availability through NailIt API
-      const availableSlots = await nailItAPI.getAvailableSlots(locationId, 1, date, 'E');
+      const availableSlots = await nailItAPI.getAvailableSlots(locationId, date, 'E');
       
       if (!availableSlots || availableSlots.length === 0) {
         return {
