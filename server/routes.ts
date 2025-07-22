@@ -2741,6 +2741,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ReAct Orchestrator integrated directly into WhatsApp service
   console.log("✅ ReAct Orchestrator integrated in WhatsApp service");
 
+  // Test endpoint for service search debugging
+  app.post("/api/test-search", async (req, res) => {
+    try {
+      const { ReactOrchestrator } = await import('./react-orchestrator.js');
+      const orchestrator = new ReactOrchestrator();
+      const { searchTerms, locationId } = req.body;
+      
+      const results = await orchestrator.searchServicesWithTerms(searchTerms || ['nail', 'manicure'], locationId || 1);
+      
+      res.json({
+        success: true,
+        searchTerms: searchTerms,
+        locationId: locationId,
+        results: results,
+        count: results.length
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
   // Large Order Test Routes
   app.post("/api/nailit/test/large-orders", async (req, res) => {
     try {

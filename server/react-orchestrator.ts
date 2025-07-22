@@ -54,61 +54,85 @@ export class ReactOrchestrator {
   }
 
   /**
-   * TOOL: Service Search using existing RAG pipeline
+   * TOOL: Service Search using authentic NailIt API with improved matching
    */
-  async searchServices(query: string, locationId?: number): Promise<any> {
-    console.log(`🔍 [ServiceSearchTool] Searching: "${query}" at location ${locationId}`);
+  async searchServicesWithTerms(searchTerms: string[], locationId: number = 1): Promise<any> {
+    console.log(`🔍 [ServiceSearchTool] Searching with terms: [${searchTerms.join(', ')}] at location ${locationId}`);
     
     try {
-      // Use working NailIt API directly (bypassing broken RAG)
-      console.log(`🔄 [ServiceSearchTool] Using live NailIt API for reliable data`);
       const currentDate = this.nailItAPI.formatDateForAPI(new Date());
-      const liveResults = await this.nailItAPI.getItemsByDate({
+      
+      // Get first page to determine total pages needed
+      const firstPageResults = await this.nailItAPI.getItemsByDate({
         itemTypeId: 2,
         groupId: 0,
         selectedDate: currentDate,
         pageNo: 1,
-        locationIds: locationId ? [locationId] : []
+        locationIds: [locationId]
       });
       
-      // Filter and transform results
-      let filteredItems = liveResults.items || [];
+      const totalItems = firstPageResults.totalItems || 378;
+      const itemsPerPage = 20;
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
       
-      // Search for matching services
-      if (query) {
-        const searchTerms = query.toLowerCase().split(' ');
-        filteredItems = filteredItems.filter(item => {
-          const itemName = item.Item_Name?.toLowerCase() || '';
-          const itemDesc = item.Item_Desc?.toLowerCase() || '';
-          return searchTerms.some(term => 
-            itemName.includes(term) || itemDesc.includes(term)
-          );
+      console.log(`📊 Need to search ${totalPages} pages for ${totalItems} total items`);
+      
+      // Collect all items across all pages
+      let allItems = [...(firstPageResults.items || [])];
+      
+      // Fetch remaining pages (limit to first 5 pages for performance)
+      const pagesToFetch = Math.min(totalPages - 1, 4);
+      for (let page = 2; page <= pagesToFetch + 1; page++) {
+        const pageResults = await this.nailItAPI.getItemsByDate({
+          itemTypeId: 2,
+          groupId: 0,
+          selectedDate: currentDate,
+          pageNo: page,
+          locationIds: [locationId]
         });
-      }
-      if (query && query.trim()) {
-        const searchTerm = query.toLowerCase();
-        filteredItems = filteredItems.filter(item => 
-          item.Item_Name?.toLowerCase().includes(searchTerm) ||
-          item.Item_Desc?.toLowerCase().includes(searchTerm)
-        );
+        allItems.push(...(pageResults.items || []));
       }
       
-      const results = filteredItems.slice(0, 5).map(item => ({
+      console.log(`📊 Total items collected from ${pagesToFetch + 1} pages: ${allItems.length}`);
+      
+      // Search across ALL collected items
+      const matchingItems = allItems.filter(item => {
+        const itemName = item.Item_Name?.toLowerCase() || '';
+        const itemDesc = item.Item_Desc?.toLowerCase() || '';
+        
+        return searchTerms.some(term => 
+          itemName.includes(term.toLowerCase()) || 
+          itemDesc.includes(term.toLowerCase())
+        );
+      });
+      
+      console.log(`🎯 Items matching search terms: ${matchingItems.length}`);
+      
+      // Transform to consistent format
+      const results = matchingItems.slice(0, 8).map(item => ({
         itemId: item.Item_Id,
         itemName: item.Item_Name,
         price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
         description: item.Item_Desc?.replace(/<[^>]*>/g, '') || '',
-        duration: item.Duration || 30,
-        locationIds: item.Location_Ids || [],
-        matchScore: 0.9
+        duration: item.Duration || 60,
+        locationIds: item.Location_Ids || [locationId],
+        category: this.categorizeService(item.Item_Name)
       }));
       
-      console.log(`✅ [ServiceSearchTool] Found ${results.length} services for "${query}"`);
+      console.log(`✅ [ServiceSearchTool] Returning ${results.length} authentic NailIt services`);
       return results;
     } catch (error) {
       console.error(`❌ [ServiceSearchTool] Error:`, error);
       return [];
     }
+  }
+
+  private categorizeService(itemName: string): string {
+    const name = itemName.toLowerCase();
+    if (name.includes('nail') || name.includes('manicure') || name.includes('pedicure')) return 'Nail Services';
+    if (name.includes('hair') || name.includes('cut') || name.includes('style')) return 'Hair Services';  
+    if (name.includes('facial') || name.includes('face')) return 'Facial Services';
+    return 'Beauty Services';
   }
 
   /**
@@ -464,33 +488,51 @@ Respond with JSON: {"action": "action_name", "reasoning": "why this action", "pa
    * ACTION HANDLERS: Individual handlers for each action type
    */
   private async handleServiceSearch(context: BookingContext, userMessage: string, config: any): Promise<string> {
-    // Extract search terms and location from message
-    const locationId = this.extractLocationId(userMessage) || context.sessionData.locationId;
-    const searchQuery = this.extractServiceQuery(userMessage);
+    // Extract customer intent - use simple keyword matching
+    const message = userMessage.toLowerCase();
+    let searchTerms: string[] = [];
     
-    if (!searchQuery) {
-      return "What type of service are you looking for? We offer hair treatments, nail services, facials, and more!";
+    // Nail services keywords
+    if (message.includes('nail') || message.includes('manicure') || message.includes('pedicure') || 
+        message.includes('polish') || message.includes('gel')) {
+      searchTerms = ['nail', 'manicure', 'pedicure', 'polish', 'gel', 'french'];
+    }
+    // Hair services keywords  
+    else if (message.includes('hair') || message.includes('cut') || message.includes('style') ||
+             message.includes('treatment') || message.includes('color')) {
+      searchTerms = ['hair', 'cut', 'style', 'treatment', 'color', 'blow'];
+    }
+    // Facial services keywords
+    else if (message.includes('facial') || message.includes('face') || message.includes('skin')) {
+      searchTerms = ['facial', 'face', 'skin', 'cleansing', 'hydra'];
+    }
+    // Default to nail services (primary specialty)
+    else {
+      searchTerms = ['nail', 'manicure'];
     }
     
-    const services = await this.searchServices(searchQuery, locationId);
+    console.log(`🔍 Customer intent detected: ${searchTerms.join(', ')} from "${userMessage}"`);
+    
+    // Search for services using multiple terms
+    const services = await this.searchServicesWithTerms(searchTerms, context.sessionData.locationId || 1);
     
     if (services.length === 0) {
-      return `I couldn't find services matching "${searchQuery}". Could you be more specific? For example: manicure, facial, or hair treatment.`;
+      return "Let me check our nail services for you. We specialize in manicures, pedicures, and nail treatments. What specifically interests you?";
     }
     
     // Update conversation state
     await this.updateConversationState(context, { 
       phase: 'service_selection',
-      lastSearchQuery: searchQuery,
+      lastSearchQuery: searchTerms.join(' '),
       foundServices: services
     });
     
-    // Format service options
-    const serviceList = services.slice(0, 3).map((service: any, index: number) => 
-      `${index + 1}. ${service.itemName || service.Item_Name} - ${service.primaryPrice || service.Price} KWD`
+    // Format service options with authentic NailIt pricing
+    const serviceList = services.slice(0, 5).map((service: any, index: number) => 
+      `${index + 1}. ${service.itemName} - ${service.price} KWD`
     ).join('\n');
     
-    return `Great! I found these services for you:\n\n${serviceList}\n\nWhich service interests you? Just let me know the number or name.`;
+    return `Perfect! Here are our available services:\n\n${serviceList}\n\nWhich one would you like to book? Just tell me the number or name.`;
   }
 
   private async handleAvailabilityCheck(context: BookingContext, config: any): Promise<string> {
