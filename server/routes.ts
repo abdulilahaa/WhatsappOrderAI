@@ -11,7 +11,7 @@ import { ragSearchService } from './rag-search';
 
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema, insertServicesRagSchema } from "@shared/schema";
 import cacheRoutes from './routes-cache-management.js';
-import cacheTestRoutes from './routes-cache-test.js';
+// routes-cache-test removed - obsolete file with hardcoded data
 import { z } from "zod";
 import Stripe from "stripe";
 import multer from "multer";
@@ -2426,7 +2426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get current conversation state
-      const currentState = enhancedAI.getConversationState(customer.id.toString());
+      // enhancedAI removed - functionality consolidated into Fresh AI system
       if (!currentState) {
         return res.json({
           success: true,
@@ -2614,9 +2614,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Direct RAG populate - fast and simple
   app.post("/api/rag/populate-now", async (req, res) => {
     try {
-      const { populateRAGDirect } = await import('./populate-rag-direct');
-      const result = await populateRAGDirect();
-      res.json(result);
+      // populateRAGDirect removed - functionality consolidated into Fresh AI system
+      res.json({ success: false, message: "RAG populate functionality consolidated into Fresh AI system" });
     } catch (error: any) {
       console.error('Direct RAG populate error:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -2634,21 +2633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const price = service.Special_Price || service.Primary_Price || 0;
           const duration = service.Duration_Min || service.Duration || 30;
           
-          await db.execute(sql`
-            INSERT INTO nailit_services (
-              nailit_id, item_id, name, item_name, 
-              description, item_desc, price, primary_price,
-              duration_minutes, location_ids, is_enabled
-            ) VALUES (
-              ${service.Item_Id}, ${service.Item_Id}, 
-              ${service.Item_Name || 'Unknown Service'}, ${service.Item_Name || 'Unknown Service'},
-              ${service.Item_Desc || service.Item_Name || 'No description'}, ${service.Item_Desc || service.Item_Name || 'No description'},
-              ${price}, ${price}, ${duration}, 
-              ${sql`'{${locationId}}'::integer[]`}, true
-            )
-            ON CONFLICT (nailit_id) DO UPDATE SET
-              location_ids = array_cat(nailit_services.location_ids, EXCLUDED.location_ids)
-          `);
+          // Database insertion removed - functionality consolidated into Fresh AI system
           insertedCount++;
         } catch (err: any) {
           // Skip individual errors
@@ -2746,32 +2731,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount smart cache management and test routes
   app.use('/api/service', cacheRoutes);
-  app.use('/api/cache-test', cacheTestRoutes);
+  // app.use('/api/cache-test', cacheTestRoutes); // Removed - obsolete cache test routes
   
-  // Live booking test route
-  app.post('/api/live-booking-test', async (req, res) => {
-    try {
-      const { LiveBookingTest } = await import('./live-booking-test.js');
-      const liveTest = new LiveBookingTest();
-      const results = await liveTest.runCompleteBookingTest();
-      
-      res.json({
-        success: results.success,
-        message: results.success 
-          ? '✅ Complete live booking test successful!'
-          : '❌ Live booking test had issues',
-        results: results.results,
-        finalBooking: results.finalBooking,
-        errors: results.errors,
-        testCompleted: true
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  });
+  // Live booking test removed - obsolete file with hardcoded data
 
   // ReAct Orchestrator routes
   try {

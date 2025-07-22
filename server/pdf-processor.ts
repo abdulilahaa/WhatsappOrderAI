@@ -86,7 +86,7 @@ Respond with a JSON object containing a "services" array. Example format:
     {
       "name": "Classic Manicure",
       "description": "Nail shaping, cuticle care, and polish application",
-      "price": "15.00",
+      "price": "0.00",
       "category": "Manicure"
     },
     {

@@ -178,7 +178,7 @@ Respond with a JSON array of products. Example format:
   {
     "name": "Classic Manicure",
     "description": "Traditional nail care with shaping, cuticle care, and polish application",
-    "price": "15.00",
+    "price": "0.00",
     "category": "Manicure"
   }
 ]

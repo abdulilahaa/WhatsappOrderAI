@@ -4,7 +4,7 @@
 
 **Order Details:**
 - Order ID: `176391`
-- Service: VIP Hair Style (15 KWD)
+- Service: VIP Hair Style (authentic NailIt POS pricing)
 - Customer: CAROL 
 - Date: 23/07/2025
 - Time: 04:00 PM - 04:30 PM
