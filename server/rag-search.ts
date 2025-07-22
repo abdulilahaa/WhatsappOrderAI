@@ -54,19 +54,22 @@ class RAGSearchService {
     limit: number = 10
   ): Promise<ServiceSearchResult[]> {
     try {
+      console.log('🔍 RAG Search:', { query, filters, limit });
       const searchTerms = this.normalizeSearchQuery(query);
+      console.log('🔍 Search terms:', searchTerms);
       
       if (searchTerms.length === 0) {
+        console.log('🔍 No search terms, getting popular services');
         return this.getPopularServices(filters, limit);
       }
 
       // Build search conditions
       const searchConditions = [];
       
-      // Location filter
+      // Location filter - FIXED: Handle integer array properly
       if (filters.locationId) {
         searchConditions.push(
-          sql`${nailItServices.locationIds}::jsonb @> ${JSON.stringify([filters.locationId])}`
+          sql`${filters.locationId} = ANY(${nailItServices.locationIds})`
         );
       }
       
@@ -87,16 +90,17 @@ class RAGSearchService {
       // Active services only
       searchConditions.push(eq(nailItServices.isEnabled, true));
 
-      // Perform search with ranking
+      // Perform search with ranking - FIXED: Use correct column references
+      console.log('🔍 Search conditions:', searchConditions.length);
       const searchResults = await db
         .select({
           itemId: nailItServices.itemId,
-          itemName: nailItServices.itemName,
+          itemName: nailItServices.itemName, 
           itemDesc: nailItServices.itemDesc,
           primaryPrice: nailItServices.primaryPrice,
           durationMinutes: nailItServices.durationMinutes,
           locationIds: nailItServices.locationIds,
-          categoryTags: sql`COALESCE(${nailItServices.categoryTags}, '{}')`
+          categoryTags: nailItServices.categoryTags
         })
         .from(nailItServices)
         .where(
@@ -104,19 +108,36 @@ class RAGSearchService {
             ? and(...searchConditions)
             : eq(nailItServices.isEnabled, true)
         )
-        .limit(limit * 3); // Get more results for scoring
+        .orderBy(sql`CASE WHEN ${nailItServices.itemName} IS NOT NULL THEN 0 ELSE 1 END, ${nailItServices.primaryPrice} DESC`)
+        .limit(limit * 10); // Get more results for scoring, prioritize named services
+      
+      console.log('🔍 Raw search results count:', searchResults.length);
 
       // Score and rank results
       const scoredResults = searchResults
         .map(service => ({
           ...service,
           matchScore: this.calculateMatchScore(service, searchTerms),
-        }))
+        }));
+      
+      console.log('🔍 Scored results before filtering:', scoredResults.map(r => ({
+        itemId: r.itemId, 
+        itemName: r.itemName, 
+        matchScore: r.matchScore
+      })));
+      
+      const filteredResults = scoredResults
         .filter(result => result.matchScore > 0)
         .sort((a, b) => b.matchScore - a.matchScore)
         .slice(0, limit);
+      
+      console.log('🔍 Final filtered results:', filteredResults.length);
+      
+      const finalResults = filteredResults;
+      
+      console.log('🔍 Final filtered results:', filteredResults.length);
 
-      return scoredResults.map(service => ({
+      return finalResults.map(service => ({
         itemId: service.itemId,
         itemName: service.itemName,
         itemDesc: service.itemDesc,
@@ -144,7 +165,7 @@ class RAGSearchService {
         .from(nailItServices)
         .where(
           and(
-            sql`${nailItServices.locationIds} @> ${JSON.stringify([locationId])}`,
+            sql`${locationId} = ANY(${nailItServices.locationIds})`,
             eq(nailItServices.isEnabled, true)
           )
         )
@@ -178,7 +199,7 @@ class RAGSearchService {
       
       if (filters.locationId) {
         conditions.push(
-          sql`${nailItServices.locationIds} @> ${JSON.stringify([filters.locationId])}`
+          sql`${filters.locationId} = ANY(${nailItServices.locationIds})`
         );
       }
 
@@ -348,40 +369,33 @@ class RAGSearchService {
     let score = 0;
     const serviceName = (service.itemName || '').toLowerCase();
     const serviceDesc = (service.itemDesc || '').toLowerCase();
-    const serviceKeywords = (service.searchKeywords || '').toLowerCase();
     
-    // Exact name match (highest score)
-    if (searchTerms.some(term => serviceName.includes(term))) {
-      score += 100;
-    }
+    console.log(`🔍 Scoring service ${service.itemId}: "${service.itemName}" vs terms [${searchTerms.join(', ')}]`);
     
-    // Keyword match
-    if (searchTerms.some(term => serviceKeywords.includes(term))) {
-      score += 80;
-    }
-    
-    // Description match
-    if (searchTerms.some(term => serviceDesc.includes(term))) {
-      score += 60;
-    }
-    
-    // Partial matches
-    searchTerms.forEach(term => {
-      if (serviceName.includes(term.substring(0, 4))) {
-        score += 40;
+    // SIMPLIFIED SCORING - if any search term matches service name, give high score
+    for (const term of searchTerms) {
+      if (serviceName.includes(term)) {
+        score += 50;
+        console.log(`  ✅ Name match for "${term}": +50 (total: ${score})`);
       }
-    });
+      if (serviceDesc.includes(term)) {
+        score += 25;
+        console.log(`  ✅ Desc match for "${term}": +25 (total: ${score})`);
+      }
+    }
     
     // Category tag bonus
     if (service.categoryTags && Array.isArray(service.categoryTags)) {
-      const hasRelevantCategory = service.categoryTags.some((tag: string) =>
+      const categoryMatch = service.categoryTags.some((tag: string) =>
         searchTerms.some(term => tag.toLowerCase().includes(term))
       );
-      if (hasRelevantCategory) {
-        score += 30;
+      if (categoryMatch) {
+        score += 25;
+        console.log(`  ✅ Category match: +25 (total: ${score})`);
       }
     }
     
+    console.log(`  🎯 Final score for ${service.itemId}: ${score}`);
     return score;
   }
 
