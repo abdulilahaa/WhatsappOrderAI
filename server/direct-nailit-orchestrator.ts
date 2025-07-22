@@ -48,6 +48,7 @@ export class DirectNailItOrchestrator {
       const locationInfo = await this.extractLocation(context.message);
       
       // Step 2: Search services using smart cache (FAST: <500ms)
+      console.log(`⚡ [CacheSearch] Using smart cache for instant service discovery`);
       const services = await this.searchCachedServices(context.message, locationInfo?.locationId);
       
       // Step 3: Generate intelligent response
@@ -163,54 +164,19 @@ export class DirectNailItOrchestrator {
         services = nailServices.length > 0 ? nailServices : services;
       }
       
-      console.log(`💅 Found ${nailServices.length} nail services out of ${allServices.length} total`);
+      console.log(`🎯 [CacheResult] Using ${services.length} services from smart cache (${nailServices.length} nail-specific)`);
       
-      // If specific query, filter by search terms from ALL services
-      if (query && query.trim() && !['hello', 'hi', 'services', 'show me', 'all'].some(generic => query.toLowerCase().includes(generic))) {
-        const searchTerms = query.toLowerCase().split(' ');
-        
-        // Enhanced business-aware mappings for nail salon
-        const mappings = {
-          'manicure': ['nail', 'hand', 'finger', 'gel', 'polish', 'french', 'acrylic'],
-          'pedicure': ['foot', 'toe', 'feet', 'nail'],
-          'facial': ['face', 'skin', 'cleansing', 'hydra'],
-          'hair': ['hair', 'treatment', 'blowout', 'style', 'scalp'],
-          'nail': ['nail', 'manicure', 'pedicure', 'gel', 'chrome', 'art', 'acrylic'],
-          'gel': ['gel', 'nail', 'polish', 'manicure'],
-          'polish': ['polish', 'nail', 'gel', 'chrome'],
-          'french': ['french', 'nail', 'manicure']
-        };
-        
-        const filteredServices = allServices.filter(item => {
-          const itemText = `${item.Item_Name} ${item.Item_Desc}`.toLowerCase();
-          
-          return searchTerms.some(term => {
-            if (itemText.includes(term)) return true;
-            if (mappings[term]) {
-              return mappings[term].some(mapped => itemText.includes(mapped));
-            }
-            return false;
-          });
-        });
-        
-        console.log(`🎯 Filtered to ${filteredServices.length} services matching "${query}"`);
-        
-        // Return filtered results if found, otherwise return nail services as default
-        allServices = filteredServices.length > 0 ? filteredServices : nailServices;
-      } else {
-        // For general queries, prioritize nail services (core business)
-        allServices = nailServices.length > 0 ? nailServices : allServices.slice(0, 15);
-      }
-      
-      // Transform to standard format with full service details
-      return allServices.slice(0, 12).map(item => ({
-        itemId: item.Item_Id,
-        itemName: item.Item_Name?.trim() || 'Service',
-        price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
-        description: item.Item_Desc?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() || 'Professional service at NailIt Kuwait',
-        duration: item.Duration || 60,
-        locationIds: item.Location_Ids || [],
-        imageUrl: item.Image_Url ? `https://api.nailit.com/${item.Image_Url}` : null
+      // Convert cached services to expected format for AI Agent
+      return services.map(service => ({
+        Item_Id: service.serviceId,
+        Item_Name: service.name,
+        Item_Desc: service.description,
+        Primary_Price: parseFloat(service.priceKwd),
+        Special_Price: 0,
+        Duration: service.durationMinutes,
+        Location_Ids: service.locationIds,
+        Category: service.category,
+        Keywords: service.keywords
       }));
     } catch (error) {
       console.error('Service search error:', error);

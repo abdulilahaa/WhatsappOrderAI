@@ -11,6 +11,7 @@ import { ragSearchService } from './rag-search';
 
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema, insertServicesRagSchema } from "@shared/schema";
 import cacheRoutes from './routes-cache-management.js';
+import cacheTestRoutes from './routes-cache-test.js';
 import { z } from "zod";
 import Stripe from "stripe";
 import multer from "multer";
@@ -3028,6 +3029,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({
         success: false,
         message: "RAG AI test failed: " + error.message
+      });
+    }
+  });
+
+  // Mount smart cache management and test routes
+  app.use('/api/service', cacheRoutes);
+  app.use('/api/cache-test', cacheTestRoutes);
+  
+  // Live booking test route
+  app.post('/api/live-booking-test', async (req, res) => {
+    try {
+      const { LiveBookingTest } = await import('./live-booking-test.js');
+      const liveTest = new LiveBookingTest();
+      const results = await liveTest.runCompleteBookingTest();
+      
+      res.json({
+        success: results.success,
+        message: results.success 
+          ? '✅ Complete live booking test successful!'
+          : '❌ Live booking test had issues',
+        results: results.results,
+        finalBooking: results.finalBooking,
+        errors: results.errors,
+        testCompleted: true
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message
       });
     }
   });
