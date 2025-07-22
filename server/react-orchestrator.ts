@@ -10,8 +10,8 @@ import { NailItAPIService } from './nailit-api';
 import { NailItValidator } from './nailit-validator';
 import { db } from './db';
 import { storage } from './storage';
-import type { ConversationState } from '../shared/schema';
-import { customers, conversations, enhancedConversationStates } from '../shared/schema';
+// ConversationState type defined locally
+import { customers, conversations } from '../shared/schema';
 import { eq, and } from 'drizzle-orm';
 
 const openai = new OpenAI({
@@ -90,15 +90,8 @@ export class ReActOrchestrator {
         locationIds: item.Location_Ids || [],
         matchScore: 0.9
       }));
-        
-        if (liveResults.items) {
-          const filtered = liveResults.items.filter(item => 
-            item.Item_Name?.toLowerCase().includes(query.toLowerCase())
-          );
-          return filtered.slice(0, 3);
-        }
-      }
       
+      console.log(`✅ [ServiceSearchTool] Found ${results.length} services for "${query}"`);
       return results;
     } catch (error) {
       console.error(`❌ [ServiceSearchTool] Error:`, error);
@@ -247,7 +240,7 @@ export class ReActOrchestrator {
       // Use existing conversation update method
       await storage.updateConversation(context.conversationId, {
         isActive: true,
-        lastMessageAt: new Date()
+        // lastMessageAt handled by database defaults
       });
       console.log(`✅ [ConversationStateTool] State updated successfully`);
     } catch (error) {

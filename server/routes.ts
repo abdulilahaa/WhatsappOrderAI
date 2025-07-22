@@ -2659,6 +2659,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // NailIt order flow routes removed - using Fresh AI system
 
+  // ===== DIRECT NAILIT ORCHESTRATOR =====
+  
+  // Direct NailIt Orchestrator (bypasses broken RAG)
+  app.post("/api/direct-orchestrator/process", async (req, res) => {
+    try {
+      const { message, phoneNumber, customerId } = req.body;
+      
+      if (!message || !phoneNumber) {
+        return res.status(400).json({
+          success: false,
+          error: "Message and phone number are required"
+        });
+      }
+      
+      console.log(`🤖 [DirectOrchestrator] Processing: "${message}" from ${phoneNumber}`);
+      
+      const { directOrchestrator } = await import('./direct-nailit-orchestrator');
+      const result = await directOrchestrator.processBookingRequest({
+        message,
+        phoneNumber,
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error('Direct orchestrator error:', error);
+      res.status(500).json({
+        success: false,
+        error: "Processing failed: " + error.message
+      });
+    }
+  });
+
+  // Direct orchestrator booking creation
+  app.post("/api/direct-orchestrator/create-booking", async (req, res) => {
+    try {
+      const bookingData = req.body;
+      
+      const { directOrchestrator } = await import('./direct-nailit-orchestrator');
+      const result = await directOrchestrator.createBooking(bookingData);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error('Direct booking creation error:', error);
+      res.status(500).json({
+        success: false,
+        error: "Booking creation failed: " + error.message
+      });
+    }
+  });
+
   // ===== RAG SYSTEM ENDPOINTS =====
   
   // RAG Services List (missing endpoint fix)

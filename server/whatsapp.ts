@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { freshAI } from "./ai-fresh";
+import { directOrchestrator } from "./direct-nailit-orchestrator";
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
 
@@ -148,13 +149,32 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // Process with Fresh AI Agent (using empathetic system prompts)
-      console.log('🚀 Using Fresh AI Agent with empathetic conversation style...');
-      const aiResponse = await freshAI.processMessage(
-        message.text,
-        customer,
-        conversationHistory
-      );
+      // Process with Direct NailIt Orchestrator (uses real-time API data)
+      console.log('🚀 Using Direct NailIt Orchestrator with real-time service data...');
+      const orchestratorResult = await directOrchestrator.processBookingRequest({
+        message: message.text,
+        phoneNumber: customer.phoneNumber,
+        customerName: customer.name || undefined,
+        customerEmail: customer.email || undefined
+      });
+      
+      // Transform orchestrator response to Fresh AI format for compatibility
+      const aiResponse = {
+        message: orchestratorResult.response || "How can I help you today?",
+        suggestedServices: orchestratorResult.extractedInfo?.suggestedServices?.map(service => ({
+          itemId: service.itemId,
+          name: service.itemName,
+          price: service.price,
+          description: service.description,
+          duration: service.duration
+        })) || [],
+        collectedData: {
+          readyForBooking: orchestratorResult.actions?.shouldCreateOrder || false,
+          services: orchestratorResult.extractedInfo?.suggestedServices || [],
+          location: orchestratorResult.extractedInfo?.location || null,
+          nextAction: orchestratorResult.extractedInfo?.nextAction || 'WAITING'
+        }
+      };
       
       // Handle Fresh AI completion (if order is ready for booking)
       if (aiResponse.collectedData?.readyForBooking) {
