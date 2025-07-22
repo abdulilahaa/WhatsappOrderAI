@@ -10,6 +10,7 @@ import { ragSyncService } from './rag-sync';
 import { ragSearchService } from './rag-search';
 import { largeOrderTester } from './test-large-orders';
 import { simpleLargeOrderTester } from './simple-large-orders';
+import { paymentStatusChecker } from './payment-status-checker';
 
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema, insertServicesRagSchema } from "@shared/schema";
 import cacheRoutes from './routes-cache-management.js';
@@ -2817,6 +2818,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('❌ Simple large order test error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Payment Status Checking Routes
+  app.get("/api/nailit/check-payment/:orderId", async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      const result = await paymentStatusChecker.checkOrderPaymentStatus(orderId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.post("/api/nailit/check-multiple-payments", async (req, res) => {
+    try {
+      const { orderIds } = req.body;
+      if (!orderIds || !Array.isArray(orderIds)) {
+        return res.status(400).json({
+          success: false,
+          error: "orderIds array is required"
+        });
+      }
+      const result = await paymentStatusChecker.checkMultipleOrdersPaymentStatus(orderIds);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/nailit/monitor-payment/:orderId", async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      const maxAttempts = parseInt(req.query.maxAttempts as string) || 5;
+      const result = await paymentStatusChecker.monitorOrderPayment(orderId, maxAttempts);
+      res.json(result);
+    } catch (error: any) {
       res.status(500).json({
         success: false,
         error: error.message
