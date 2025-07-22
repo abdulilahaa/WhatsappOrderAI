@@ -2738,14 +2738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Live booking test removed - obsolete file with hardcoded data
 
-  // ReAct Orchestrator routes
-  try {
-    const reActRoutes = await import("./routes/react-orchestrator");
-    app.use("/api/react-orchestrator", reActRoutes.default);
-    console.log("✅ ReAct Orchestrator routes loaded successfully");
-  } catch (error) {
-    console.error("❌ Failed to load ReAct Orchestrator routes:", error);
-  }
+  // ReAct Orchestrator integrated directly into WhatsApp service
+  console.log("✅ ReAct Orchestrator integrated in WhatsApp service");
 
   // Large Order Test Routes
   app.post("/api/nailit/test/large-orders", async (req, res) => {

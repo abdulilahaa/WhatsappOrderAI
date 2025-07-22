@@ -44,7 +44,7 @@ export interface BookingContext {
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string; }>;
 }
 
-export class ReActOrchestrator {
+export class ReactOrchestrator {
   private nailItAPI: NailItAPIService;
   private validator: NailItValidator;
 
@@ -73,6 +73,18 @@ export class ReActOrchestrator {
       
       // Filter and transform results
       let filteredItems = liveResults.items || [];
+      
+      // Search for matching services
+      if (query) {
+        const searchTerms = query.toLowerCase().split(' ');
+        filteredItems = filteredItems.filter(item => {
+          const itemName = item.Item_Name?.toLowerCase() || '';
+          const itemDesc = item.Item_Desc?.toLowerCase() || '';
+          return searchTerms.some(term => 
+            itemName.includes(term) || itemDesc.includes(term)
+          );
+        });
+      }
       if (query && query.trim()) {
         const searchTerm = query.toLowerCase();
         filteredItems = filteredItems.filter(item => 
@@ -304,6 +316,31 @@ export class ReActOrchestrator {
       openaiTemperature: 0.7,
       locationIds: [1, 52, 53],
       paymentTypes: [{ Payment_Type_Id: 2, Payment_Type_Name: 'Knet' }]
+    };
+  }
+
+  /**
+   * Main entry point for processing booking requests with ReAct orchestration
+   */
+  async processBookingRequest(request: any): Promise<any> {
+    // Legacy interface compatibility - convert to new format
+    const context: BookingContext = {
+      customerId: request.customerId,
+      phoneNumber: request.phoneNumber,
+      conversationId: request.conversationId,
+      sessionData: {},
+      conversationHistory: request.conversationHistory || []
+    };
+    
+    const response = await this.processBookingConversation(context, request.message);
+    
+    return {
+      response,
+      suggestedServices: [],
+      shouldCreateOrder: false,
+      extractedServices: [],
+      location: null,
+      nextAction: 'CONTINUE'
     };
   }
 
@@ -707,4 +744,4 @@ Respond with JSON: {"action": "action_name", "reasoning": "why this action", "pa
   }
 }
 
-export const reActOrchestrator = new ReActOrchestrator();
+export const reActOrchestrator = new ReactOrchestrator();

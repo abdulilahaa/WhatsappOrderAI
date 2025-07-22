@@ -168,24 +168,36 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // EMERGENCY: Use simplified booking system to bypass cache issues
-      console.log('🚨 Using Emergency Booking System (bypassing cache issues)...');
-      const { EmergencyBookingSystem } = await import('./emergency-booking-system.js');
-      const emergencySystem = new EmergencyBookingSystem();
-      const emergencyResult = await emergencySystem.processEmergencyBooking({
+      // Use ReAct Orchestrator with full component integration
+      console.log('🚀 Using ReAct Orchestrator with full component integration...');
+      const { ReactOrchestrator } = await import('./react-orchestrator.js');
+      const reactOrchestrator = new ReactOrchestrator();
+      
+      // Build proper booking context
+      const bookingContext = {
+        customerId: customer.id,
         phoneNumber: customer.phoneNumber,
-        message: message.text,
-        locationId: 1 // Default to Al-Plaza Mall
-      });
+        conversationId: conversation.id,
+        sessionData: {
+          customerName: customer.name || undefined,
+          customerEmail: customer.email || undefined
+        },
+        conversationHistory: conversationHistory.map(msg => ({
+          role: msg.isFromAI ? 'assistant' as const : 'user' as const,
+          content: msg.content
+        }))
+      };
+      
+      const orchestratorResponse = await reactOrchestrator.processBookingConversation(bookingContext, message.text);
       
       const aiResponse = {
-        message: emergencyResult.response,
+        message: orchestratorResponse,
         suggestedServices: [],
         collectedData: {
-          readyForBooking: emergencyResult.orderCreated,
+          readyForBooking: false,
           services: [],
-          location: { locationId: 1, locationName: 'Al-Plaza Mall' },
-          nextAction: emergencyResult.orderCreated ? 'COMPLETED' : 'WAITING'
+          location: null,
+          nextAction: 'CONTINUE'
         }
       };
 
