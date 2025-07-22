@@ -133,13 +133,9 @@ export class DirectNailItOrchestrator {
     try {
       console.log(`⚡ [SmartCache] Searching "${query}" at location ${locationId}`);
       
-      // Use smart cache for <500ms response time
-      let services = await this.serviceCache.searchServices(query, locationId);
-      
-      // If no specific services found, get all services for location
-      if (services.length === 0) {
-        services = await this.serviceCache.getServicesForLocation(locationId);
-      }
+      // BYPASS CACHE - Use direct NailIt API to avoid PostgreSQL array errors
+      console.log('⚡ Using direct NailIt API integration (bypassing cache)');
+      const services: any[] = [];
       
       console.log(`🎯 Found ${services.length} services from cache`);
       

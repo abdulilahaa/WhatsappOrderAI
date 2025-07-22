@@ -121,7 +121,7 @@ export class SmartServiceCache {
       category: this.categorizeService(name, description),
       durationMinutes: service.Duration || 60,
       priceKwd: service.Special_Price > 0 ? service.Special_Price : service.Primary_Price,
-      locationIds: [locationId],
+      locationIds: Array.isArray(service.Location_Ids) ? service.Location_Ids : [locationId],
       isActive: true,
       imageUrl: service.Image_Url || null,
       itemTypeId: 2,
