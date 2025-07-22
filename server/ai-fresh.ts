@@ -279,28 +279,28 @@ Current conversation context: Customer wants ${customerMessage}`;
       const lowerMessage = customerMessage.toLowerCase();
       let directServices = [];
       
-      // Hair services
+      // Hair services - CORRECTED TO USE REAL API DATA
       if (lowerMessage.includes('hair')) {
         directServices.push({
-          itemId: 203,
-          itemName: 'Hair Treatment',
-          price: 15,
+          itemId: 279, // CORRECTED: Real ID for VIP Hair Style
+          itemName: 'VIP Hair Style',
+          price: 40, // CORRECTED: Real API price is 40 KWD
           quantity: 1,
-          duration: '60 minutes'
+          duration: '60 minutes' // CORRECTED: Needs full 60 minutes
         });
-        console.log('✅ Added Hair Treatment');
+        console.log('✅ Added VIP Hair Style with REAL pricing (40 KWD, 60 min)');
       }
       
-      // Manicure services
+      // Manicure services - CORRECTED TO USE REAL API DATA
       if (lowerMessage.includes('manicure') || lowerMessage.includes('mani')) {
         directServices.push({
-          itemId: 279,
-          itemName: 'French Manicure',
-          price: 15,
+          itemId: 11070, // CORRECTED: Real ID for French Chrome Nails
+          itemName: 'French Chrome Nails',
+          price: 9, // CORRECTED: Real API price
           quantity: 1,
-          duration: '45 minutes'
+          duration: '60 minutes' // CORRECTED: Real API duration
         });
-        console.log('✅ Added French Manicure');
+        console.log('✅ Added French Chrome Nails with REAL pricing (9 KWD, 60 min)');
       }
       
       // Pedicure services
@@ -477,17 +477,24 @@ Current conversation context: Customer wants ${customerMessage}`;
       let availableTimeSlots: number[] = [];
       
       for (const service of state.collectedData.selectedServices) {
-        // Only check staff for hair services (ID: 203) - other services don't require staff validation
-        const isHairService = service.itemId === 203 || 
+        // Only check staff for hair services (ID: 279) - other services don't require staff validation
+        const isHairService = service.itemId === 279 || 
           service.itemName.toLowerCase().includes('hair') ||
           service.itemName.toLowerCase().includes('treatment');
           
         if (isHairService) {
+          // Prepare date for staff checking
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const appointmentDate = state.collectedData.appointmentDate || 
+            tomorrow.toLocaleDateString('en-GB').replace(/\//g, '/');
+          const dateForStaff = appointmentDate.replace(/\//g, '-');
+          
           const staffAvailability = await this.nailItAPIClient.getServiceStaff(
             service.itemId,
             state.collectedData.locationId,
             'E',
-            formattedDate.replace(/\//g, '-')
+            dateForStaff
           );
           
           if (!staffAvailability || staffAvailability.length === 0) {
@@ -559,7 +566,7 @@ Current conversation context: Customer wants ${customerMessage}`;
           Discount_Amount: 0,
           Net_Amount: service.price * (service.quantity || 1),
           Staff_Id: assignedStaffIds[index] || 1, // Use verified available staff
-          TimeFrame_Ids: state.collectedData.timeSlotIds || [13 + (index * 2), 14 + (index * 2)], // Sequential afternoon slots
+          TimeFrame_Ids: this.calculateTimeSlots(service, index, state.collectedData.preferredTime), // FIXED: Calculate proper time slots based on service duration
           Appointment_Date: formattedDate
         }))
       };
@@ -681,6 +688,28 @@ Current conversation context: Customer wants ${customerMessage}`;
       
       return this.createResponse(state, errorMessage);
     }
+  }
+
+  private calculateTimeSlots(service: any, index: number, preferredTime?: string): number[] {
+    // Calculate proper time slots based on service duration
+    const durationMinutes = parseInt(service.duration) || 60;
+    const slotsNeeded = Math.ceil(durationMinutes / 30); // Each slot is 30 minutes
+    
+    // Start from preferred time or afternoon slots
+    let startSlot = 13; // Default to 1:00 PM
+    if (preferredTime && preferredTime.includes('16')) startSlot = 15; // 4:00 PM
+    if (preferredTime && preferredTime.includes('14')) startSlot = 13; // 2:00 PM
+    
+    // Offset for multiple services
+    startSlot += (index * slotsNeeded);
+    
+    const timeSlots = [];
+    for (let i = 0; i < slotsNeeded; i++) {
+      timeSlots.push(startSlot + i);
+    }
+    
+    console.log(`⏰ ${service.itemName} (${durationMinutes}min) needs ${slotsNeeded} slots: [${timeSlots.join(', ')}]`);
+    return timeSlots;
   }
 
   private detectLanguage(message: string): 'en' | 'ar' {
