@@ -2948,6 +2948,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ReAct Orchestrator routes
+  try {
+    const reActRoutes = await import("./routes/react-orchestrator");
+    app.use("/api/react-orchestrator", reActRoutes.default);
+    console.log("✅ ReAct Orchestrator routes loaded successfully");
+  } catch (error) {
+    console.error("❌ Failed to load ReAct Orchestrator routes:", error);
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }
