@@ -1,287 +1,357 @@
-/**
- * Smart Service Cache - Optimized service storage for ReAct Orchestration
- * Implements the recommended service storage structure for <500ms responses
- */
+import { storage } from './storage.js';
+const db = storage.db;
+import { servicesRag } from '../shared/schema.js';
+import { NailItAPIService } from './nailit-api.js';
+import { eq, and, like, or, inArray, sql } from 'drizzle-orm';
 
-import { nailItAPI } from './nailit-api.js';
-import { IStorage } from './storage.js';
+interface CachedService {
+  serviceId: number;
+  name: string;
+  description: string;
+  keywords: string[];
+  category: string;
+  durationMinutes: number;
+  priceKwd: number;
+  locationIds: number[];
+  imageUrl?: string;
+  itemTypeId: number;
+  specialPrice?: number;
+  itemId: number;
+  itemName: string;
+  itemDesc: string;
+  isActive: boolean;
+  lastUpdatedAt: Date;
+}
 
 export class SmartServiceCache {
-  private storage: IStorage;
-  private cache = new Map<string, any[]>();
-
-  constructor(storage: IStorage) {
-    this.storage = storage;
+  private nailItAPI: NailItAPIService;
+  private memoryCache: Map<string, CachedService[]> = new Map();
+  private lastSyncTime: Date | null = null;
+  
+  constructor() {
+    this.nailItAPI = new NailItAPIService();
   }
 
   /**
-   * Get services for location with <500ms response time
+   * Search services ONLY from pre-cached database - NO API calls during search
    */
-  async getServicesForLocation(locationId: number, category?: string): Promise<any[]> {
-    const cacheKey = `${locationId}_${category || 'all'}`;
+  async searchServices(query: string, locationId?: number): Promise<CachedService[]> {
+    console.log(`🔍 [SmartServiceCache] Searching cached services: "${query}" at location ${locationId}`);
     
-    // Memory cache first (fastest)
-    if (this.cache.has(cacheKey)) {
-      console.log(`⚡ Memory cache hit: ${this.cache.get(cacheKey)!.length} services`);
-      return this.cache.get(cacheKey)!;
-    }
-
-    // Database cache second (fast)
-    const cachedServices = await this.storage.getCachedServices(locationId, category);
-    if (cachedServices.length > 0) {
-      console.log(`💾 Database cache hit: ${cachedServices.length} services for location ${locationId}`);
-      this.cache.set(cacheKey, cachedServices);
-      return cachedServices;
-    }
-
-    // Fallback: sync from NailIt API and cache
-    console.log(`🔄 Cache miss - syncing from NailIt API for location ${locationId}`);
-    await this.syncLocationServices(locationId);
-    
-    const freshServices = await this.storage.getCachedServices(locationId, category);
-    this.cache.set(cacheKey, freshServices);
-    return freshServices;
-  }
-
-  /**
-   * Search services by keywords with intelligent matching
-   */
-  async searchServices(query: string, locationId?: number): Promise<any[]> {
-    const keywords = this.extractKeywords(query);
-    console.log(`🔍 Searching for keywords: ${keywords.join(', ')}`);
-    
-    return await this.storage.searchServicesByKeywords(keywords, locationId);
-  }
-
-  /**
-   * Sync services from NailIt API for a specific location
-   */
-  async syncLocationServices(locationId: number): Promise<number> {
-    const currentDate = nailItAPI.formatDateForAPI(new Date());
-    let allServices: any[] = [];
-    let syncedCount = 0;
-
-    console.log(`📡 Starting sync for location ${locationId}`);
-
-    // Fetch all pages from NailIt API
-    for (let page = 1; page <= 19; page++) {
-      try {
-        const response = await nailItAPI.getItemsByDate({
-          itemTypeId: 2,
-          groupId: 0,
-          selectedDate: currentDate,
-          pageNo: page,
-          locationIds: [locationId]
+    try {
+      // Check memory cache first for ultra-fast responses
+      const cacheKey = `${query}_${locationId || 'all'}`;
+      if (this.memoryCache.has(cacheKey)) {
+        console.log(`⚡ [SmartServiceCache] Memory cache hit - instant response`);
+        return this.memoryCache.get(cacheKey) || [];
+      }
+      
+      // Search pre-cached database only
+      let dbQuery = db.select().from(servicesRag).where(eq(servicesRag.isActive, true));
+      
+      if (locationId) {
+        // Use JSON contains for location filtering
+        dbQuery = dbQuery.where(sql`JSON_CONTAINS(${servicesRag.locationIds}, ${locationId.toString()})`);
+      }
+      
+      const allCachedServices = await dbQuery;
+      console.log(`📊 [SmartServiceCache] Found ${allCachedServices.length} pre-cached services`);
+      
+      if (allCachedServices.length === 0) {
+        console.log(`⚠️ Cache is empty for location ${locationId} - needs sync`);
+        return [];
+      }
+      
+      // Intelligent search with multiple strategies
+      const searchTerms = query.toLowerCase().split(' ').filter(term => term.length > 1);
+      const matchingServices = allCachedServices.filter(service => {
+        const searchableText = `${service.name} ${service.description} ${service.keywords?.join(' ')} ${service.category}`.toLowerCase();
+        
+        // Strategy 1: Exact phrase match (highest priority)
+        if (searchableText.includes(query.toLowerCase())) return true;
+        
+        // Strategy 2: All search terms match
+        if (searchTerms.every(term => searchableText.includes(term))) return true;
+        
+        // Strategy 3: Any search term matches (for partial matches)
+        return searchTerms.some(term => searchableText.includes(term));
+      });
+      
+      // Score and sort results by relevance
+      const scoredResults = matchingServices.map(service => {
+        let score = 0;
+        const searchableText = `${service.name} ${service.description}`.toLowerCase();
+        
+        // Higher score for name matches
+        if (service.name.toLowerCase().includes(query.toLowerCase())) score += 10;
+        
+        // Score for keyword matches
+        searchTerms.forEach(term => {
+          if (service.name.toLowerCase().includes(term)) score += 5;
+          if (service.description.toLowerCase().includes(term)) score += 2;
+          if (service.keywords.some(kw => kw.includes(term))) score += 3;
         });
-
-        if (response.items && response.items.length > 0) {
-          allServices = allServices.concat(response.items);
-          console.log(`📄 Page ${page}: ${response.items.length} services`);
-        } else {
-          break;
-        }
-      } catch (error) {
-        console.log(`⚠️ Page ${page} error: ${error}, stopping`);
-        break;
-      }
+        
+        return { service, score };
+      }).sort((a, b) => b.score - a.score);
+      
+      // Transform to consistent format
+      const results: CachedService[] = scoredResults.slice(0, 12).map(({service}) => ({
+        serviceId: service.serviceId,
+        name: service.name,
+        description: service.description,
+        keywords: service.keywords || [],
+        category: service.category,
+        durationMinutes: service.durationMinutes,
+        priceKwd: service.priceKwd,
+        locationIds: service.locationIds || [],
+        imageUrl: service.imageUrl,
+        itemTypeId: service.itemTypeId,
+        specialPrice: service.specialPrice,
+        itemId: service.itemId,
+        itemName: service.itemName,
+        itemDesc: service.itemDesc,
+        isActive: service.isActive,
+        lastUpdatedAt: service.lastUpdatedAt
+      }));
+      
+      // Cache in memory for instant future access
+      this.memoryCache.set(cacheKey, results);
+      
+      console.log(`✅ [SmartServiceCache] Instant search complete - ${results.length} relevant services`);
+      return results;
+      
+    } catch (error) {
+      console.error(`❌ [SmartServiceCache] Search error:`, error);
+      return [];
     }
-
-    console.log(`📊 Total fetched: ${allServices.length} services`);
-
-    // Process and cache each service
-    for (const service of allServices) {
-      try {
-        const processedService = this.processNailItService(service, locationId);
-        await this.storage.upsertService(processedService);
-        syncedCount++;
-      } catch (error) {
-        console.error(`Failed to cache service ${service.Item_Id}:`, error);
-      }
-    }
-
-    // Clear memory cache to force refresh
-    this.clearMemoryCache();
-
-    console.log(`✅ Synced ${syncedCount} services for location ${locationId}`);
-    return syncedCount;
   }
 
   /**
-   * Process NailIt API service into optimized storage format
+   * Full sync of ALL services across ALL pages (background operation)
    */
-  private processNailItService(service: any, locationId: number): any {
-    const name = service.Item_Name?.trim() || 'Service';
-    const description = service.Item_Desc?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() || '';
+  async fullSyncAllLocations(): Promise<void> {
+    console.log(`🔄 [SmartServiceCache] Starting full sync of all locations...`);
     
-    return {
-      serviceId: service.Item_Id,
-      name: name,
-      description: description,
-      keywords: this.generateKeywords(name, description),
-      category: this.categorizeService(name, description),
-      durationMinutes: service.Duration || 60,
-      priceKwd: service.Special_Price > 0 ? service.Special_Price : service.Primary_Price,
-      locationIds: Array.isArray(service.Location_Ids) ? service.Location_Ids : [locationId],
-      isActive: true,
-      imageUrl: service.Image_Url || null,
-      itemTypeId: 2,
-      groupId: service.Group_Id || 0,
-      lastUpdatedAt: new Date()
-    };
+    const locations = [1, 52, 53]; // Al-Plaza Mall, Zahra Complex, Arraya Mall
+    
+    for (const locationId of locations) {
+      await this.syncServicesForLocation(locationId);
+    }
+    
+    console.log(`✅ [SmartServiceCache] Full sync completed for all locations`);
   }
 
   /**
-   * Generate keywords for intelligent search
+   * Sync services for a specific location - FULL PAGINATION HANDLING
    */
-  private generateKeywords(name: string, description: string): string[] {
-    const text = `${name} ${description}`.toLowerCase();
-    const keywords = [];
-
-    // Nail service keywords
-    if (text.includes('nail') || text.includes('manicure') || text.includes('pedicure')) {
-      keywords.push('nail', 'manicure', 'pedicure');
-    }
-    if (text.includes('gel') || text.includes('polish')) {
-      keywords.push('gel', 'polish');
-    }
-    if (text.includes('french') || text.includes('chrome')) {
-      keywords.push('french', 'chrome');
-    }
-    if (text.includes('acrylic') || text.includes('extension')) {
-      keywords.push('acrylic', 'extension');
-    }
-
-    // Hair service keywords
-    if (text.includes('hair') || text.includes('scalp')) {
-      keywords.push('hair', 'scalp');
-    }
-    if (text.includes('oily') || text.includes('dry')) {
-      keywords.push('oily', 'dry');
-    }
-    if (text.includes('treatment') || text.includes('therapy')) {
-      keywords.push('treatment', 'therapy');
-    }
-
-    // Facial service keywords
-    if (text.includes('facial') || text.includes('face')) {
-      keywords.push('facial', 'face');
-    }
-    if (text.includes('hydra') || text.includes('cleansing')) {
-      keywords.push('hydra', 'cleansing');
-    }
-
-    // Problem-based keywords
-    if (text.includes('growth') || text.includes('loss')) {
-      keywords.push('growth', 'loss');
-    }
-    if (text.includes('damage') || text.includes('repair')) {
-      keywords.push('damage', 'repair');
-    }
-
-    return Array.from(new Set(keywords));
-  }
-
-  /**
-   * Categorize service for filtering
-   */
-  private categorizeService(name: string, description: string): string {
-    const text = `${name} ${description}`.toLowerCase();
-
-    if (text.includes('nail') || text.includes('manicure') || text.includes('pedicure') || 
-        text.includes('gel') || text.includes('polish') || text.includes('french') || 
-        text.includes('chrome') || text.includes('acrylic')) {
-      return 'Nails';
-    }
-
-    if (text.includes('hair') || text.includes('scalp') || text.includes('treatment') ||
-        text.includes('blowout') || text.includes('style')) {
-      return 'Hair';
-    }
-
-    if (text.includes('facial') || text.includes('face') || text.includes('skin') ||
-        text.includes('hydra') || text.includes('cleansing')) {
-      return 'Facial';
-    }
-
-    if (text.includes('massage') || text.includes('body') || text.includes('relax')) {
-      return 'Body';
-    }
-
-    return 'Beauty';
-  }
-
-  /**
-   * Extract keywords from user query
-   */
-  private extractKeywords(query: string): string[] {
-    const normalized = query.toLowerCase();
-    const keywords = [];
-
-    // Direct keyword mapping
-    const keywordMap = {
-      'nail': ['nail', 'nails'],
-      'manicure': ['manicure', 'mani'],
-      'pedicure': ['pedicure', 'pedi'],
-      'hair': ['hair', 'scalp'],
-      'facial': ['facial', 'face'],
-      'oily': ['oily', 'greasy'],
-      'dry': ['dry', 'damaged'],
-      'growth': ['growth', 'loss', 'thinning'],
-      'gel': ['gel', 'polish'],
-      'french': ['french', 'classic'],
-      'chrome': ['chrome', 'mirror']
-    };
-
-    for (const [keyword, variants] of Object.entries(keywordMap)) {
-      if (variants.some(variant => normalized.includes(variant))) {
-        keywords.push(keyword);
+  async syncServicesForLocation(locationId: number): Promise<void> {
+    console.log(`🔄 [SmartServiceCache] Full sync for location ${locationId}...`);
+    
+    try {
+      const currentDate = this.nailItAPI.formatDateForAPI(new Date());
+      
+      // Get first page to determine total pagination needs  
+      const firstPage = await this.nailItAPI.getItemsByDate({
+        itemTypeId: 2,
+        groupId: 0,
+        selectedDate: currentDate,
+        pageNo: 1,
+        locationIds: [locationId]
+      });
+      
+      const totalItems = firstPage.totalItems || 378;
+      const itemsPerPage = 20;
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      
+      console.log(`📊 [SmartServiceCache] Syncing ALL ${totalPages} pages (${totalItems} items) for location ${locationId}`);
+      
+      // Collect ALL items across ALL pages
+      let allItems = [...(firstPage.items || [])];
+      
+      // Fetch ALL remaining pages
+      for (let page = 2; page <= totalPages; page++) {
+        try {
+          const pageResult = await this.nailItAPI.getItemsByDate({
+            itemTypeId: 2,
+            groupId: 0,
+            selectedDate: currentDate,
+            pageNo: page,
+            locationIds: [locationId]
+          });
+          allItems.push(...(pageResult.items || []));
+          
+          // Add small delay to avoid overwhelming API
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (pageError) {
+          console.error(`Error fetching page ${page}:`, pageError);
+        }
       }
+      
+      console.log(`📦 [SmartServiceCache] Collected ${allItems.length} total items from ${totalPages} pages`);
+      
+      // Transform ALL items for caching
+      const servicesToCache = allItems.map(item => ({
+        serviceId: item.Item_Id,
+        name: item.Item_Name,
+        description: item.Item_Desc?.replace(/<[^>]*>/g, '') || '',
+        keywords: this.extractKeywords(item.Item_Name, item.Item_Desc),
+        category: this.categorizeService(item.Item_Name),
+        durationMinutes: parseInt(item.Duration?.toString() || '60'),
+        priceKwd: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
+        locationIds: Array.isArray(item.Location_Ids) ? item.Location_Ids : [locationId],
+        imageUrl: item.Image_Url || null,
+        itemTypeId: item.Item_Type_Id,
+        specialPrice: item.Special_Price > 0 ? item.Special_Price : null,
+        itemId: item.Item_Id,
+        itemName: item.Item_Name,
+        itemDesc: item.Item_Desc || '',
+        isActive: true,
+        lastUpdatedAt: new Date()
+      }));
+      
+      // Clear existing cache for this location and insert ALL new data
+      await db.delete(servicesRag).where(sql`JSON_CONTAINS(${servicesRag.locationIds}, ${locationId.toString()})`);
+      
+      if (servicesToCache.length > 0) {
+        // Insert in batches to handle large datasets
+        const batchSize = 50;
+        for (let i = 0; i < servicesToCache.length; i += batchSize) {
+          const batch = servicesToCache.slice(i, i + batchSize);
+          await db.insert(servicesRag).values(batch);
+        }
+      }
+      
+      // Clear memory cache to force fresh data
+      this.memoryCache.clear();
+      this.lastSyncTime = new Date();
+      
+      console.log(`✅ [SmartServiceCache] Successfully cached ${servicesToCache.length} services for location ${locationId}`);
+      
+    } catch (error) {
+      console.error(`❌ [SmartServiceCache] Sync error for location ${locationId}:`, error);
+      throw error;
     }
-
-    // Add words from query
-    const words = normalized.split(' ').filter(word => word.length > 2);
-    keywords.push(...words);
-
-    return Array.from(new Set(keywords));
   }
 
   /**
-   * Clear memory cache
+   * Extract intelligent keywords for better search matching
    */
-  clearMemoryCache(): void {
-    this.cache.clear();
-    console.log('🧹 Memory cache cleared');
+  private extractKeywords(name: string, description?: string): string[] {
+    const text = `${name} ${description || ''}`.toLowerCase();
+    const keywords = new Set<string>();
+    
+    // Beauty service patterns with variations
+    const patterns = [
+      // Nail services
+      ['nail', 'nails'], ['manicure', 'mani'], ['pedicure', 'pedi'], 
+      ['polish', 'lacquer'], ['gel', 'shellac'], ['french', 'classic'],
+      ['acrylic', 'tips'], ['chrome', 'mirror'], ['art', 'design'],
+      
+      // Hair services  
+      ['hair', 'hairstyle'], ['cut', 'cutting', 'trim'], ['style', 'styling'],
+      ['color', 'coloring', 'dye'], ['treatment', 'therapy'], ['blow', 'blowdry'],
+      ['curl', 'wave'], ['straight', 'rebonding'], ['highlight', 'lowlight'],
+      
+      // Facial services
+      ['facial', 'face'], ['skin', 'skincare'], ['cleansing', 'cleanse'], 
+      ['hydra', 'hydrating'], ['anti-aging', 'antiaging'], ['peeling', 'peel'],
+      ['mask', 'masque'], ['extraction', 'cleanup'],
+      
+      // Body services
+      ['massage', 'therapy'], ['body', 'full-body'], ['spa', 'wellness'], 
+      ['relax', 'relaxing'], ['aromatherapy', 'aroma'], ['hot-stone', 'stone'],
+      ['deep-tissue', 'tissue'], ['swedish', 'therapeutic'],
+      
+      // Waxing services (Brazilian is a waxing service)
+      ['wax', 'waxing'], ['brazilian', 'bikini'], ['full-body', 'body'],
+      ['legs', 'arms'], ['underarm', 'facial-hair']
+    ];
+    
+    patterns.forEach(patternGroup => {
+      patternGroup.forEach(pattern => {
+        if (text.includes(pattern)) {
+          keywords.add(pattern);
+        }
+      });
+    });
+    
+    return Array.from(keywords);
   }
 
   /**
-   * Get cache statistics
+   * Categorize service with business context awareness
+   */
+  private categorizeService(itemName: string): string {
+    const name = itemName.toLowerCase();
+    
+    // Primary nail salon services (main business focus)
+    if (name.includes('nail') || name.includes('manicure') || name.includes('pedicure') || 
+        name.includes('polish') || name.includes('gel') || name.includes('french')) {
+      return 'Nail Services';
+    }
+    
+    // Hair services
+    if (name.includes('hair') || name.includes('cut') || name.includes('style') || 
+        name.includes('color') || name.includes('treatment') || name.includes('blow')) {
+      return 'Hair Services';
+    }
+    
+    // Facial services  
+    if (name.includes('facial') || name.includes('face') || name.includes('skin') || 
+        name.includes('hydra') || name.includes('cleansing')) {
+      return 'Facial Services';
+    }
+    
+    // Body/Spa services including waxing
+    if (name.includes('massage') || name.includes('body') || name.includes('spa') || 
+        name.includes('relax') || name.includes('therapy') || name.includes('wax') ||
+        name.includes('brazilian')) {
+      return 'Body Services';
+    }
+    
+    // Event packages
+    if (name.includes('event') || name.includes('party') || name.includes('package')) {
+      return 'Event Packages';
+    }
+    
+    return 'Beauty Services';
+  }
+
+  /**
+   * Get comprehensive cache statistics
    */
   async getCacheStats(): Promise<any> {
-    const totalServices = await this.storage.getCachedServices();
-    const byLocation = {
-      1: await this.storage.getCachedServices(1),
-      52: await this.storage.getCachedServices(52),
-      53: await this.storage.getCachedServices(53)
-    };
-
-    return {
-      totalCached: totalServices.length,
-      byLocation: {
-        'Al-Plaza Mall': byLocation[1].length,
-        'Zahra Complex': byLocation[52].length,
-        'Arraya Mall': byLocation[53].length
-      },
-      memoryCache: this.cache.size,
-      categories: this.groupByCategory(totalServices)
-    };
-  }
-
-  private groupByCategory(services: any[]): any {
-    const categories = {};
-    services.forEach(service => {
-      const cat = service.category || 'Other';
-      categories[cat] = (categories[cat] || 0) + 1;
-    });
-    return categories;
+    try {
+      const allCached = await db.select().from(servicesRag);
+      const byLocation = allCached.reduce((acc, service) => {
+        (service.locationIds || []).forEach(locId => {
+          acc[locId] = (acc[locId] || 0) + 1;
+        });
+        return acc;
+      }, {} as Record<number, number>);
+      
+      const byCategory = allCached.reduce((acc, service) => {
+        acc[service.category] = (acc[service.category] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return {
+        totalServices: allCached.length,
+        byLocation: {
+          1: byLocation[1] || 0,    // Al-Plaza Mall
+          52: byLocation[52] || 0,  // Zahra Complex  
+          53: byLocation[53] || 0   // Arraya Mall
+        },
+        byCategory,
+        lastSyncTime: this.lastSyncTime,
+        memoryCacheSize: this.memoryCache.size,
+        oldestService: allCached.length > 0 ? Math.min(...allCached.map(s => s.lastUpdatedAt.getTime())) : null,
+        newestService: allCached.length > 0 ? Math.max(...allCached.map(s => s.lastUpdatedAt.getTime())) : null
+      };
+    } catch (error) {
+      console.error('Cache stats error:', error);
+      return { error: error.message };
+    }
   }
 }

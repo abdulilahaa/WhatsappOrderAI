@@ -57,72 +57,41 @@ export class ReactOrchestrator {
    * TOOL: Service Search using authentic NailIt API with improved matching
    */
   async searchServicesWithTerms(searchTerms: string[], locationId: number = 1): Promise<any> {
-    console.log(`🔍 [ServiceSearchTool] Searching with terms: [${searchTerms.join(', ')}] at location ${locationId}`);
+    console.log(`🔍 [ServiceSearchTool] Searching cached services with terms: [${searchTerms.join(', ')}] at location ${locationId}`);
     
     try {
-      const currentDate = this.nailItAPI.formatDateForAPI(new Date());
+      // Use SmartServiceCache for instant local search - NO API calls during search
+      const { SmartServiceCache } = await import('./smart-service-cache.js');
+      const cache = new SmartServiceCache();
       
-      // Get first page to determine total pages needed
-      const firstPageResults = await this.nailItAPI.getItemsByDate({
-        itemTypeId: 2,
-        groupId: 0,
-        selectedDate: currentDate,
-        pageNo: 1,
-        locationIds: [locationId]
-      });
+      // Search pre-cached services instantly
+      const cachedServices = await cache.searchServices(searchTerms.join(' '), locationId);
       
-      const totalItems = firstPageResults.totalItems || 378;
-      const itemsPerPage = 20;
-      const totalPages = Math.ceil(totalItems / itemsPerPage);
-      
-      console.log(`📊 Need to search ${totalPages} pages for ${totalItems} total items`);
-      
-      // Collect all items across all pages
-      let allItems = [...(firstPageResults.items || [])];
-      
-      // Fetch remaining pages (limit to first 5 pages for performance)
-      const pagesToFetch = Math.min(totalPages - 1, 4);
-      for (let page = 2; page <= pagesToFetch + 1; page++) {
-        const pageResults = await this.nailItAPI.getItemsByDate({
-          itemTypeId: 2,
-          groupId: 0,
-          selectedDate: currentDate,
-          pageNo: page,
-          locationIds: [locationId]
-        });
-        allItems.push(...(pageResults.items || []));
+      if (cachedServices.length === 0) {
+        console.log(`⚠️ No cached services found, triggering sync for location ${locationId}`);
+        // Only sync if cache is empty - don't wait for it
+        cache.syncServicesForLocation(locationId).catch(err => 
+          console.error('Background sync failed:', err)
+        );
+        return [];
       }
       
-      console.log(`📊 Total items collected from ${pagesToFetch + 1} pages: ${allItems.length}`);
+      console.log(`✅ [ServiceSearchTool] Found ${cachedServices.length} cached services instantly`);
       
-      // Search across ALL collected items
-      const matchingItems = allItems.filter(item => {
-        const itemName = item.Item_Name?.toLowerCase() || '';
-        const itemDesc = item.Item_Desc?.toLowerCase() || '';
-        
-        return searchTerms.some(term => 
-          itemName.includes(term.toLowerCase()) || 
-          itemDesc.includes(term.toLowerCase())
-        );
-      });
-      
-      console.log(`🎯 Items matching search terms: ${matchingItems.length}`);
-      
-      // Transform to consistent format
-      const results = matchingItems.slice(0, 8).map(item => ({
-        itemId: item.Item_Id,
-        itemName: item.Item_Name,
-        price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
-        description: item.Item_Desc?.replace(/<[^>]*>/g, '') || '',
-        duration: item.Duration || 60,
-        locationIds: item.Location_Ids || [locationId],
-        category: this.categorizeService(item.Item_Name)
+      // Transform cached results to consistent format
+      const results = cachedServices.slice(0, 8).map(service => ({
+        itemId: service.serviceId || service.itemId,
+        itemName: service.name || service.itemName,
+        price: service.priceKwd || service.price,
+        description: service.description || '',
+        duration: service.durationMinutes || service.duration || 60,
+        locationIds: service.locationIds || [locationId],
+        category: this.categorizeService(service.name || service.itemName)
       }));
       
-      console.log(`✅ [ServiceSearchTool] Returning ${results.length} authentic NailIt services`);
       return results;
     } catch (error) {
-      console.error(`❌ [ServiceSearchTool] Error:`, error);
+      console.error(`❌ [ServiceSearchTool] Cache error:`, error);
       return [];
     }
   }

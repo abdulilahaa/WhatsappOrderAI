@@ -2744,18 +2744,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint for service search debugging
   app.post("/api/test-search", async (req, res) => {
     try {
-      const { ReactOrchestrator } = await import('./react-orchestrator.js');
-      const orchestrator = new ReactOrchestrator();
-      const { searchTerms, locationId } = req.body;
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      const { searchTerms, locationId, query } = req.body;
       
-      const results = await orchestrator.searchServicesWithTerms(searchTerms || ['nail', 'manicure'], locationId || 1);
+      const searchQuery = query || (Array.isArray(searchTerms) ? searchTerms.join(' ') : 'nail');
+      const results = await cache.searchServices(searchQuery, locationId || 1);
       
       res.json({
         success: true,
-        searchTerms: searchTerms,
-        locationId: locationId,
+        searchQuery: searchQuery,
+        locationId: locationId || 1,
         results: results,
         count: results.length
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Cache sync endpoint for manual syncing
+  app.post("/api/sync-cache", async (req, res) => {
+    try {
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      
+      await cache.syncAllServices();
+      const stats = cache.getCacheStats();
+      
+      res.json({
+        success: true,
+        message: "Successfully synced services for all locations",
+        stats: stats
       });
     } catch (error: any) {
       res.status(500).json({

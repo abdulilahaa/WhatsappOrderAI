@@ -123,18 +123,19 @@ export const servicesRag = pgTable("services_rag", {
   serviceId: integer("service_id").notNull().unique(), // From NailIt API (Item_Id)
   name: text("name").notNull(), // Display name (EN/AR)
   description: text("description"), // Textual summary of the service
-  keywords: jsonb("keywords"), // Preprocessed list: ["oily", "growth", "nail"]
-  category: text("category").notNull(), // Hair, Nails, Facial, etc.
-  durationMinutes: integer("duration_minutes").notNull(), // Duration as integer
-  priceKwd: decimal("price_kwd", { precision: 10, scale: 2 }).notNull(), // Cost
-  locationIds: jsonb("location_ids").notNull(), // Which locations offer it
-  isActive: boolean("is_active").notNull().default(true), // Hide services when removed upstream
-  lastUpdatedAt: timestamp("last_updated_at").notNull().defaultNow(), // For resync control
-  
-  // Additional fields for compatibility
-  imageUrl: text("image_url"),
-  itemTypeId: integer("item_type_id"),
-  groupId: integer("group_id"),
+  keywords: jsonb("keywords").default([]), // Array of search keywords
+  category: text("category").notNull(), // Service category (Nail, Hair, etc.)
+  durationMinutes: integer("duration_minutes").notNull().default(60), // Service duration
+  priceKwd: decimal("price_kwd", { precision: 10, scale: 2 }).notNull(), // Price in KWD
+  locationIds: jsonb("location_ids").notNull(), // Array of location IDs [1, 52, 53]
+  imageUrl: text("image_url"), // Service image URL
+  itemTypeId: integer("item_type_id"), // From NailIt API
+  specialPrice: decimal("special_price", { precision: 10, scale: 2 }), // Special/discounted price
+  itemId: integer("item_id").notNull(), // From NailIt API (Item_Id duplicate for compatibility)
+  itemName: text("item_name").notNull(), // From NailIt API (Item_Name)
+  itemDesc: text("item_desc"), // From NailIt API (Item_Desc)
+  isActive: boolean("is_active").notNull().default(true), // Service availability status
+  lastUpdatedAt: timestamp("last_updated_at").notNull().defaultNow(), // Cache timestamp
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
