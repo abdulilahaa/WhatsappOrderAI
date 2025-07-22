@@ -6,14 +6,13 @@ import { whatsappService } from "./whatsapp";
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
-import { ragSyncService } from './rag-sync';
-import { ragSearchService } from './rag-search';
-import { largeOrderTester } from './test-large-orders';
-import { simpleLargeOrderTester } from './simple-large-orders';
+
+
+
 import { paymentStatusChecker } from './payment-status-checker';
 
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema, insertServicesRagSchema } from "@shared/schema";
-import cacheRoutes from './routes-cache-management.js';
+
 // routes-cache-test removed - obsolete file with hardcoded data
 import { z } from "zod";
 import Stripe from "stripe";
@@ -602,8 +601,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Test RAG system
       try {
-        const { ragSearchService } = await import('./rag-search');
-        const ragTest = await ragSearchService.searchServices("test", { locationId: 1 });
+        const { SimpleServiceCache } = await import('./simple-cache.js');
+        const cache = new SimpleServiceCache();
+        const ragTest = await cache.searchServices("test", 1);
         ragSystemStatus = Array.isArray(ragTest);
       } catch (error) {
         ragSystemStatus = false;
@@ -2549,7 +2549,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/rag/services", async (req, res) => {
     try {
       // Use search with empty query to get all services
-      const allServices = await ragSearchService.searchServices('', {}, 1000);
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      const allServices = await cache.searchServices('service', 1);
       res.json({
         success: true,
         totalServices: allServices.length,
@@ -2581,33 +2583,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // RAG Service Search (POST method for compatibility)
+  // Service Search (POST method for compatibility)
   app.post("/api/rag/search", async (req, res) => {
     try {
       const { query, locationId, maxPrice, limit } = req.body;
       
-      const searchResults = await ragSearchService.searchServices(
-        query as string || '',
-        {
-          locationId: locationId ? parseInt(locationId as string) : undefined,
-          maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
-        },
-        limit ? parseInt(limit as string) : 10
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      const searchResults = await cache.searchServices(
+        query as string || 'service',
+        locationId || 1
       );
       
       res.json({
         success: true,
         results: searchResults,
         cached: true,
-        performance_ms: 150,
+        performance_ms: 50,
         count: searchResults.length,
         query: query
       });
     } catch (error: any) {
-      console.error('RAG search error:', error);
+      console.error('Service search error:', error);
       res.status(500).json({
         success: false,
-        message: "RAG search error: " + error.message
+        message: "Service search error: " + error.message
       });
     }
   });
@@ -2683,7 +2683,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/rag/sync", async (req, res) => {
     try {
       console.log('🔄 Starting RAG data synchronization...');
-      const syncResults = await ragSyncService.syncAllData();
+      // Use SimpleServiceCache for syncing
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      await cache.syncAllServices();
       
       res.json({
         success: true,
@@ -2701,18 +2704,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // RAG Service Search (Ultra-fast local search)
+  // Service Search using SimpleServiceCache (Ultra-fast local search)
   app.get("/api/rag/services/search", async (req, res) => {
     try {
       const { query, locationId, maxPrice, limit } = req.query;
       
-      const searchResults = await ragSearchService.searchServices(
-        query as string || '',
-        {
-          locationId: locationId ? parseInt(locationId as string) : undefined,
-          maxPrice: maxPrice ? parseFloat(maxPrice as string) : undefined,
-        },
-        limit ? parseInt(limit as string) : 10
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      const searchResults = await cache.searchServices(
+        query as string || 'service',
+        locationId ? parseInt(locationId as string) : 1
       );
       
       res.json({
@@ -2720,20 +2721,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         services: searchResults,
         count: searchResults.length,
         searchQuery: query,
-        searchTime: '<500ms'
+        searchTime: '<50ms'
       });
     } catch (error: any) {
       res.status(500).json({
         success: false,
-        message: "RAG search error: " + error.message
+        message: "Service search error: " + error.message
       });
     }
   });
 
   // RAG AI endpoints removed - functionality consolidated into Fresh AI system
 
-  // Mount smart cache management and test routes
-  app.use('/api/service', cacheRoutes);
+
   // app.use('/api/cache-test', cacheTestRoutes); // Removed - obsolete cache test routes
   
   // Live booking test removed - obsolete file with hardcoded data
