@@ -8,6 +8,8 @@ import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
 import { ragSyncService } from './rag-sync';
 import { ragSearchService } from './rag-search';
+import { largeOrderTester } from './test-large-orders';
+import { simpleLargeOrderTester } from './simple-large-orders';
 
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema, insertServicesRagSchema } from "@shared/schema";
 import cacheRoutes from './routes-cache-management.js';
@@ -2743,6 +2745,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } catch (error) {
     console.error("❌ Failed to load ReAct Orchestrator routes:", error);
   }
+
+  // Large Order Test Routes
+  app.post("/api/nailit/test/large-orders", async (req, res) => {
+    try {
+      console.log('🚀 Starting Large Order Tests...');
+      const results = await largeOrderTester.runLargeOrderTests();
+      
+      res.json({
+        success: true,
+        message: "Large order tests completed",
+        results: results,
+        summary: {
+          newCustomerSuccess: results.newCustomerOrder.success,
+          existingCustomerSuccess: results.existingCustomerOrder.success,
+          totalOrdersCreated: (results.newCustomerOrder.success ? 1 : 0) + (results.existingCustomerOrder.success ? 1 : 0)
+        }
+      });
+    } catch (error: any) {
+      console.error('❌ Large order test error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.post("/api/nailit/test/new-customer-order", async (req, res) => {
+    try {
+      console.log('🆕 Testing new customer large order...');
+      const result = await largeOrderTester.createNewCustomerLargeOrder();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.post("/api/nailit/test/existing-customer-order", async (req, res) => {
+    try {
+      console.log('🔄 Testing existing customer large order...');
+      const result = await largeOrderTester.createExistingCustomerLargeOrder();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Simple Large Order Tests (with known working services)
+  app.post("/api/nailit/test/simple-large-orders", async (req, res) => {
+    try {
+      console.log('🚀 Starting Simple Large Order Tests...');
+      const results = await simpleLargeOrderTester.runSimpleLargeOrderTests();
+      
+      res.json({
+        success: true,
+        message: "Simple large order tests completed",
+        results: results,
+        summary: {
+          newCustomerSuccess: results.newCustomerOrder.success,
+          existingCustomerSuccess: results.existingCustomerOrder.success,
+          totalOrdersCreated: (results.newCustomerOrder.success ? 1 : 0) + (results.existingCustomerOrder.success ? 1 : 0),
+          totalRevenue: (results.newCustomerOrder.success ? results.newCustomerOrder.totalAmount : 0) + 
+                       (results.existingCustomerOrder.success ? results.existingCustomerOrder.finalAmount : 0)
+        }
+      });
+    } catch (error: any) {
+      console.error('❌ Simple large order test error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

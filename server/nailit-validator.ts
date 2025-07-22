@@ -92,7 +92,7 @@ export class NailItValidator {
       }
       
       // Check actual time slot availability through NailIt API
-      const availableSlots = await nailItAPI.getAvailableSlots(locationId, date, 'E');
+      const availableSlots = await nailItAPI.getAvailableSlots(locationId.toString(), date, 'E');
       
       if (!availableSlots || availableSlots.length === 0) {
         return {

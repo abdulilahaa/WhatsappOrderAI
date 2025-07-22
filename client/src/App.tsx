@@ -16,6 +16,7 @@ import Checkout from "@/pages/checkout";
 import StaffAvailability from "@/pages/staff-availability";
 import ServiceAnalytics from "@/pages/service-analytics";
 import AIAgentSettings from "@/pages/ai-agent-settings";
+import LargeOrderTest from "@/pages/large-order-test";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -41,6 +42,7 @@ function Router() {
         <Route path="/checkout" component={Checkout} />
         <Route path="/staff-availability" component={StaffAvailability} />
         <Route path="/service-analytics" component={ServiceAnalytics} />
+        <Route path="/large-order-test" component={LargeOrderTest} />
         <Route component={NotFound} />
       </Switch>
       
