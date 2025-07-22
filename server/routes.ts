@@ -2459,51 +2459,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ 
         error: "Enhanced AI complete booking test moved to Fresh AI system" 
       });
-      return;
-
-      const responses: any[] = [];
-      let customer = await storage.getCustomerByPhoneNumber(testPhoneNumber);
-      if (!customer) {
-        customer = await storage.createCustomer({
-          phoneNumber: testPhoneNumber,
-          name: null,
-          email: null,
-        });
-      }
-
-      // Get conversation
-      let conversation = await storage.getConversationByCustomer(customer.id);
-      if (!conversation) {
-        conversation = await storage.createConversation({
-          customerId: customer.id,
-          isActive: true,
-        });
-      }
-
-      for (let i = 0; i < testMessages.length; i++) {
-        const message = testMessages[i];
-        console.log(`📝 Step ${i + 1}: "${message}"`);
-
-        const messages = await storage.getMessages(conversation.id);
-        const conversationHistory = messages.map(msg => ({
-          content: msg.content,
-          isFromAI: msg.isFromAI,
-        }));
-
-        // Enhanced AI functionality moved to Fresh AI system
-        res.status(400).json({ 
-          error: "Enhanced AI test moved to Fresh AI system - use /api/fresh-ai/test" 
-        });
-        return;
-        /* Enhanced AI functionality moved to Fresh AI system
-        const aiResponse = await enhancedAI.processMessage(
-          message,
-          customer,
-          conversationHistory
-        ); */
-
-        // Enhanced AI processing removed - functionality moved to Fresh AI system
-      });
     } catch (error: any) {
       console.error("❌ Complete booking test error:", error);
       res.status(500).json({ 
@@ -2655,8 +2610,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Obsolete sync and populate endpoints removed - functionality consolidated into Fresh AI system
-    }
-  });
 
   // Direct RAG populate - fast and simple
   app.post("/api/rag/populate-now", async (req, res) => {
