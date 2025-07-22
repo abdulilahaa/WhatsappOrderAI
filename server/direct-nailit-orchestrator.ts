@@ -224,12 +224,13 @@ Respond naturally and helpfully. If services were found, mention them. Guide the
     try {
       console.log(`📋 [CreateBooking] Creating order for ${context.customerName}`);
       
-      // First register/get customer
+      // First register/get customer with proper mobile format
+      const cleanPhone = context.phoneNumber.replace(/\+/g, ''); // Remove + sign
       const customer = await this.nailItAPI.registerUser({
         name: context.customerName || 'Customer',
-        email: context.customerEmail || 'customer@email.com',
-        mobile: context.phoneNumber,
-        address: 'Kuwait'
+        email: context.customerEmail || `customer${Date.now()}@email.com`,
+        mobile: cleanPhone, // NailIt expects phone without +
+        address: 'Kuwait City, Kuwait'
       });
       
       if (!customer.App_User_Id) {
