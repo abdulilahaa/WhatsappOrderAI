@@ -2777,7 +2777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message: "Successfully synced services for all locations",
+        message: "Successfully synced services for all locations", 
         stats: stats
       });
     } catch (error: any) {
@@ -2905,6 +2905,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const maxAttempts = parseInt(req.query.maxAttempts as string) || 5;
       const result = await paymentStatusChecker.monitorOrderPayment(orderId, maxAttempts);
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Get complete service count per location
+  app.get("/api/cache/location-counts", async (req, res) => {
+    try {
+      const { SimpleServiceCache } = await import('./simple-cache.js');
+      const cache = new SimpleServiceCache();
+      
+      const locations = [1, 52, 53];
+      const counts = {};
+      
+      for (const locationId of locations) {
+        const results = await cache.searchServices('service', locationId);
+        counts[locationId] = results.length;
+      }
+      
+      res.json({
+        success: true,
+        counts,
+        locationNames: {
+          1: "Al-Plaza Mall",
+          52: "Zahra Complex", 
+          53: "Arraya Mall"
+        }
+      });
     } catch (error: any) {
       res.status(500).json({
         success: false,
