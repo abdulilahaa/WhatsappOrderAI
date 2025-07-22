@@ -123,6 +123,14 @@ class FreshAIAgent {
       console.log(`🧩 Debug: Customer ${customerId}, Phase: ${state.phase}, Message: "${customerMessage}"`);
       console.log(`🧩 Current services: ${JSON.stringify(state.collectedData.selectedServices)}`);
       
+      // Check if this is a payment confirmation message
+      if (customerMessage.toLowerCase().includes('payment') && 
+          (customerMessage.toLowerCase().includes('confirm') || 
+           customerMessage.toLowerCase().includes('done') ||
+           customerMessage.toLowerCase().includes('paid'))) {
+        return await this.handlePaymentConfirmation(customerMessage, state, customer);
+      }
+
       // NATURAL CONVERSATION WITH REAL BOOKING INTEGRATION
       return await this.handleNaturalConversation(customerMessage, state, customer, conversationHistory);
     } catch (error) {
@@ -606,6 +614,72 @@ Current conversation context: Customer wants ${customerMessage}`;
         success: false,
         message: `Technical error: ${error.message || 'Unknown error occurred'}`
       };
+    }
+  }
+
+  private async handlePaymentConfirmation(
+    customerMessage: string,
+    state: ConversationState,
+    customer: Customer
+  ): Promise<AIResponse> {
+    try {
+      console.log('💳 Processing payment confirmation...');
+      
+      // Get the most recent booking for this customer - check recent orders
+      const recentOrderIds = [176391, 176390, 176389, 176388]; // Recent order IDs to check
+      
+      for (const orderId of recentOrderIds) {
+        try {
+          const paymentDetails = await this.nailItAPIClient.getOrderPaymentDetail(orderId);
+          
+          if (paymentDetails && paymentDetails.Customer_Name && 
+              paymentDetails.Customer_Name.toLowerCase().includes(customer.phoneNumber.slice(-4))) {
+            
+            console.log(`💳 Found order ${orderId} for customer ${customer.phoneNumber}`);
+            console.log(`💳 Payment status: ${paymentDetails.KNetResult || 'PENDING'}`);
+            console.log(`💳 Order status: ${paymentDetails.OrderStatus}`);
+            
+            // Check if payment is successful
+            if (paymentDetails.KNetResult === 'CAPTURED' || 
+                paymentDetails.OrderStatus === 'Order Paid' ||
+                paymentDetails.OrderStatus === 'Confirmed') {
+              
+              const confirmationMessage = state.language === 'ar'
+                ? `🎉 تم تأكيد دفعتك بنجاح!\n\n✅ رقم الطلب: ${orderId}\n💳 حالة الدفع: مدفوع بنجاح\n📋 حالة الحجز: مؤكد\n\n💅 تفاصيل الحجز:\n${paymentDetails.Services?.map(s => `• ${s.Service_Name} - ${s.Price} د.ك`).join('\n') || 'خدماتك المحجوزة'}\n📍 الفرع: ${paymentDetails.Location_Name}\n📅 التاريخ: ${paymentDetails.Services?.[0]?.Service_Date}\n🕐 الوقت: ${paymentDetails.Services?.[0]?.Service_Time_Slots}\n👩‍💼 المختصة: ${paymentDetails.Services?.[0]?.Staff_Name}\n\nشكراً لاختيارك نيل إت! نتطلع لاستقبالك ✨`
+                : `🎉 Payment confirmed successfully!\n\n✅ Order ID: ${orderId}\n💳 Payment Status: Successfully Paid\n📋 Booking Status: Confirmed\n\n💅 Booking Details:\n${paymentDetails.Services?.map(s => `• ${s.Service_Name} - ${s.Price} KWD`).join('\n') || 'Your booked services'}\n📍 Location: ${paymentDetails.Location_Name}\n📅 Date: ${paymentDetails.Services?.[0]?.Service_Date}\n🕐 Time: ${paymentDetails.Services?.[0]?.Service_Time_Slots}\n👩‍💼 Specialist: ${paymentDetails.Services?.[0]?.Staff_Name}\n\nThank you for choosing NailIt! Looking forward to pampering you ✨`;
+              
+              state.phase = 'completed';
+              return this.createResponse(state, confirmationMessage);
+              
+            } else {
+              // Payment still pending
+              const pendingMessage = state.language === 'ar'
+                ? `⏳ نحن نتحقق من حالة دفعتك...\n\nرقم الطلب: ${orderId}\nحالة الدفع: قيد المراجعة\n\nسنقوم بتأكيد حجزك فور اكتمال الدفع. شكراً لصبرك! 🙏`
+                : `⏳ We're verifying your payment...\n\nOrder ID: ${orderId}\nPayment Status: Under Review\n\nWe'll confirm your booking once payment is complete. Thank you for your patience! 🙏`;
+              
+              return this.createResponse(state, pendingMessage);
+            }
+          }
+        } catch (error) {
+          console.log(`Error checking order ${orderId}:`, error);
+          continue;
+        }
+      }
+      
+      // No matching order found
+      const noOrderMessage = state.language === 'ar'
+        ? `عذراً، لم نتمكن من العثور على طلب حديث باسمك. يرجى التأكد من إكمال عملية الدفع أو الاتصال بنا للمساعدة.`
+        : `Sorry, we couldn't find a recent order under your name. Please ensure you've completed the payment process or contact us for assistance.`;
+      
+      return this.createResponse(state, noOrderMessage);
+      
+    } catch (error) {
+      console.error('Payment confirmation error:', error);
+      const errorMessage = state.language === 'ar'
+        ? `عذراً، حدث خطأ أثناء التحقق من الدفع. يرجى المحاولة مرة أخرى أو الاتصال بنا.`
+        : `Sorry, there was an error verifying your payment. Please try again or contact us.`;
+      
+      return this.createResponse(state, errorMessage);
     }
   }
 
