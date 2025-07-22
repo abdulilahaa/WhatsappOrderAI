@@ -159,18 +159,22 @@ export class WhatsAppService {
       });
       
       // Transform orchestrator response to Fresh AI format for compatibility
+      const validServices = orchestratorResult.extractedInfo?.suggestedServices?.filter(service => 
+        service && service.itemId && service.itemName && service.price !== null
+      ) || [];
+      
       const aiResponse = {
         message: orchestratorResult.response || "How can I help you today?",
-        suggestedServices: orchestratorResult.extractedInfo?.suggestedServices?.map(service => ({
+        suggestedServices: validServices.map(service => ({
           itemId: service.itemId,
           name: service.itemName,
           price: service.price,
-          description: service.description,
-          duration: service.duration
-        })) || [],
+          description: service.description || 'Beauty service at NailIt Kuwait',
+          duration: service.duration || '60'
+        })),
         collectedData: {
           readyForBooking: orchestratorResult.actions?.shouldCreateOrder || false,
-          services: orchestratorResult.extractedInfo?.suggestedServices || [],
+          services: validServices,
           location: orchestratorResult.extractedInfo?.location || null,
           nextAction: orchestratorResult.extractedInfo?.nextAction || 'WAITING'
         }
@@ -191,19 +195,8 @@ export class WhatsAppService {
         isFromAI: true,
       });
 
-      // Send suggested services if any (only for Fresh AI format)
-      if (aiResponse.suggestedServices && aiResponse.suggestedServices.length > 0) {
-        const serviceMessage = this.formatNailItServiceSuggestions(aiResponse.suggestedServices);
-        if (serviceMessage) {
-          await this.sendMessage(customer.phoneNumber, serviceMessage);
-          
-          await storage.createMessage({
-            conversationId: conversation.id,
-            content: serviceMessage,
-            isFromAI: true,
-          });
-        }
-      }
+      // Note: Service suggestions are already included in the main AI response from Direct Orchestrator
+      // No need to send separate service suggestions to avoid duplication
 
     } catch (error) {
       console.error("Error processing WhatsApp message:", error);
@@ -895,8 +888,10 @@ export class WhatsAppService {
     if (!services || services.length === 0) return "";
     
     const suggestions = services.slice(0, 3).map((service, index) => {
-      const price = service.Special_Price || service.Primary_Price || 0;
-      return `${index + 1}. ${service.Item_Name} - ${price} KWD`;
+      // Handle both Direct Orchestrator format and raw NailIt format
+      const serviceName = service.name || service.itemName || service.Item_Name || 'Service';
+      const servicePrice = service.price || service.Special_Price || service.Primary_Price || 0;
+      return `${index + 1}. ${serviceName} - ${servicePrice} KWD`;
     }).join('\n');
     
     return `Here are some service suggestions:\n\n${suggestions}\n\nWhich service would you like to book?`;

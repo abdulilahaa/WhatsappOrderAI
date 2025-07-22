@@ -140,12 +140,29 @@ export class DirectNailItOrchestrator {
       
       let services = response.items || [];
       
-      // Filter by search terms
+      // Filter by search terms with more flexible matching
       if (query && query.trim()) {
         const searchTerms = query.toLowerCase().split(' ');
         services = services.filter(item => {
           const itemText = `${item.Item_Name} ${item.Item_Desc}`.toLowerCase();
-          return searchTerms.some(term => itemText.includes(term));
+          
+          // Handle common service type mappings
+          const mappings = {
+            'manicure': ['nail', 'hand', 'finger'],
+            'pedicure': ['foot', 'toe', 'feet'],
+            'facial': ['face', 'skin', 'cleansing'],
+            'massage': ['body', 'relax', 'therapy'],
+            'brazilian': ['hair', 'treatment', 'blowout', 'style']
+          };
+          
+          // Check direct terms and mapped terms
+          return searchTerms.some(term => {
+            if (itemText.includes(term)) return true;
+            if (mappings[term]) {
+              return mappings[term].some(mapped => itemText.includes(mapped));
+            }
+            return false;
+          });
         });
       }
       
