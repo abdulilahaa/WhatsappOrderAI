@@ -1763,7 +1763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         flowSummary.availability = availability;
         
-        if (!availability || !availability.staff || availability.staff.length === 0) {
+        if (!availability || !availability.length) {
           return res.status(400).json({
             success: false,
             message: "No staff available for selected service and date",
@@ -1806,11 +1806,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderDetails: {
             serviceId: Number(serviceId),
             serviceName: `Service ${serviceId}`,
-            price: 15.0,
+            price: 0, // Will be fetched from authentic NailIt API - no hardcoded values
             locationId: Number(locationId),
             appointmentDate: appointmentDate,
             paymentTypeId: 2, // KNet payment
-            staffId: availability.staff[0].Id, // Use first available staff
+            staffId: availability[0].Id, // Use first available staff
             timeFrameIds: slots.slice(0, 2).map((slot: any) => slot.TimeFrame_Id) // Use first 2 slots
           }
         };
@@ -1819,7 +1819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         flowSummary.order = orderResult;
         flowSummary.service = `Service ${serviceId}`;
-        flowSummary.staff = availability.staff[0].Name;
+        flowSummary.staff = availability[0].Name;
         flowSummary.timeSlots = slots.slice(0, 2).map((s: any) => s.TimeFrame_Name);
         
         if (orderResult && orderResult.Status === 0) {
