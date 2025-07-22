@@ -554,7 +554,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         }))
       };
 
-      console.log('🎯 Creating order with NailIt API:', orderData);
+      console.log('🎯 Creating order with NailIt API:', JSON.stringify(orderData, null, 2));
 
       // Create order in NailIt POS system
       const orderResult = await this.nailItAPIClient.saveOrder(orderData);
