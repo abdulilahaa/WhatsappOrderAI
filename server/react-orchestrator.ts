@@ -60,19 +60,36 @@ export class ReActOrchestrator {
     console.log(`🔍 [ServiceSearchTool] Searching: "${query}" at location ${locationId}`);
     
     try {
-      // Use existing RAG search system
-      const results = await ragSearchService.searchServices(query, { locationId }, 5);
+      // Use working NailIt API directly (bypassing broken RAG)
+      console.log(`🔄 [ServiceSearchTool] Using live NailIt API for reliable data`);
+      const currentDate = this.nailItAPI.formatDateForAPI(new Date());
+      const liveResults = await this.nailItAPI.getItemsByDate({
+        itemTypeId: 2,
+        groupId: 0,
+        selectedDate: currentDate,
+        pageNo: 1,
+        locationIds: locationId ? [locationId] : []
+      });
       
-      // If RAG returns limited results, fall back to live API
-      if (results.length === 0 && locationId) {
-        console.log(`🔄 [ServiceSearchTool] RAG returned 0 results, falling back to live API`);
-        const liveResults = await this.nailItAPI.getItemsByDate({
-          date: new Date().toLocaleDateString('en-GB'),
-          locationId,
-          lang: 'en',
-          pageNo: 1,
-          itemTypeId: 1
-        });
+      // Filter and transform results
+      let filteredItems = liveResults.items || [];
+      if (query && query.trim()) {
+        const searchTerm = query.toLowerCase();
+        filteredItems = filteredItems.filter(item => 
+          item.Item_Name?.toLowerCase().includes(searchTerm) ||
+          item.Item_Desc?.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      const results = filteredItems.slice(0, 5).map(item => ({
+        itemId: item.Item_Id,
+        itemName: item.Item_Name,
+        price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
+        description: item.Item_Desc?.replace(/<[^>]*>/g, '') || '',
+        duration: item.Duration || 30,
+        locationIds: item.Location_Ids || [],
+        matchScore: 0.9
+      }));
         
         if (liveResults.items) {
           const filtered = liveResults.items.filter(item => 
