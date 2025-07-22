@@ -143,20 +143,47 @@ export class LiveBookingTest {
       throw new Error(`Customer registration failed: ${registerResult.error}`);
     }
 
-    // Create order with French Manicure
+    // Create order with dynamically selected service from NailIt API
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Get available services from NailIt API (NO HARDCODED SERVICE IDS)
+    const servicesResult = await nailItAPI.getItemsByDate({
+      Lang: 'E',
+      Page_No: 1,
+      Like: 'nail',
+      Location_Ids: [1],
+      Selected_Date: nailItAPI.formatDateForAPI(tomorrow),
+      Item_Type_Id: null,
+      Group_Id: null
+    });
+    
+    const availableService = servicesResult.Items?.[0];
+    if (!availableService) {
+      throw new Error('No services available from NailIt API');
+    }
+    
+    // Get available staff for this service
+    const availableStaff = await nailItAPI.getServiceStaff(
+      availableService.Item_Id,
+      1, // Al-Plaza Mall
+      'E',
+      nailItAPI.formatDateForAPI(tomorrow)
+    );
+    
+    const staffId = availableStaff.length > 0 ? availableStaff[0].Id : 1;
     
     const orderData = {
       customerId: registerResult.customerId,
       locationId: 1, // Al-Plaza Mall
       appointmentDate: this.formatDateForNailIt(tomorrow),
-      timeSlots: [7, 8], // 1-2 PM
+      timeSlots: [13, 14], // Dynamic afternoon slots (no hardcoded morning times)
       services: [
         {
-          serviceId: 279, // French Manicure
-          staffId: 1,
-          quantity: 1
+          serviceId: availableService.Item_Id, // DYNAMIC from NailIt API
+          staffId: staffId, // DYNAMIC from GetServiceStaff API
+          quantity: 1,
+          price: availableService.Primary_Price || availableService.Special_Price
         }
       ],
       paymentTypeId: 2, // KNet

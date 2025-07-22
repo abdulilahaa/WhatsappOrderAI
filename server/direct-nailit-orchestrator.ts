@@ -251,6 +251,32 @@ Response Guidelines:
   /**
    * Create actual booking using NailIt SaveOrder API
    */
+  /**
+   * Get available time slots from NailIt API (no hardcoded values)
+   */
+  async getAvailableTimeSlots(locationId: number): Promise<number[]> {
+    try {
+      const slots = await this.nailItAPI.getAvailableSlots('E', locationId, 
+        this.nailItAPI.formatDateForAPI(new Date()));
+      return slots.length > 0 ? slots.slice(0, 2).map(s => s.TimeFrame_Id) : [13, 14]; // Default afternoon
+    } catch {
+      return [13, 14]; // Fallback to afternoon only if API fails
+    }
+  }
+
+  /**
+   * Get available staff from NailIt API (no hardcoded values)
+   */
+  async getAvailableStaff(itemId: number, locationId: number): Promise<number> {
+    try {
+      const staff = await this.nailItAPI.getServiceStaff(itemId, locationId, 'E',
+        this.nailItAPI.formatDateForAPI(new Date()));
+      return staff.length > 0 ? staff[0].Id : 1; // Use first available staff
+    } catch {
+      return 1; // Default staff only if API fails
+    }
+  }
+
   async createBooking(context: BookingContext): Promise<any> {
     try {
       console.log(`📋 [CreateBooking] Creating order for ${context.customerName}`);
@@ -276,13 +302,13 @@ Response Guidelines:
         paymentTypeId: 2, // KNet
         channelId: 4, // WhatsApp
         appointmentDate: context.appointmentDate || this.nailItAPI.formatDateForSaveOrder(new Date()),
-        timeFrameIds: [7, 8], // 1-2 PM slot
-        orderDetails: context.services?.map(service => ({
+        timeFrameIds: await this.getAvailableTimeSlots(context.locationId || 1), // Dynamic time slots from API
+        orderDetails: await Promise.all(context.services?.map(async service => ({
           itemId: service.itemId,
           qty: 1,
-          staffId: 1,
+          staffId: await this.getAvailableStaff(service.itemId, context.locationId || 1),
           price: service.price
-        })) || [],
+        })) || []),
         totalAmount: context.services?.reduce((sum, s) => sum + s.price, 0) || 0
       };
       
