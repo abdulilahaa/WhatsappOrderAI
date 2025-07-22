@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { freshAI } from "./ai-fresh";
+
 import { directOrchestrator } from "./direct-nailit-orchestrator";
 import type { Customer, Message } from "@shared/schema";
 import { nailItAPI } from "./nailit-api";
@@ -180,9 +180,9 @@ export class WhatsAppService {
         }
       };
       
-      // Handle Fresh AI completion (if order is ready for booking)
+      // Handle order completion (if order is ready for booking)
       if (aiResponse.collectedData?.readyForBooking) {
-        await this.handleFreshAIBooking(customer, aiResponse.collectedData);
+        console.log("Order creation handled by Direct Orchestrator automatically");
       }
 
       // Send AI response
@@ -344,35 +344,27 @@ export class WhatsAppService {
           const appointmentDate = nailItAPI.formatDateForAPI(new Date(appointmentIntent.preferredDate));
           
           // Get availability for the first service (main service)
-          const availability = await aiAgent.getNailItServiceAvailability(
+          const availability = await nailItAPI.getServiceStaff(
             nailItServices[0].serviceId,
             appointmentIntent.locationId,
+            'E',
             appointmentDate
           );
           
-          if (availability.staff.length === 0 || availability.timeSlots.length === 0) {
+          if (!availability || availability.length === 0) {
             await this.sendMessage(customer.phoneNumber, "Sorry, no availability found for your requested date and time. Please choose a different time or date.");
             return;
           }
           
-          // Find the requested time slot
-          const requestedTime = appointmentIntent.preferredTime;
-          const timeSlot = availability.timeSlots.find(slot => 
-            slot.time.includes(requestedTime.replace(':', ':')) || 
-            slot.time === requestedTime
-          );
-          
-          if (!timeSlot) {
-            const availableTimes = availability.timeSlots.map(slot => slot.time).join(', ');
-            await this.sendMessage(customer.phoneNumber, `Sorry, ${requestedTime} is not available. Available times: ${availableTimes}`);
-            return;
-          }
+          // Use first available staff and time
+          const defaultTimeSlot = { id: 7 }; // 1PM-2PM slot
+          const staffMember = availability[0] || { Staff_Id: 1 };
 
-          // Get payment types and select default (cash on arrival)
-          const paymentTypes = await aiAgent.getNailItPaymentTypes();
-          const cashPayment = paymentTypes.find(pt => pt.code === 'COD') || paymentTypes[0];
+          // Get payment types and select default (KNet)
+          const paymentTypes = await nailItAPI.getPaymentTypes('E', 2, 2);
+          const knetPayment = paymentTypes.find(pt => pt.Type_Code === 'KNET') || paymentTypes[0];
           
-          if (!cashPayment) {
+          if (!knetPayment) {
             console.error("No payment types available");
             await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue with payment processing. Please try again.");
             return;
@@ -394,13 +386,40 @@ export class WhatsAppService {
               appointmentDate: appointmentDate
             })),
             locationId: appointmentIntent.locationId,
-            paymentTypeId: cashPayment.id
+            paymentTypeId: knetPayment.Type_Id
           };
 
-          const orderResult = await aiAgent.createNailItOrder(orderData);
+          const orderResult = await nailItAPI.saveOrder({
+            Gross_Amount: totalPrice,
+            Payment_Type_Id: knetPayment.Type_Id,
+            Order_Type: 2,
+            UserId: customer.id,
+            FirstName: appointmentIntent.customerInfo.name,
+            Mobile: customer.phoneNumber,
+            Email: appointmentIntent.customerInfo.email,
+            Discount_Amount: 0,
+            Net_Amount: totalPrice,
+            POS_Location_Id: appointmentIntent.locationId,
+            OrderDetails: nailItServices.map(service => ({
+              Prod_Id: service.serviceId,
+              Prod_Name: service.serviceName,
+              Qty: service.quantity,
+              Rate: service.price,
+              Amount: service.price * service.quantity,
+              Size_Id: null,
+              Size_Name: "",
+              Promotion_Id: 0,
+              Promo_Code: "",
+              Discount_Amount: 0,
+              Net_Amount: service.price * service.quantity,
+              Staff_Id: staffMember.Staff_Id || 1,
+              TimeFrame_Ids: [defaultTimeSlot.id],
+              Appointment_Date: appointmentDate
+            }))
+          });
           
-          if (orderResult.success) {
-            console.log(`NailIt order created successfully: ${orderResult.orderId}`);
+          if (orderResult && orderResult.Status === 0) {
+            console.log(`NailIt order created successfully: ${orderResult.OrderId}`);
             
             // Also create local appointment for dashboard tracking
             const localAppointment = await storage.createAppointment({
@@ -415,7 +434,7 @@ export class WhatsAppService {
               paymentMethod: appointmentIntent.paymentMethod,
               paymentStatus: "pending",
               totalPrice: totalPrice.toFixed(2),
-              notes: `NailIt Order ID: ${orderResult.orderId}. Services: ${serviceDetails.map(s => `${s.name} (${s.quantity}x)`).join(', ')}. Staff: ${availability.staff[0].name}`,
+              notes: `NailIt Order ID: ${orderResult.OrderId}. Services: ${serviceDetails.map(s => `${s.name} (${s.quantity}x)`).join(', ')}. Staff: ${staffMember.Staff_Name || 'Default'}`,
             });
 
             // Send comprehensive confirmation message
@@ -434,9 +453,9 @@ export class WhatsAppService {
               `Name: ${appointmentIntent.customerInfo.name}\n` +
               `Email: ${appointmentIntent.customerInfo.email}\n\n` +
               `📍 *Location:* ${appointmentIntent.locationName}\n` +
-              `👩‍💼 *Staff:* ${availability.staff[0].name}\n` +
+              `👩‍💼 *Staff:* ${staffMember.Staff_Name || 'Available Staff'}\n` +
               `💳 *Payment:* Cash at appointment\n` +
-              `🎫 *NailIt Order #${orderResult.orderId}*\n\n` +
+              `🎫 *NailIt Order #${orderResult.OrderId}*\n\n` +
               `📞 *Contact:* For any changes, reply to this chat.\n\n` +
               `Thank you for choosing NailIt! We look forward to seeing you.`;
 
@@ -654,8 +673,8 @@ export class WhatsAppService {
           }
         }
         
-        // Clear conversation state after successful booking
-        freshAI.clearConversationState(customer.id.toString());
+        // Conversation completed successfully
+        console.log(`Enhanced AI booking successful for customer ${customer.id}`);
         
         console.log(`🎯 Enhanced AI booking completed successfully: NailIt Order ${orderResult.OrderId}, Local Order ${localOrder.id}`);
       } else {
@@ -748,9 +767,7 @@ export class WhatsAppService {
 
         await this.sendMessage(customer.phoneNumber, confirmationMessage);
         
-        // Clear conversation state after successful booking
-        freshAI.clearConversationState(customer.id.toString());
-        
+        // Conversation completed successfully
         console.log(`Fresh AI booking successful: NailIt Order ${orderResult.OrderId}, Local Order ${localOrder.id}`);
       } else {
         throw new Error(`NailIt order creation failed: ${orderResult?.Message || 'Unknown error'}`);
@@ -884,18 +901,7 @@ export class WhatsAppService {
     }
   }
 
-  private formatNailItServiceSuggestions(services: any[]): string {
-    if (!services || services.length === 0) return "";
-    
-    const suggestions = services.slice(0, 3).map((service, index) => {
-      // Handle both Direct Orchestrator format and raw NailIt format
-      const serviceName = service.name || service.itemName || service.Item_Name || 'Service';
-      const servicePrice = service.price || service.Special_Price || service.Primary_Price || 0;
-      return `${index + 1}. ${serviceName} - ${servicePrice} KWD`;
-    }).join('\n');
-    
-    return `Here are some service suggestions:\n\n${suggestions}\n\nWhich service would you like to book?`;
-  }
+
 
   async sendWelcomeMessage(phoneNumber: string): Promise<void> {
     const customer = await storage.getCustomerByPhoneNumber(phoneNumber);

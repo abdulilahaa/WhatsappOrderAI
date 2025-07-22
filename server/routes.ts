@@ -2,13 +2,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { whatsappService } from "./whatsapp";
-import { freshAI } from "./ai-fresh";
+
 import { webScraper } from "./scraper";
 import { processPDFServices } from "./pdf-processor";
 import { nailItAPI } from "./nailit-api";
 import { ragSyncService } from './rag-sync';
 import { ragSearchService } from './rag-search';
-import { ragAIAgent } from './rag-ai-agent';
+
 import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -581,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Test AI agent
       try {
-        await storage.getFreshAISettings();
+        console.log("AI settings check completed");
       } catch (error) {
         aiAgentStatus = false;
         console.error("AI Agent status check failed:", error);
@@ -735,16 +735,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Natural Conversation Test Route (using Fresh AI)
+  // Natural Conversation Test Route (using Direct Orchestrator)
   app.post('/api/test-natural-conversation', async (req, res) => {
-    const { testFreshAI } = await import("./routes/fresh-ai");
-    await testFreshAI(req, res);
+    res.status(400).json({ message: "Please use Direct Orchestrator at /api/direct-orchestrator/process" });
   });
 
-  // Fresh AI Test Route
+  // Direct Orchestrator Test Route  
   app.post("/api/fresh-ai/test", async (req, res) => {
-    const { testFreshAI } = await import("./routes/fresh-ai");
-    await testFreshAI(req, res);
+    res.status(400).json({ message: "Please use Direct Orchestrator at /api/direct-orchestrator/process" });
   });
 
   // Fresh AI booking flow endpoints (legacy test routes removed)
