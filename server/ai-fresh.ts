@@ -451,6 +451,8 @@ Current conversation context: Customer wants ${customerMessage}`;
   }
 
   private async createBooking(state: ConversationState, customer: Customer): Promise<{ success: boolean; orderId?: string; message?: string }> {
+    let orderData: any = null; // Declare at function scope for error handling
+    
     try {
       // Ensure all required data is present
       if (!state.collectedData.selectedServices.length) {
@@ -524,7 +526,7 @@ Current conversation context: Customer wants ${customerMessage}`;
       const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 
         total + (service.price * (service.quantity || 1)), 0);
       
-      const orderData = {
+      orderData = {
         Gross_Amount: grossAmount,
         Payment_Type_Id: state.collectedData.paymentTypeId || 2,
         Order_Type: 2, // Services per API documentation
@@ -575,8 +577,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         return {
           success: true,
           orderId: orderResult.OrderId.toString(),
-          message: 'Booking created successfully',
-          paymentDetails: paymentDetails
+          message: 'Booking created successfully'
         };
       } else {
         console.error('❌ Order creation failed:', {
@@ -594,7 +595,12 @@ Current conversation context: Customer wants ${customerMessage}`;
         errorMessage: error.message,
         errorStack: error.stack,
         orderData: orderData,
-        selectedServices: state.collectedData.selectedServices
+        selectedServices: state.collectedData.selectedServices,
+        locationId: state.collectedData.locationId,
+        customerData: {
+          name: state.collectedData.customerName,
+          email: state.collectedData.customerEmail
+        }
       });
       return {
         success: false,
