@@ -1,12 +1,12 @@
 import { 
-  products, customers, orders, conversations, messages, freshAISettings, whatsappSettings, appointments,
+  products, customers, orders, conversations, messages, freshAISettings, whatsappSettings, appointments, servicesRag,
   type Product, type InsertProduct, type Customer, type InsertCustomer, 
   type Order, type InsertOrder, type Conversation, type InsertConversation,
   type Message, type InsertMessage, type FreshAISettings, type InsertFreshAISettings,
   type WhatsAppSettings, type InsertWhatsAppSettings, type Appointment, type InsertAppointment
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Products
@@ -71,10 +71,12 @@ export interface IStorage {
     aiResponseRate: number;
   }>;
 
-  // NailIt Service Caching
-  getCachedNailItServices(locationId: number): Promise<any[]>;
-  upsertNailItService(serviceData: any): Promise<void>;
+  // Service RAG Storage
+  getCachedServices(locationId?: number, category?: string): Promise<any[]>;
+  upsertService(serviceData: any): Promise<void>;
+  searchServicesByKeywords(keywords: string[], locationId?: number): Promise<any[]>;
   clearCachedServices(locationId?: number): Promise<void>;
+  syncServicesFromNailIt(locationId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -514,47 +516,68 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // NailIt Service Caching Methods
-  async getCachedNailItServices(locationId: number): Promise<any[]> {
+  // Service RAG Storage Methods
+  async getCachedServices(locationId?: number, category?: string): Promise<any[]> {
     try {
-      const services = await db
-        .select()
-        .from(nailItServices)
-        .where(eq(nailItServices.isEnabled, true));
+      let query = db.select().from(servicesRag).where(eq(servicesRag.isActive, true));
       
-      // Filter by location if specified
-      return services.filter(service => 
-        service.locationIds && 
-        Array.isArray(service.locationIds) && 
-        service.locationIds.includes(locationId)
-      );
+      const services = await query;
+      
+      // Filter by location and category
+      return services.filter(service => {
+        const locationMatch = !locationId || (
+          service.locationIds && 
+          Array.isArray(service.locationIds) && 
+          service.locationIds.includes(locationId)
+        );
+        
+        const categoryMatch = !category || service.category?.toLowerCase() === category.toLowerCase();
+        
+        return locationMatch && categoryMatch;
+      });
     } catch (error) {
       console.error('Error fetching cached services:', error);
       return [];
     }
   }
 
-  async upsertNailItService(serviceData: any): Promise<void> {
+  async searchServicesByKeywords(keywords: string[], locationId?: number): Promise<any[]> {
     try {
-      // Try to find existing service
+      const services = await this.getCachedServices(locationId);
+      
+      return services.filter(service => {
+        const serviceText = `${service.name} ${service.description}`.toLowerCase();
+        const serviceKeywords = Array.isArray(service.keywords) ? service.keywords : [];
+        
+        return keywords.some(keyword => 
+          serviceText.includes(keyword.toLowerCase()) ||
+          serviceKeywords.some((k: string) => k.toLowerCase().includes(keyword.toLowerCase()))
+        );
+      });
+    } catch (error) {
+      console.error('Error searching services by keywords:', error);
+      return [];
+    }
+  }
+
+  async upsertService(serviceData: any): Promise<void> {
+    try {
       const existing = await db
         .select()
-        .from(nailItServices)
-        .where(eq(nailItServices.itemId, serviceData.itemId))
+        .from(servicesRag)
+        .where(eq(servicesRag.serviceId, serviceData.serviceId))
         .limit(1);
 
       if (existing.length > 0) {
-        // Update existing
         await db
-          .update(nailItServices)
+          .update(servicesRag)
           .set({
             ...serviceData,
-            lastSyncedAt: new Date()
+            lastUpdatedAt: new Date()
           })
-          .where(eq(nailItServices.itemId, serviceData.itemId));
+          .where(eq(servicesRag.serviceId, serviceData.serviceId));
       } else {
-        // Insert new
-        await db.insert(nailItServices).values(serviceData);
+        await db.insert(servicesRag).values(serviceData);
       }
     } catch (error) {
       console.error('Error upserting service:', error);
@@ -562,14 +585,23 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async syncServicesFromNailIt(locationId: number): Promise<number> {
+    // This will be implemented by the cache manager
+    return 0;
+  }
+
   async clearCachedServices(locationId?: number): Promise<void> {
     try {
       if (locationId) {
-        // Clear services for specific location - complex query, skip for now
-        console.log(`Clearing cache for location ${locationId} not implemented yet`);
+        // Clear services for specific location
+        const services = await db.select().from(servicesRag);
+        for (const service of services) {
+          if (service.locationIds && Array.isArray(service.locationIds) && service.locationIds.includes(locationId)) {
+            await db.delete(servicesRag).where(eq(servicesRag.id, service.id));
+          }
+        }
       } else {
-        // Clear all cached services
-        await db.delete(nailItServices);
+        await db.delete(servicesRag);
       }
     } catch (error) {
       console.error('Error clearing cached services:', error);

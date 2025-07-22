@@ -2,7 +2,7 @@
 // Provides instant service search without external API calls
 
 import { db } from './db';
-import { nailItServices, nailItLocations, nailItStaff, nailItPaymentTypes } from '../shared/schema';
+import { servicesRag, nailItLocations, nailItStaff, nailItPaymentTypes } from '../shared/schema';
 import { eq, like, and, sql, inArray, or } from 'drizzle-orm';
 
 interface ServiceSearchResult {

@@ -117,30 +117,24 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// RAG-Enhanced Tables for Local Data Caching
-export const nailItServices = pgTable("nailit_services", {
+// Optimized Service Storage for ReAct Orchestration
+export const servicesRag = pgTable("services_rag", {
   id: serial("id").primaryKey(),
-  itemId: integer("item_id").notNull().unique(), // NailIt Item_Id
-  itemName: text("item_name").notNull(),
-  itemDesc: text("item_desc"),
-  primaryPrice: decimal("primary_price", { precision: 10, scale: 2 }).notNull(),
-  // specialPrice: decimal("special_price", { precision: 10, scale: 2 }), // Column doesn't exist in database
-  // duration: text("duration"), // Column doesn't exist in database
-  durationMinutes: integer("duration_minutes"), // Parsed duration for calculations
-  itemTypeId: integer("item_type_id"),
-  // parentGroupId: integer("parent_group_id"), // Not in database
-  // subGroupId: integer("sub_group_id"), // Not in database
-  groupId: integer("group_id"), // Group ID exists in database
-  locationIds: jsonb("location_ids"), // Array of location IDs where service is available
+  serviceId: integer("service_id").notNull().unique(), // From NailIt API (Item_Id)
+  name: text("name").notNull(), // Display name (EN/AR)
+  description: text("description"), // Textual summary of the service
+  keywords: jsonb("keywords"), // Preprocessed list: ["oily", "growth", "nail"]
+  category: text("category").notNull(), // Hair, Nails, Facial, etc.
+  durationMinutes: integer("duration_minutes").notNull(), // Duration as integer
+  priceKwd: decimal("price_kwd", { precision: 10, scale: 2 }).notNull(), // Cost
+  locationIds: jsonb("location_ids").notNull(), // Which locations offer it
+  isActive: boolean("is_active").notNull().default(true), // Hide services when removed upstream
+  lastUpdatedAt: timestamp("last_updated_at").notNull().defaultNow(), // For resync control
+  
+  // Additional fields for compatibility
   imageUrl: text("image_url"),
-  isEnabled: boolean("is_enabled").notNull().default(true), // is_enabled not is_active
-  
-  // RAG Enhancement Fields
-  searchKeywords: text("search_keywords"), // Preprocessed keywords for fast matching
-  categoryTags: jsonb("category_tags"), // ["hair", "treatment", "olaplex"] for better search
-  
-  // Sync tracking
-  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+  itemTypeId: integer("item_type_id"),
+  groupId: integer("group_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -231,7 +225,7 @@ export const enhancedConversationStates = pgTable("enhanced_conversation_states"
 });
 
 // Relations for RAG tables
-export const nailItServicesRelations = relations(nailItServices, ({ many }) => ({
+export const servicesRagRelations = relations(servicesRag, ({ many }) => ({
   // Add relations as needed
 }));
 
@@ -247,10 +241,10 @@ export const enhancedConversationStatesRelations = relations(enhancedConversatio
 }));
 
 // Insert schemas for RAG tables
-export const insertNailItServiceSchema = createInsertSchema(nailItServices).omit({
+export const insertServicesRagSchema = createInsertSchema(servicesRag).omit({
   id: true,
   createdAt: true,
-  lastSyncedAt: true,
+  lastUpdatedAt: true,
 });
 
 export const insertNailItLocationSchema = createInsertSchema(nailItLocations).omit({

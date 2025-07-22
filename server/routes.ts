@@ -9,7 +9,8 @@ import { nailItAPI } from "./nailit-api";
 import { ragSyncService } from './rag-sync';
 import { ragSearchService } from './rag-search';
 
-import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema } from "@shared/schema";
+import { insertProductSchema, insertFreshAISettingsSchema, insertWhatsAppSettingsSchema, insertServicesRagSchema } from "@shared/schema";
+import cacheRoutes from './routes-cache-management.js';
 import { z } from "zod";
 import Stripe from "stripe";
 import multer from "multer";

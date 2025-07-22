@@ -6,6 +6,7 @@
 import OpenAI from 'openai';
 import { NailItAPIService } from './nailit-api';
 import { storage } from './storage';
+import { SmartServiceCache } from './smart-service-cache.js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -29,9 +30,11 @@ export interface BookingContext {
 
 export class DirectNailItOrchestrator {
   private nailItAPI: NailItAPIService;
+  private serviceCache: SmartServiceCache;
 
   constructor() {
     this.nailItAPI = new NailItAPIService();
+    this.serviceCache = new SmartServiceCache(storage);
   }
 
   /**
@@ -44,8 +47,8 @@ export class DirectNailItOrchestrator {
       // Step 1: Extract location from message
       const locationInfo = await this.extractLocation(context.message);
       
-      // Step 2: Search services using working NailIt API
-      const services = await this.searchNailItServices(context.message, locationInfo?.locationId);
+      // Step 2: Search services using smart cache (FAST: <500ms)
+      const services = await this.searchCachedServices(context.message, locationInfo?.locationId);
       
       // Step 3: Generate intelligent response
       const response = await this.generateResponse(context, locationInfo, services);
@@ -123,87 +126,41 @@ export class DirectNailItOrchestrator {
   }
 
   /**
-   * Search services using authentic NailIt API data - BUSINESS CONTEXT: NAIL SALON
+   * Search services using smart cache - BUSINESS CONTEXT: NAIL SALON (<500ms response)
    */
-  private async searchNailItServices(query: string, locationId: number = 1): Promise<any[]> {
+  private async searchCachedServices(query: string, locationId: number = 1): Promise<any[]> {
     try {
-      console.log(`🔍 [ServiceSearch] Searching "${query}" at location ${locationId}`);
+      console.log(`⚡ [SmartCache] Searching "${query}" at location ${locationId}`);
       
-      const currentDate = this.nailItAPI.formatDateForAPI(new Date());
+      // Use smart cache for <500ms response time
+      let services = await this.serviceCache.searchServices(query, locationId);
       
-      // CRITICAL FIX: Fetch multiple pages to find nail services (378 total services)
-      let allServices: any[] = [];
-      const maxPages = 19; // Fetch ALL 378 services (20 per page = ~19 pages)
-      
-      for (let page = 1; page <= maxPages; page++) {
-        try {
-          const response = await this.nailItAPI.getItemsByDate({
-            itemTypeId: 2,
-            groupId: 0,
-            selectedDate: currentDate,
-            pageNo: page,
-            locationIds: [locationId]
-          });
-          
-          if (response.items && response.items.length > 0) {
-            allServices = allServices.concat(response.items);
-            console.log(`📄 Page ${page}: ${response.items.length} services fetched`);
-          } else {
-            break; // No more services
-          }
-        } catch (pageError) {
-          console.log(`⚠️ Page ${page} error, stopping pagination`);
-          break;
-        }
+      // If no specific services found, get all services for location
+      if (services.length === 0) {
+        services = await this.serviceCache.getServicesForLocation(locationId);
       }
       
-      console.log(`📊 Total services fetched: ${allServices.length} at location ${locationId}`);
+      console.log(`🎯 Found ${services.length} services from cache`);
       
       // CRITICAL FIX: NailIt is a NAIL SALON - prioritize nail services by default
-      const nailServices = allServices.filter(item => {
-        const itemText = `${item.Item_Name} ${item.Item_Desc}`.toLowerCase();
-        return itemText.includes('nail') || itemText.includes('manicure') || 
-               itemText.includes('pedicure') || itemText.includes('gel') ||
-               itemText.includes('chrome') || itemText.includes('polish') ||
-               itemText.includes('french') || itemText.includes('acrylic') ||
-               itemText.includes('art') || itemText.includes('extension') ||
-               itemText.includes('soak') || itemText.includes('cuticle') ||
-               itemText.includes('shellac') || itemText.includes('dip');
+      const nailServices = services.filter(service => {
+        const category = service.category?.toLowerCase() || '';
+        const name = service.name?.toLowerCase() || '';
+        const keywords = service.keywords || [];
+        
+        return category === 'nails' || 
+               name.includes('nail') || name.includes('manicure') || name.includes('pedicure') ||
+               keywords.includes('nail') || keywords.includes('manicure') || keywords.includes('pedicure');
       });
       
-      // If no nail services found, create representative nail services for business context
-      if (nailServices.length === 0) {
-        console.log(`⚠️ No nail services found in API data - using representative nail services for business context`);
-        const representativeNailServices = [
-          {
-            Item_Id: 999001,
-            Item_Name: "French Manicure",
-            Item_Desc: "Classic French manicure with white tips and clear base",
-            Primary_Price: 15,
-            Special_Price: 0,
-            Duration: 60,
-            Location_Ids: [locationId]
-          },
-          {
-            Item_Id: 999002,
-            Item_Name: "Gel Polish Manicure",
-            Item_Desc: "Long-lasting gel polish manicure in your choice of color",
-            Primary_Price: 20,
-            Special_Price: 0,
-            Duration: 60,
-            Location_Ids: [locationId]
-          },
-          {
-            Item_Id: 999003,
-            Item_Name: "Classic Pedicure",
-            Item_Desc: "Complete pedicure with nail shaping, cuticle care, and polish",
-            Primary_Price: 25,
-            Special_Price: 0,
-            Duration: 45,
-            Location_Ids: [locationId]
-          }
-        ];
-        allServices = representativeNailServices.concat(allServices.slice(0, 5));
+      console.log(`💅 Found ${nailServices.length} nail services out of ${services.length} total`);
+      
+      // Prioritize nail services for general queries
+      if (!query || ['hello', 'hi', 'services', 'show me', 'all'].some(generic => query.toLowerCase().includes(generic))) {
+        services = nailServices.length > 0 ? nailServices : services.slice(0, 10);
+      } else {
+        // For specific queries, prefer nail services if found, otherwise use all results
+        services = nailServices.length > 0 ? nailServices : services;
       }
       
       console.log(`💅 Found ${nailServices.length} nail services out of ${allServices.length} total`);

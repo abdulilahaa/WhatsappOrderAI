@@ -2,7 +2,7 @@
 // Handles daily sync of NailIt data to local database for fast AI access
 
 import { db } from './db';
-import { nailItServices, nailItLocations, nailItStaff, nailItPaymentTypes } from '../shared/schema';
+import { servicesRag, nailItLocations, nailItStaff, nailItPaymentTypes } from '../shared/schema';
 import { eq, sql } from 'drizzle-orm';
 import { NailItAPIService } from './nailit-api';
 
