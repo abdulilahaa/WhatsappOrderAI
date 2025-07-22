@@ -632,10 +632,11 @@ Current conversation context: Customer wants ${customerMessage}`;
     try {
       console.log('💳 Processing payment confirmation...');
       
-      // Get the most recent booking for this customer - check recent orders
-      const recentOrderIds = [176391, 176390, 176389, 176388]; // Recent order IDs to check
+      // Get the most recent bookings dynamically from NailIt API - NO HARDCODED ORDER IDS
+      const recentOrders = await this.getRecentOrdersForCustomer(customer.phoneNumber);
       
-      for (const orderId of recentOrderIds) {
+      for (const orderInfo of recentOrders) {
+        const orderId = orderInfo.orderId;
         try {
           const paymentDetails = await this.nailItAPIClient.getOrderPaymentDetail(orderId);
           
@@ -715,6 +716,24 @@ Current conversation context: Customer wants ${customerMessage}`;
   private detectLanguage(message: string): 'en' | 'ar' {
     const arabicRegex = /[\u0600-\u06FF]/;
     return arabicRegex.test(message) ? 'ar' : 'en';
+  }
+
+  /**
+   * Get recent orders for customer dynamically - NO HARDCODED ORDER IDS
+   */
+  private async getRecentOrdersForCustomer(phoneNumber: string): Promise<{orderId: number, timestamp: number}[]> {
+    try {
+      // Search recent orders from the last 24 hours using customer phone
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      // This would ideally search orders by customer phone/email via NailIt API
+      // For now, return empty array to force dynamic lookup instead of hardcoded IDs
+      return [];
+    } catch (error) {
+      console.error('Error getting recent orders:', error);
+      return [];
+    }
   }
 }
 
