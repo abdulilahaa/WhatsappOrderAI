@@ -456,12 +456,104 @@ Current conversation context: Customer wants ${customerMessage}`;
       state.phase = 'completed';
       return this.createResponse(state, confirmationMessage);
     } else {
-      const errorMessage = state.language === 'ar'
-        ? `عذراً، حدث خطأ في الحجز. ${bookingResult.message || 'يرجى المحاولة مرة أخرى.'}`
-        : `Sorry, there was a booking error. ${bookingResult.message || 'Please try again.'}`;
+      // SMART AVAILABILITY CHECKING - Instead of failing, check when service IS available
+      console.log('🔍 Booking failed, checking alternative availability...');
       
+      try {
+        // Extract service and location for availability checking
+        const serviceId = state.collectedData.selectedServices[0]?.itemId;
+        const locationId = state.collectedData.locationId || 1;
+        const serviceName = state.collectedData.selectedServices[0]?.itemName || 'service';
+        
+        if (serviceId && locationId) {
+          console.log(`🕐 Checking staff availability for ${serviceName} (ID: ${serviceId}) at location ${locationId}`);
+          
+          // Get staff availability for the service
+          const staffAvailability = await this.nailItAPI.getServiceStaff(
+            serviceId,
+            locationId, 
+            'E',
+            this.nailItAPI.formatDateForAPI(state.collectedData.selectedDate || new Date())
+          );
+          
+          if (staffAvailability && staffAvailability.length > 0) {
+            console.log(`✅ Found ${staffAvailability.length} staff members available for ${serviceName}`);
+            
+            // Extract available time slots from staff data
+            const availableTimeSlots = this.extractAvailableTimeSlots(staffAvailability);
+            
+            if (availableTimeSlots.length > 0) {
+              console.log(`🕐 Available time slots: ${availableTimeSlots.join(', ')}`);
+              
+              // Update conversation state to continue booking with new time
+              state.phase = 'time_selection';
+              state.collectedData.availableTimeSlots = availableTimeSlots;
+              
+              const timesText = availableTimeSlots.slice(0, 3).join(', ');
+              const availabilityMessage = state.language === 'ar' 
+                ? `عذراً، الوقت المطلوب لخدمة ${serviceName} غير متاح. \n\nلكن لدينا مواعيد متاحة في: ${timesText}\n\nأي وقت يناسبك من هذه الأوقات؟`
+                : `Sorry, your requested time for ${serviceName} isn't available. \n\nHowever, we have availability at: ${timesText}\n\nWhich of these times works best for you?`;
+              
+              return this.createResponse(state, availabilityMessage);
+            }
+          }
+        }
+      } catch (availabilityError) {
+        console.error('Error checking availability:', availabilityError);
+      }
+      
+      // Fallback - offer to reschedule or try different service
+      const errorMessage = state.language === 'ar' 
+        ? `عذراً، ${bookingResult.message || 'حدث خطأ في الحجز'}. \n\nهل تريد جدولة موعد في يوم آخر أو اختيار خدمة مختلفة؟`
+        : `Sorry, ${bookingResult.message || 'booking failed'}. \n\nWould you like to schedule for another day or choose a different service?`;
+      
+      // Reset to service selection to restart the flow
+      state.phase = 'service_selection';
       return this.createResponse(state, errorMessage);
     }
+  }
+
+  // Helper method to extract available time slots from staff availability data
+  private extractAvailableTimeSlots(staffAvailability: any[]): string[] {
+    const timeSlots = [];
+    
+    for (const staff of staffAvailability) {
+      if (staff.Time_Frames && staff.Time_Frames.length > 0) {
+        for (const timeFrame of staff.Time_Frames) {
+          const timeSlot = `${timeFrame.From_Time}-${timeFrame.To_Time}`;
+          if (!timeSlots.includes(timeSlot)) {
+            timeSlots.push(timeSlot);
+          }
+        }
+      }
+    }
+    
+    // If no specific time frames, offer standard business hours
+    if (timeSlots.length === 0) {
+      timeSlots.push('10:00 AM-11:00 AM', '2:00 PM-3:00 PM', '4:00 PM-5:00 PM');
+    }
+    
+    return timeSlots.slice(0, 5); // Limit to 5 options
+  }
+
+  // Enhanced method to handle time selection from customer response
+  private async handleTimeSelection(customerMessage: string, state: ConversationState): Promise<boolean> {
+    const lowerMessage = customerMessage.toLowerCase();
+    
+    // Check if customer selected one of the available time slots
+    if (state.collectedData.availableTimeSlots) {
+      for (const timeSlot of state.collectedData.availableTimeSlots) {
+        const timePattern = timeSlot.replace(/[^\d]/g, ''); // Extract numbers
+        if (lowerMessage.includes(timePattern.substring(0, 2)) || 
+            lowerMessage.includes(timeSlot.toLowerCase().substring(0, 5))) {
+          state.collectedData.preferredTime = timeSlot;
+          console.log(`🕐 Customer selected time: ${timeSlot}`);
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
 
   private extractDateFromMessage(message: string): string | null {
