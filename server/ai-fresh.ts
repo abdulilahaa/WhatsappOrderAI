@@ -277,58 +277,12 @@ Current conversation context: Customer wants ${customerMessage}`;
         customerMessage.toLowerCase().includes('add')) {
       
       const lowerMessage = customerMessage.toLowerCase();
-      let directServices = [];
       
-      // Hair services - CORRECTED TO USE REAL API DATA
-      if (lowerMessage.includes('hair')) {
-        directServices.push({
-          itemId: 279, // CORRECTED: Real ID for VIP Hair Style
-          itemName: 'VIP Hair Style',
-          price: 40, // CORRECTED: Real API price is 40 KWD
-          quantity: 1,
-          duration: '60 minutes' // CORRECTED: Needs full 60 minutes
-        });
-        console.log('✅ Added VIP Hair Style with REAL pricing (40 KWD, 60 min)');
-      }
+      // ALL HARDCODED SERVICE DATA REMOVED - Using only authentic NailIt API data
+      console.log('🔍 Service selection now uses only authentic NailIt API data - no hardcoded services');
       
-      // Manicure services - CORRECTED TO USE REAL API DATA
-      if (lowerMessage.includes('manicure') || lowerMessage.includes('mani')) {
-        directServices.push({
-          itemId: 11070, // CORRECTED: Real ID for French Chrome Nails
-          itemName: 'French Chrome Nails',
-          price: 9, // CORRECTED: Real API price
-          quantity: 1,
-          duration: '60 minutes' // CORRECTED: Real API duration
-        });
-        console.log('✅ Added French Chrome Nails with REAL pricing (9 KWD, 60 min)');
-      }
-      
-      // Pedicure services
-      if (lowerMessage.includes('pedicure') || lowerMessage.includes('pedi')) {
-        directServices.push({
-          itemId: 1058,
-          itemName: 'Classic Pedicure',
-          price: 20,
-          quantity: 1,
-          duration: '60 minutes'
-        });
-        console.log('✅ Added Classic Pedicure');
-      }
-      
-      // Nail art services
-      if (lowerMessage.includes('nail art') || lowerMessage.includes('art')) {
-        directServices.push({
-          itemId: 801,
-          itemName: 'Nail Art Design',
-          price: 10,
-          quantity: 1,
-          duration: '30 minutes'
-        });
-        console.log('✅ Added Nail Art Design');
-      }
-      
-      // Update selected services
-      if (directServices.length > 0) {
+      // Service selection now handled through authentic NailIt API calls only
+      if (false) { // Disabled hardcoded service selection
         const existingIds = state.collectedData.selectedServices.map(s => s.itemId);
         const uniqueServices = directServices.filter(s => !existingIds.includes(s.itemId));
         
