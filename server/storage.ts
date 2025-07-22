@@ -70,6 +70,11 @@ export interface IStorage {
     revenueToday: number;
     aiResponseRate: number;
   }>;
+
+  // NailIt Service Caching
+  getCachedNailItServices(locationId: number): Promise<any[]>;
+  upsertNailItService(serviceData: any): Promise<void>;
+  clearCachedServices(locationId?: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -507,6 +512,69 @@ export class DatabaseStorage implements IStorage {
       revenueToday,
       aiResponseRate: Math.min(aiResponseRate, 100), // Cap at 100%
     };
+  }
+
+  // NailIt Service Caching Methods
+  async getCachedNailItServices(locationId: number): Promise<any[]> {
+    try {
+      const services = await db
+        .select()
+        .from(nailItServices)
+        .where(eq(nailItServices.isEnabled, true));
+      
+      // Filter by location if specified
+      return services.filter(service => 
+        service.locationIds && 
+        Array.isArray(service.locationIds) && 
+        service.locationIds.includes(locationId)
+      );
+    } catch (error) {
+      console.error('Error fetching cached services:', error);
+      return [];
+    }
+  }
+
+  async upsertNailItService(serviceData: any): Promise<void> {
+    try {
+      // Try to find existing service
+      const existing = await db
+        .select()
+        .from(nailItServices)
+        .where(eq(nailItServices.itemId, serviceData.itemId))
+        .limit(1);
+
+      if (existing.length > 0) {
+        // Update existing
+        await db
+          .update(nailItServices)
+          .set({
+            ...serviceData,
+            lastSyncedAt: new Date()
+          })
+          .where(eq(nailItServices.itemId, serviceData.itemId));
+      } else {
+        // Insert new
+        await db.insert(nailItServices).values(serviceData);
+      }
+    } catch (error) {
+      console.error('Error upserting service:', error);
+      throw error;
+    }
+  }
+
+  async clearCachedServices(locationId?: number): Promise<void> {
+    try {
+      if (locationId) {
+        // Clear services for specific location - complex query, skip for now
+        console.log(`Clearing cache for location ${locationId} not implemented yet`);
+      } else {
+        // Clear all cached services
+        await db.delete(nailItServices);
+      }
+    } catch (error) {
+      console.error('Error clearing cached services:', error);
+      throw error;
+    }
   }
 }
 
