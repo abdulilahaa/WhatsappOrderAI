@@ -349,16 +349,16 @@ Current conversation context: Customer wants ${customerMessage}`;
         
         // Add found services to state
         for (const service of foundServices) {
-          if (service && !state.collectedData.selectedServices.find(s => s.itemId === service.service_id)) {
+          if (service && !state.collectedData.selectedServices.find(s => s.itemId === service.serviceId)) {
             state.collectedData.selectedServices.push({
-              itemId: service.service_id,
+              itemId: service.serviceId,
               itemName: service.name,
-              price: service.price_kwd,
+              price: service.priceKwd,
               quantity: 1,
-              duration: service.duration_minutes?.toString(),
+              duration: service.durationMinutes?.toString(),
               description: service.description
             });
-            console.log(`✅ Added service: ${service.name} - ${service.price_kwd} KWD`);
+            console.log(`✅ Added service: ${service.name} - ${service.priceKwd} KWD`);
           }
         }
         
@@ -380,11 +380,27 @@ Current conversation context: Customer wants ${customerMessage}`;
       }
     }
     
-    // Extract name and email from message - ENHANCED
-    const nameMatch = customerMessage.match(/my name is ([^,.\n]+)|i'm ([^,.\n]+)|call me ([^,.\n]+)|([A-Za-z]+test)\s|^([A-Z][a-z]+)\s+and\s+it's|it's\s+([^@\s]+)@/i);
+    // Extract time preference 
+    if (!state.collectedData.preferredTime) {
+      const timeMatch = customerMessage.match(/(\d{1,2})\s*(?:am|pm|AM|PM)|(\d{1,2}:\d{2})\s*(?:am|pm|AM|PM)?|morning|afternoon|evening/i);
+      if (timeMatch) {
+        const timeStr = timeMatch[1] || timeMatch[2] || (customerMessage.includes('morning') ? '10 AM' : customerMessage.includes('afternoon') ? '2 PM' : '6 PM');
+        state.collectedData.preferredTime = timeStr;
+        console.log(`🕐 Extracted time preference: ${state.collectedData.preferredTime}`);
+      }
+    }
+    
+    // Set default payment type to KNet (CRITICAL MISSING PIECE)
+    if (!state.collectedData.paymentTypeId) {
+      state.collectedData.paymentTypeId = 2; // KNet as default
+      console.log('💳 Set default payment type: KNet (ID: 2)');
+    }
+    
+    // Extract name and email from message - ENHANCED to handle "name Sarah" pattern
+    const nameMatch = customerMessage.match(/my name is ([^,.\n]+)|i'm ([^,.\n]+)|call me ([^,.\n]+)|name\s+([A-Za-z]+)|([A-Za-z]+test)\s|^([A-Z][a-z]+)\s+and\s+it's|it's\s+([^@\s]+)@/i);
     if (nameMatch && !state.collectedData.customerName) {
-      const extractedName = (nameMatch[1] || nameMatch[2] || nameMatch[3] || nameMatch[4] || nameMatch[5] || nameMatch[6])?.trim();
-      if (extractedName && extractedName.length > 1) {
+      const extractedName = (nameMatch[1] || nameMatch[2] || nameMatch[3] || nameMatch[4] || nameMatch[5] || nameMatch[6] || nameMatch[7])?.trim();
+      if (extractedName && extractedName.length > 1 && extractedName !== 'book' && extractedName !== 'call') {
         state.collectedData.customerName = extractedName;
         console.log(`👤 Extracted name: ${state.collectedData.customerName}`);
       }
@@ -469,11 +485,11 @@ Current conversation context: Customer wants ${customerMessage}`;
           console.log(`🕐 Checking staff availability for ${serviceName} (ID: ${serviceId}) at location ${locationId}`);
           
           // Get staff availability for the service
-          const staffAvailability = await this.nailItAPI.getServiceStaff(
+          const staffAvailability = await this.nailItAPIClient.getServiceStaff(
             serviceId,
             locationId, 
             'E',
-            this.nailItAPI.formatDateForAPI(state.collectedData.selectedDate || new Date())
+            new Date().toISOString().split('T')[0].replace(/-/g, '-')
           );
           
           if (staffAvailability && staffAvailability.length > 0) {
@@ -487,7 +503,7 @@ Current conversation context: Customer wants ${customerMessage}`;
               
               // Update conversation state to continue booking with new time
               state.phase = 'time_selection';
-              state.collectedData.availableTimeSlots = availableTimeSlots;
+              state.collectedData.availableTimeSlots = availableTimeSlots as any;
               
               const timesText = availableTimeSlots.slice(0, 3).join(', ');
               const availabilityMessage = state.language === 'ar' 
@@ -515,7 +531,7 @@ Current conversation context: Customer wants ${customerMessage}`;
 
   // Helper method to extract available time slots from staff availability data
   private extractAvailableTimeSlots(staffAvailability: any[]): string[] {
-    const timeSlots = [];
+    const timeSlots: string[] = [];
     
     for (const staff of staffAvailability) {
       if (staff.Time_Frames && staff.Time_Frames.length > 0) {
@@ -543,10 +559,11 @@ Current conversation context: Customer wants ${customerMessage}`;
     // Check if customer selected one of the available time slots
     if (state.collectedData.availableTimeSlots) {
       for (const timeSlot of state.collectedData.availableTimeSlots) {
-        const timePattern = timeSlot.replace(/[^\d]/g, ''); // Extract numbers
+        const timeSlotStr = String(timeSlot);
+        const timePattern = timeSlotStr.replace(/[^\d]/g, ''); // Extract numbers
         if (lowerMessage.includes(timePattern.substring(0, 2)) || 
-            lowerMessage.includes(timeSlot.toLowerCase().substring(0, 5))) {
-          state.collectedData.preferredTime = timeSlot;
+            lowerMessage.includes(timeSlotStr.toLowerCase().substring(0, 5))) {
+          state.collectedData.preferredTime = timeSlotStr;
           console.log(`🕐 Customer selected time: ${timeSlot}`);
           return true;
         }
@@ -554,6 +571,42 @@ Current conversation context: Customer wants ${customerMessage}`;
     }
     
     return false;
+  }
+
+  // CRITICAL: Convert time preferences to NailIt time slot IDs
+  private convertTimeToTimeSlots(timePreference: string): number[] {
+    const lowerTime = timePreference.toLowerCase();
+    
+    // Map common time preferences to NailIt time slot IDs
+    if (lowerTime.includes('8') && lowerTime.includes('am')) {
+      return [1, 2]; // 8-9 AM slots (but likely unavailable)
+    } else if (lowerTime.includes('9') && lowerTime.includes('am')) {
+      return [2, 3]; // 9-10 AM slots
+    } else if (lowerTime.includes('10') && lowerTime.includes('am')) {
+      return [3, 4]; // 10-11 AM slots
+    } else if (lowerTime.includes('11') && lowerTime.includes('am')) {
+      return [4, 5]; // 11-12 PM slots
+    } else if (lowerTime.includes('12') && lowerTime.includes('pm')) {
+      return [5, 6]; // 12-1 PM slots
+    } else if (lowerTime.includes('1') && lowerTime.includes('pm')) {
+      return [6, 7]; // 1-2 PM slots
+    } else if (lowerTime.includes('2') && lowerTime.includes('pm')) {
+      return [7, 8]; // 2-3 PM slots
+    } else if (lowerTime.includes('3') && lowerTime.includes('pm')) {
+      return [8, 9]; // 3-4 PM slots
+    } else if (lowerTime.includes('4') && lowerTime.includes('pm')) {
+      return [9, 10]; // 4-5 PM slots
+    } else if (lowerTime.includes('5') && lowerTime.includes('pm')) {
+      return [10, 11]; // 5-6 PM slots
+    } else if (lowerTime.includes('morning')) {
+      return [3, 4]; // Default morning: 10-11 AM
+    } else if (lowerTime.includes('afternoon')) {
+      return [7, 8]; // Default afternoon: 2-3 PM
+    } else if (lowerTime.includes('evening')) {
+      return [10, 11]; // Default evening: 5-6 PM
+    } else {
+      return [7, 8]; // Default fallback: 2-3 PM
+    }
   }
 
   private extractDateFromMessage(message: string): string | null {
@@ -638,17 +691,31 @@ Current conversation context: Customer wants ${customerMessage}`;
         }
       }
 
-      // Register user with NailIt if needed
+      // CRITICAL: Proper customer registration with NailIt POS
+      console.log('👤 Registering customer with NailIt POS...');
+      const customerName = state.collectedData.customerName || 'Customer';
+      const customerEmail = state.collectedData.customerEmail || `${customer.phoneNumber}@temp.com`;
+      
+      console.log(`📝 Customer data: Name: ${customerName}, Email: ${customerEmail}, Mobile: ${customer.phoneNumber}`);
+      
       const userResult = await this.nailItAPIClient.registerUser({
-        Address: '',
-        Email_Id: state.collectedData.customerEmail || customer.email || `${customer.phoneNumber}@temp.com`,
-        Name: state.collectedData.customerName || 'Customer',
-        Mobile: customer.phoneNumber,
+        Address: 'Kuwait',
+        Email_Id: customerEmail,
+        Name: customerName,
+        Mobile: customer.phoneNumber.replace(/^\+?965/, ''), // Remove country code if present
         Login_Type: 1
       });
 
-      if (!userResult || userResult.Status !== 200) {
-        console.log('User registration failed, trying to proceed with existing customer data');
+      let userId = 1; // Default fallback
+      let customerId = 1; // Default fallback
+      
+      if (userResult && (userResult.Status === 200 || userResult.Status === 0)) {
+        userId = userResult.App_User_Id || userResult.User_Id || 1;
+        customerId = userResult.Customer_Id || 1;
+        console.log(`✅ Customer registered successfully - User ID: ${userId}, Customer ID: ${customerId}`);
+      } else {
+        console.log(`⚠️ Customer registration response: ${JSON.stringify(userResult)}`);
+        console.log('⚠️ Using fallback IDs for booking');
       }
 
       // Prepare order data with correct date format
@@ -665,14 +732,18 @@ Current conversation context: Customer wants ${customerMessage}`;
       const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 
         total + (service.price * (service.quantity || 1)), 0);
       
+      // Convert time preference to proper time slots (CRITICAL MISSING PIECE)
+      const timeSlots = this.convertTimeToTimeSlots(state.collectedData.preferredTime || '2 PM');
+      console.log(`🕐 Time slots for booking: ${JSON.stringify(timeSlots)}`);
+      
       orderData = {
         Gross_Amount: grossAmount,
-        Payment_Type_Id: state.collectedData.paymentTypeId || 2,
+        Payment_Type_Id: state.collectedData.paymentTypeId || 2, // KNet default
         Order_Type: 2, // Services per API documentation
-        UserId: userResult?.App_User_Id || 1,
-        FirstName: state.collectedData.customerName || 'Customer',
-        Mobile: customer.phoneNumber,
-        Email: state.collectedData.customerEmail || customer.email || `${customer.phoneNumber}@temp.com`,
+        UserId: userId,
+        FirstName: customerName,
+        Mobile: customer.phoneNumber.replace(/^\+?965/, ''), // Clean phone number
+        Email: customerEmail,
         Discount_Amount: 0,
         Net_Amount: grossAmount,
         POS_Location_Id: state.collectedData.locationId,
@@ -689,8 +760,8 @@ Current conversation context: Customer wants ${customerMessage}`;
           Promo_Code: '',
           Discount_Amount: 0,
           Net_Amount: service.price * (service.quantity || 1),
-          Staff_Id: 1, // Use default staff ID for availability - let NailIt POS assign available staff
-          TimeFrame_Ids: [15, 16], // 3PM-4PM slot - afternoon availability is typically better
+          Staff_Id: assignedStaffIds[index] || 1, // Use assigned staff or default
+          TimeFrame_Ids: timeSlots, // Use converted time slots
           Appointment_Date: formattedDate
         }))
       };
