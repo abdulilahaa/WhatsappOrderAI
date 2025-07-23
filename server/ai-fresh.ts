@@ -710,7 +710,7 @@ Current conversation context: Customer wants ${customerMessage}`;
       let customerId = 1; // Default fallback
       
       if (userResult && (userResult.Status === 200 || userResult.Status === 0)) {
-        userId = userResult.App_User_Id || userResult.User_Id || 1;
+        userId = userResult.App_User_Id || 1;
         customerId = userResult.Customer_Id || 1;
         console.log(`✅ Customer registered successfully - User ID: ${userId}, Customer ID: ${customerId}`);
       } else {
