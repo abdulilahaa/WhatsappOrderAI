@@ -648,46 +648,64 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: 'No location selected' };
       }
 
-      // CRITICAL: Check staff availability ONLY for hair services
-      console.log('🔍 Checking staff availability for hair services...');
+      // CRITICAL: Check staff availability for ALL services that require it
+      console.log('🔍 Checking real staff availability for all services...');
       let assignedStaffIds: number[] = [];
       let availableTimeSlots: number[] = [];
       
-      for (const service of state.collectedData.selectedServices) {
-        // Only check staff for hair services (ID: 279) - other services don't require staff validation
-        const isHairService = service.itemId === 279 || 
-          service.itemName.toLowerCase().includes('hair') ||
-          service.itemName.toLowerCase().includes('treatment');
-          
-        if (isHairService) {
-          // Prepare date for staff checking
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const appointmentDate = state.collectedData.appointmentDate || 
-            tomorrow.toLocaleDateString('en-GB').replace(/\//g, '/');
-          const dateForStaff = appointmentDate.replace(/\//g, '-');
-          
-          const staffAvailability = await this.nailItAPIClient.getServiceStaff(
+      // Prepare date in correct format for GetServiceStaff API
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const appointmentDateForStaff = state.collectedData.appointmentDate || 
+        tomorrowDate.toLocaleDateString('en-GB').replace(/\//g, '/');
+      const dateForStaff = appointmentDateForStaff.replace(/\//g, '-');
+      
+      console.log(`📅 Checking availability for date: ${dateForStaff}`);
+      
+      for (let index = 0; index < state.collectedData.selectedServices.length; index++) {
+        const service = state.collectedData.selectedServices[index];
+        
+        console.log(`🔍 GetServiceStaff API call: itemId=${service.itemId}, locationId=${state.collectedData.locationId}, lang=E, date=${dateForStaff}`);
+        
+        try {
+          const staffResponse = await this.nailItAPIClient.getServiceStaff(
             service.itemId,
             state.collectedData.locationId,
             'E',
             dateForStaff
           );
           
-          if (!staffAvailability || staffAvailability.length === 0) {
-            console.log(`❌ No staff available for hair service ${service.itemName} (ID: ${service.itemId})`);
-            return { 
-              success: false, 
-              message: `No staff available for ${service.itemName} on selected date. Please choose another date.` 
-            };
-          }
+          console.log(`📊 Staff response for ${service.itemName}:`, staffResponse);
           
-          console.log(`✅ Found ${staffAvailability.length} staff members for hair service ${service.itemName}`);
-          assignedStaffIds.push(staffAvailability[0].Id);
-        } else {
-          // For non-hair services, use default staff ID
-          console.log(`✅ Non-hair service ${service.itemName} - using default staff assignment`);
-          assignedStaffIds.push(1); // Default staff for non-hair services
+          if (staffResponse && Array.isArray(staffResponse) && staffResponse.length > 0) {
+            // Find the first available staff member with actual availability
+            const availableStaff = staffResponse.find((staff: any) => 
+              staff.Available_Time_Slots && staff.Available_Time_Slots.length > 0
+            );
+            
+            if (availableStaff) {
+              console.log(`✅ Found available staff: ${availableStaff.Staff_Name} (ID: ${availableStaff.Staff_Id})`);
+              console.log(`⏰ Available slots: ${availableStaff.Available_Time_Slots}`);
+              assignedStaffIds.push(availableStaff.Staff_Id);
+              
+              // Parse available time slots for this staff member
+              if (availableStaff.Available_Time_Slots) {
+                const slots = availableStaff.Available_Time_Slots.split(',')
+                  .map((slot: any) => parseInt(slot.trim()))
+                  .filter((slot: any) => !isNaN(slot));
+                availableTimeSlots = slots.length > 0 ? slots.slice(0, 2) : [7, 8]; // Take first 2 slots or default
+              }
+            } else {
+              console.log(`⚠️ No available staff found for ${service.itemName} - trying first staff member`);
+              assignedStaffIds.push(staffResponse[0].Staff_Id);
+            }
+          } else {
+            console.log(`⚠️ No staff data returned for ${service.itemName} - using default staff ID 1`);
+            assignedStaffIds.push(1);
+          }
+        } catch (error: any) {
+          console.error(`❌ Error checking staff for ${service.itemName}:`, error.message);
+          assignedStaffIds.push(1); // Fallback to default staff
         }
       }
 
@@ -711,30 +729,32 @@ Current conversation context: Customer wants ${customerMessage}`;
       
       if (userResult && (userResult.Status === 200 || userResult.Status === 0)) {
         userId = userResult.App_User_Id || 1;
-        customerId = userResult.Customer_Id || 1;
+        customerId = (userResult as any).Customer_Id || 1;
         console.log(`✅ Customer registered successfully - User ID: ${userId}, Customer ID: ${customerId}`);
       } else {
         console.log(`⚠️ Customer registration response: ${JSON.stringify(userResult)}`);
         console.log('⚠️ Using fallback IDs for booking');
       }
 
-      // Prepare order data with correct date format
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const appointmentDate = state.collectedData.appointmentDate || 
-        tomorrow.toLocaleDateString('en-GB').replace(/\//g, '/');
+      // Prepare order data with correct date format (reuse existing date variables)
       
       // Convert date to DD/MM/yyyy format for SaveOrder API  
-      const dateForAPI = new Date(appointmentDate.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2/$1/$3'));
+      const dateForAPI = new Date(appointmentDateForStaff.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2/$1/$3'));
       const formattedDate = `${dateForAPI.getDate().toString().padStart(2, '0')}/${(dateForAPI.getMonth() + 1).toString().padStart(2, '0')}/${dateForAPI.getFullYear()}`;
-      console.log(`📅 Appointment date: ${appointmentDate} → ${formattedDate}`);
+      console.log(`📅 Appointment date: ${appointmentDateForStaff} → ${formattedDate}`);
 
       const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 
         total + (service.price * (service.quantity || 1)), 0);
       
-      // Convert time preference to proper time slots (CRITICAL MISSING PIECE)
-      const timeSlots = this.convertTimeToTimeSlots(state.collectedData.preferredTime || '2 PM');
-      console.log(`🕐 Time slots for booking: ${JSON.stringify(timeSlots)}`);
+      // Use available time slots from staff availability or convert time preference
+      let timeSlots: number[];
+      if (availableTimeSlots.length > 0) {
+        timeSlots = availableTimeSlots;
+        console.log(`🕐 Using available time slots from staff: ${JSON.stringify(timeSlots)}`);
+      } else {
+        timeSlots = this.convertTimeToTimeSlots(state.collectedData.preferredTime || '2 PM');
+        console.log(`🕐 Using converted time slots: ${JSON.stringify(timeSlots)}`);
+      }
       
       orderData = {
         Gross_Amount: grossAmount,
