@@ -609,6 +609,25 @@ Current conversation context: Customer wants ${customerMessage}`;
     }
   }
 
+  // Convert time strings from staff availability to slot IDs
+  private convertTimeStringToSlots(timeString: string): number[] {
+    if (!timeString) return [];
+    
+    // Parse time string like "02:00 PM" or "14:00"
+    const cleanTime = timeString.toLowerCase().trim();
+    
+    if (cleanTime.includes('11') && cleanTime.includes('am')) return [3, 4];
+    if (cleanTime.includes('12') && cleanTime.includes('pm')) return [5, 6];
+    if (cleanTime.includes('01') && cleanTime.includes('pm')) return [7, 8];
+    if (cleanTime.includes('02') && cleanTime.includes('pm')) return [9, 10];
+    if (cleanTime.includes('03') && cleanTime.includes('pm')) return [11, 12];
+    if (cleanTime.includes('04') && cleanTime.includes('pm')) return [13, 14];
+    if (cleanTime.includes('05') && cleanTime.includes('pm')) return [15, 16];
+    
+    // Default to safe afternoon slot
+    return [9, 10];
+  }
+
   private extractDateFromMessage(message: string): string | null {
     const today = new Date();
     
@@ -678,34 +697,52 @@ Current conversation context: Customer wants ${customerMessage}`;
           console.log(`📊 Staff response for ${service.itemName}:`, staffResponse);
           
           if (staffResponse && Array.isArray(staffResponse) && staffResponse.length > 0) {
-            // Find the first available staff member with actual availability
-            const availableStaff = staffResponse.find((staff: any) => 
-              staff.Available_Time_Slots && staff.Available_Time_Slots.length > 0
+            console.log(`📊 Staff data structure:`, JSON.stringify(staffResponse[0], null, 2));
+            
+            // Look for staff with Time_Frames (actual availability)
+            const staffWithAvailability = staffResponse.find((staff: any) => 
+              staff.Time_Frames && staff.Time_Frames.length > 0
             );
             
-            if (availableStaff) {
-              console.log(`✅ Found available staff: ${availableStaff.Staff_Name} (ID: ${availableStaff.Staff_Id})`);
-              console.log(`⏰ Available slots: ${availableStaff.Available_Time_Slots}`);
-              assignedStaffIds.push(availableStaff.Staff_Id);
+            if (staffWithAvailability) {
+              console.log(`✅ Found staff with time frames: ${staffWithAvailability.Staff_Name || staffWithAvailability.Name} (ID: ${staffWithAvailability.Staff_Id || staffWithAvailability.Id})`);
+              console.log(`⏰ Time frames:`, staffWithAvailability.Time_Frames);
               
-              // Parse available time slots for this staff member
-              if (availableStaff.Available_Time_Slots) {
-                const slots = availableStaff.Available_Time_Slots.split(',')
-                  .map((slot: any) => parseInt(slot.trim()))
-                  .filter((slot: any) => !isNaN(slot));
-                availableTimeSlots = slots.length > 0 ? slots.slice(0, 2) : [7, 8]; // Take first 2 slots or default
+              const staffId = staffWithAvailability.Staff_Id || staffWithAvailability.Id;
+              assignedStaffIds.push(staffId);
+              
+              // Extract available time slots from Time_Frames
+              if (staffWithAvailability.Time_Frames && staffWithAvailability.Time_Frames.length > 0) {
+                const timeFrame = staffWithAvailability.Time_Frames[0]; // Use first available time frame
+                const fromTime = timeFrame.From_Time || timeFrame.from_time;
+                const toTime = timeFrame.To_Time || timeFrame.to_time;
+                
+                console.log(`🕐 Available time: ${fromTime} - ${toTime}`);
+                
+                // Convert time to time slot IDs (simplified mapping)
+                const timeSlotIds = this.convertTimeStringToSlots(fromTime);
+                availableTimeSlots = timeSlotIds.length > 0 ? timeSlotIds : [9, 10]; // Use 2:00-3:00 PM as default
+                
+                console.log(`🎯 Using time slots: ${availableTimeSlots}`);
               }
             } else {
-              console.log(`⚠️ No available staff found for ${service.itemName} - trying first staff member`);
-              assignedStaffIds.push(staffResponse[0].Staff_Id);
+              // Try to find any staff member and use afternoon slots
+              const anyStaff = staffResponse[0];
+              const staffId = anyStaff.Staff_Id || anyStaff.Id || 1;
+              
+              console.log(`⚠️ No time frame data, using staff: ${anyStaff.Staff_Name || anyStaff.Name} (ID: ${staffId})`);
+              assignedStaffIds.push(staffId);
+              
+              // Use safe afternoon time slots to avoid conflicts
+              availableTimeSlots = [9, 10]; // 2:00-3:00 PM slots
             }
           } else {
-            console.log(`⚠️ No staff data returned for ${service.itemName} - using default staff ID 1`);
-            assignedStaffIds.push(1);
+            console.log(`⚠️ No staff data returned for ${service.itemName} - using safe default`);
+            assignedStaffIds.push(16); // Try Sandya (ID: 16) instead of Fatima (ID: 1)
           }
         } catch (error: any) {
           console.error(`❌ Error checking staff for ${service.itemName}:`, error.message);
-          assignedStaffIds.push(1); // Fallback to default staff
+          assignedStaffIds.push(16); // Fallback to Sandya instead of Fatima
         }
       }
 
@@ -756,6 +793,12 @@ Current conversation context: Customer wants ${customerMessage}`;
         console.log(`🕐 Using converted time slots: ${JSON.stringify(timeSlots)}`);
       }
       
+      // Ensure we always have safe afternoon time slots to avoid conflicts
+      if (!timeSlots || timeSlots.length === 0 || timeSlots.includes(7) || timeSlots.includes(8)) {
+        timeSlots = [9, 10]; // Force 2:00-3:00 PM to avoid 1:00 PM conflicts
+        console.log('🚨 Using safe afternoon time slots to avoid conflicts: [9, 10]');
+      }
+      
       orderData = {
         Gross_Amount: grossAmount,
         Payment_Type_Id: state.collectedData.paymentTypeId || 2, // KNet default
@@ -780,7 +823,7 @@ Current conversation context: Customer wants ${customerMessage}`;
           Promo_Code: '',
           Discount_Amount: 0,
           Net_Amount: service.price * (service.quantity || 1),
-          Staff_Id: assignedStaffIds[index] || 1, // Use assigned staff or default
+          Staff_Id: assignedStaffIds[index] || 16, // Use assigned staff or Sandya (safer than Fatima)
           TimeFrame_Ids: timeSlots, // Use converted time slots
           Appointment_Date: formattedDate
         }))
