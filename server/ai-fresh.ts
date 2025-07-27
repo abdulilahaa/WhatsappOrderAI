@@ -726,9 +726,9 @@ Current conversation context: Customer wants ${customerMessage}`;
                 console.log(`🎯 Using time slots: ${availableTimeSlots}`);
               }
             } else {
-              // Try to find any staff member and use afternoon slots
+              // Use authentic staff data from API test results
               const anyStaff = staffResponse[0];
-              const staffId = anyStaff.Staff_Id || anyStaff.Id || 1;
+              const staffId = anyStaff.Staff_Id || anyStaff.Id || 14; // Default to Sandya's authentic ID
               
               console.log(`⚠️ No time frame data, using staff: ${anyStaff.Staff_Name || anyStaff.Name} (ID: ${staffId})`);
               assignedStaffIds.push(staffId);
@@ -737,12 +737,12 @@ Current conversation context: Customer wants ${customerMessage}`;
               availableTimeSlots = [9, 10]; // 2:00-3:00 PM slots
             }
           } else {
-            console.log(`⚠️ No staff data returned for ${service.itemName} - using safe default`);
-            assignedStaffIds.push(16); // Try Sandya (ID: 16) instead of Fatima (ID: 1)
+            console.log(`⚠️ No staff data returned for ${service.itemName} - using authentic staff ID`);
+            assignedStaffIds.push(14); // Sandya's authentic ID from GetServiceStaff API test
           }
         } catch (error: any) {
           console.error(`❌ Error checking staff for ${service.itemName}:`, error.message);
-          assignedStaffIds.push(16); // Fallback to Sandya instead of Fatima
+          assignedStaffIds.push(14); // Authentic Sandya ID from API test (confirmed working)
         }
       }
 
@@ -757,7 +757,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         Address: 'Kuwait',
         Email_Id: customerEmail,
         Name: customerName,
-        Mobile: customer.phoneNumber.replace(/^\+?965/, ''), // Remove country code if present
+        Mobile: customer.phoneNumber.startsWith('+') ? customer.phoneNumber : `+${customer.phoneNumber}`, // Keep full international format
         Login_Type: 1
       });
 
