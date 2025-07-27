@@ -1686,7 +1686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderDetails: {
           serviceId: 203,
           serviceName: "Manicure & Pedicure",
-          // HARDCODED PRICING REMOVED - Using authentic NailIt API data only
+          price: 25, // Required for type compatibility
           locationId: 1,
           appointmentDate: nailItAPI.formatDateForAPI(new Date()),
           paymentTypeId: 2, // KNet payment

@@ -977,10 +977,17 @@ export class NailItAPIService {
         return null;
       }
       
-      // Step 2: Create order with the correct App_User_Id and proper timing
-      const tomorrowDate = new Date();
-      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      const formattedDate = this.formatDateForAPI(tomorrowDate);
+      // Step 2: Create order with the correct App_User_Id and provided date
+      // CRITICAL: SaveOrder API requires DD/MM/yyyy format - use passed date directly if it's already formatted
+      let appointmentDate = orderData.orderDetails.appointmentDate;
+      console.log('📅 Original appointment date:', appointmentDate);
+      
+      // Ensure date is in DD/MM/yyyy format for SaveOrder API compatibility
+      if (!appointmentDate.includes('/')) {
+        // Convert DD-MM-yyyy to DD/MM/yyyy format
+        appointmentDate = appointmentDate.replace(/-/g, '/');
+      }
+      console.log('📅 Formatted appointment date for SaveOrder:', appointmentDate);
       
       const nailItOrder: NailItSaveOrderRequest = {
         Gross_Amount: orderData.orderDetails.price,
@@ -1008,7 +1015,7 @@ export class NailItAPIService {
           Net_Amount: orderData.orderDetails.price,
           Staff_Id: orderData.orderDetails.staffId || 48, // Known working staff ID
           TimeFrame_Ids: orderData.orderDetails.timeFrameIds || [9, 10], // Default afternoon slots
-          Appointment_Date: formattedDate // Use tomorrow's date
+          Appointment_Date: appointmentDate // Use DD/MM/yyyy format for SaveOrder API
         }]
       };
       
