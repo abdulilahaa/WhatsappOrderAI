@@ -979,22 +979,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Mock Payment Intent (for MVP)
-  app.post("/api/create-payment-intent", async (req, res) => {
-    try {
-      const { amount } = req.body;
-      
-      // Mock Stripe payment intent for MVP
-      const mockClientSecret = `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`;
-      
-      res.json({ 
-        clientSecret: mockClientSecret,
-        amount: Math.round(amount * 100), // Convert to cents
-        status: "requires_payment_method"
-      });
-    } catch (error: any) {
-      res.status(500).json({ message: "Error creating payment intent: " + error.message });
-    }
+  // Payment Intent endpoint - requires authentic Stripe integration
+  app.post("/api/create-payment-intent-legacy", async (req, res) => {
+    res.status(501).json({ 
+      message: "Legacy payment endpoint disabled. Use NailIt POS payment integration instead.",
+      redirect: "/api/nailit/save-order"
+    });
   });
 
   // Customers API
@@ -1409,7 +1399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: item.Item_Name,
           description: item.Item_Desc ? item.Item_Desc.replace(/<[^>]*>/g, '') : '',
           price: item.Special_Price > 0 ? item.Special_Price : item.Primary_Price,
-          image: item.Image_Url ? `https://api.nailit.com/${item.Image_Url}` : '/placeholder-service.jpg',
+          image: item.Image_Url ? `https://api.nailit.com/${item.Image_Url}` : null,
           category: 'NailIt Service',
           duration: item.Duration || 30,
           locationId: Number(locationId),

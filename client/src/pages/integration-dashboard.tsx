@@ -337,7 +337,7 @@ export default function IntegrationDashboard() {
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products?.length || 0}</div>
+            <div className="text-2xl font-bold">{Array.isArray(products) ? products.length : 0}</div>
             <p className="text-xs text-muted-foreground">
               Synced from NailIt API
             </p>
@@ -350,9 +350,9 @@ export default function IntegrationDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.activeConversations || 0}</div>
+            <div className="text-2xl font-bold">{(stats as any)?.activeConversations || 0}</div>
             <p className="text-xs text-muted-foreground">
-              AI Response Rate: {stats?.aiResponseRate || 0}%
+              AI Response Rate: {(stats as any)?.aiResponseRate || 0}%
             </p>
           </CardContent>
         </Card>
@@ -363,9 +363,9 @@ export default function IntegrationDashboard() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
+            <div className="text-2xl font-bold">{(stats as any)?.totalOrders || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Revenue: {stats?.revenueToday || 0} KWD
+              Revenue: {(stats as any)?.revenueToday || 0} KWD
             </p>
           </CardContent>
         </Card>
@@ -466,7 +466,7 @@ export default function IntegrationDashboard() {
                   <Select
                     value={orderTestData.serviceId.toString()}
                     onValueChange={(value) => {
-                      const service = products?.find(p => p.id === Number(value));
+                      const service = Array.isArray(products) ? products.find((p: any) => p.id === Number(value)) : null;
                       setOrderTestData({
                         ...orderTestData,
                         serviceId: Number(value),
@@ -478,8 +478,8 @@ export default function IntegrationDashboard() {
                       <SelectValue placeholder={orderTestData.serviceName || "Select a service"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {products ? (
-                        products.slice(0, 15).map((product) => (
+                      {Array.isArray(products) ? (
+                        products.slice(0, 15).map((product: any) => (
                           <SelectItem key={product.id} value={product.id.toString()}>
                             {product.name} - {product.price} KWD
                           </SelectItem>
@@ -500,7 +500,7 @@ export default function IntegrationDashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {locations?.map((location: any) => (
+                      {Array.isArray(locations) && locations.map((location: any) => (
                         <SelectItem key={location.Location_Id} value={location.Location_Id.toString()}>
                           {location.Location_Name}
                         </SelectItem>
@@ -518,7 +518,7 @@ export default function IntegrationDashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {paymentTypes?.map((payment: any) => (
+                      {Array.isArray(paymentTypes) && paymentTypes.map((payment: any) => (
                         <SelectItem key={payment.Type_Id} value={payment.Type_Id.toString()}>
                           {payment.Type_Name} ({payment.Type_Code})
                         </SelectItem>
@@ -841,7 +841,7 @@ export default function IntegrationDashboard() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-64">
-                  {conversations?.map((conv: any) => (
+                  {Array.isArray(conversations) && conversations.map((conv: any) => (
                     <div key={conv.id} className="flex items-center gap-3 p-3 border-b">
                       <div className="h-2 w-2 bg-green-500 rounded-full" />
                       <div className="flex-1">
@@ -865,7 +865,7 @@ export default function IntegrationDashboard() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-64">
-                  {locations?.map((location: any) => (
+                  {Array.isArray(locations) && locations.map((location: any) => (
                     <div key={location.Location_Id} className="flex items-center gap-3 p-3 border-b">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <div className="flex-1">
