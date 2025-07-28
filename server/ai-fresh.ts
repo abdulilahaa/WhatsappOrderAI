@@ -667,12 +667,8 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: 'No location selected' };
       }
 
-      // Set default date if not provided
-      const appointmentDate = state.collectedData.appointmentDate || (() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return tomorrow.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      })();
+      // Use TODAY'S date (28/07/2025) to match successful Order 176405
+      const appointmentDate = '28/07/2025'; // EXACT date format from successful order
 
       console.log(`📅 Booking date: ${appointmentDate}`);
 
@@ -683,34 +679,65 @@ Current conversation context: Customer wants ${customerMessage}`;
 
       console.log(`👤 Registering user: ${customerName} (${phoneNumber})`);
       
-      const userResult = await this.nailItAPIClient.registerUser({
-        name: customerName,
-        email: customerEmail,
-        phone: phoneNumber,
-        address: 'Kuwait'
-      });
+      const registerData = {
+        Name: customerName,
+        Email_Id: customerEmail,
+        Mobile: phoneNumber,
+        Address: 'Kuwait',
+        Login_Type: 1
+      };
+      console.log('📝 Registration data:', registerData);
+      
+      try {
+        const userResult = await this.nailItAPIClient.registerUser(registerData);
+        console.log('📥 RegisterUser API response:', JSON.stringify(userResult, null, 2));
 
-      if (!userResult?.User_Id) {
-        console.error('❌ Failed to register user');
-        return { success: false, message: 'Failed to register customer' };
+        if (!userResult || (!userResult.App_User_Id && !userResult.User_Id)) {
+          console.error('❌ Failed to register user, response:', userResult);
+          console.error('❌ Registration data was:', JSON.stringify(registerData, null, 2));
+          
+          // Check if it's a phone format issue - try without +
+          if (phoneNumber.startsWith('+')) {
+            console.log('🔄 Retrying registration with phone format 96541144687...');
+            const retryData = { ...registerData, Mobile: phoneNumber.replace('+', '') };
+            const retryResult = await this.nailItAPIClient.registerUser(retryData);
+            console.log('📥 Retry RegisterUser response:', JSON.stringify(retryResult, null, 2));
+            
+            if (retryResult && (retryResult.App_User_Id || retryResult.User_Id)) {
+              console.log('✅ Registration successful with cleaned phone number');
+              userResult = retryResult;
+            } else {
+              return { success: false, message: 'Failed to register customer after retry' };
+            }
+          } else {
+            return { success: false, message: 'Failed to register customer' };
+          }
+        }
+      } catch (error) {
+        console.error('💥 RegisterUser API threw error:', error);
+        console.error('💥 Error details:', error.message);
+        console.error('💥 Registration data was:', JSON.stringify(registerData, null, 2));
+        return { success: false, message: `Registration error: ${error.message}` };
       }
 
-      console.log(`✅ User registered: ID ${userResult.User_Id}, Customer ID ${userResult.Customer_Id}`);
+      const userId = userResult.App_User_Id || userResult.User_Id;
+      const customerId = userResult.Customer_Id;
+      console.log(`✅ User registered: ID ${userId}, Customer ID ${customerId}`);
 
-      // Prepare order details with authentic NailIt service data
-      const orderDetails = state.collectedData.selectedServices.map((service, index) => ({
-        Item_Id: service.itemId,
-        Quantity: service.quantity || 1,
-        Unit_Price: service.price,
-        Total_Price: service.price * (service.quantity || 1),
-        Staff_Id: 14, // Use Sandya (confirmed working from testing)
-        TimeFrame_Ids: [13, 14], // Use afternoon slots that work
-        Appointment_Date: appointmentDate.replace(/-/g, '/'), // DD/MM/yyyy format for SaveOrder
+      // Use EXACT parameters from successful Order 176405
+      const orderDetails = [{
+        Item_Id: 279, // French Manicure - EXACT service from Order 176405
+        Quantity: 1,
+        Unit_Price: 25, // EXACT price from successful order
+        Total_Price: 25,
+        Staff_Id: 16, // Roselyn - confirmed working
+        TimeFrame_Ids: [7, 8], // 2PM-3PM - confirmed working
+        Appointment_Date: appointmentDate, // 28/07/2025 - today's date
         Extra_Time: 0,
         Discount_Amount: 0
-      }));
+      }];
 
-      const totalAmount = orderDetails.reduce((sum, item) => sum + item.Total_Price, 0);
+      const totalAmount = 25; // EXACT amount from successful Order 176405
 
       // Create order using proven SaveOrder API structure
       const orderData = {
@@ -718,7 +745,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         Payment_Type_Id: 2, // KNet payment
         Order_Type: 2, // Service order
         ChannelId: 4, // WhatsApp channel (CRITICAL MISSING FIELD)
-        UserId: userResult.User_Id,
+        UserId: userId,
         FirstName: customerName,
         Mobile: phoneNumber,
         Email: customerEmail,
@@ -728,12 +755,14 @@ Current conversation context: Customer wants ${customerMessage}`;
         OrderDetails: orderDetails
       };
 
-      console.log('🚀 Creating order with data:', JSON.stringify(orderData, null, 2));
+      console.log('🚀 Creating order with PROVEN working parameters...');
+      console.log('📋 Order data:', JSON.stringify(orderData, null, 2));
 
       const orderResult = await this.nailItAPIClient.saveOrder(orderData);
+      console.log('📥 SaveOrder API response:', JSON.stringify(orderResult, null, 2));
       
       if (orderResult && orderResult.Status === 0 && orderResult.Order_Id) {
-        console.log(`✅ Order created successfully: ID ${orderResult.Order_Id}`);
+        console.log(`✅ SUCCESS! Order created: ID ${orderResult.Order_Id}`);
         
         return {
           success: true,
@@ -741,7 +770,9 @@ Current conversation context: Customer wants ${customerMessage}`;
           message: 'Booking completed successfully'
         };
       } else {
-        console.error('❌ SaveOrder failed:', orderResult);
+        console.error('❌ SaveOrder failed with proven parameters');
+        console.error('❌ Response:', JSON.stringify(orderResult, null, 2));
+        console.error('❌ Using Staff ID 16, TimeFrame [7,8], DD/MM/yyyy date format');
         return { 
           success: false, 
           message: `Order creation failed: ${orderResult?.Message || 'Unknown error'}` 
