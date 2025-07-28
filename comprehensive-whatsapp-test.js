@@ -1,221 +1,211 @@
+/**
+ * Comprehensive WhatsApp Conversation Test - Manual Execution
+ * Tests 4 complete booking scenarios with premium services
+ */
+
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import axios from 'axios';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const BASE_URL = 'http://localhost:5000';
+
+// Premium Service Test Scenarios
 const testScenarios = [
   {
-    name: "English - Hair Treatment + Nail Service at Al-Plaza",
-    phone: "96541144687",
-    message: "Hi! I need hair treatment and french manicure tomorrow 2 PM at Plaza Mall. My name is Sarah Johnson, email sarah.j@gmail.com",
-    language: "English",
-    expectedServices: ["hair treatment", "french manicure"],
-    location: "Al-Plaza Mall"
+    id: 1,
+    customer: 'Sarah Al-Mahmoud',
+    phone: '+96541144687',
+    email: 'sarah.mahmoud@email.com',
+    category: 'Hair Treatment (Premium)',
+    conversation: [
+      'Hi! I need the most expensive hair treatment available for tomorrow at Al-Plaza Mall',
+      '2:00 PM would be perfect',
+      'Sarah Al-Mahmoud', 
+      'sarah.mahmoud@email.com',
+      'KNet payment please'
+    ]
   },
   {
-    name: "Arabic - Multiple Nail Services at Zahra",
-    phone: "96541144688", 
-    message: "مرحبا، أريد باديكير وجل أظافر غدا الساعة 3 مساء في الزهراء. اسمي فاطمة الأحمد، ايميل fatima.ahmad@outlook.com",
-    language: "Arabic",
-    expectedServices: ["pedicure", "gel polish"],
-    location: "Zahra Complex"
+    id: 2,
+    customer: 'Layla Hassan',
+    phone: '+96541144688', 
+    email: 'layla.hassan@email.com',
+    category: 'Luxury Nail Service',
+    conversation: [
+      'I want the most luxury nail service you have at Zahra Complex',
+      'afternoon appointment would be great',
+      'Layla Hassan',
+      'layla.hassan@email.com',
+      'KNet'
+    ]
   },
   {
-    name: "English - Hair Coloring at Arraya Mall",
-    phone: "96541144689",
-    message: "Book hair coloring and highlights tomorrow 11 AM Arraya Mall please. Name: Emma Wilson, email emma.wilson@yahoo.com",
-    language: "English", 
-    expectedServices: ["hair coloring", "highlights"],
-    location: "Arraya Mall"
+    id: 3,
+    customer: 'Fatima Al-Rashid',
+    phone: '+96541144689',
+    email: 'fatima.rashid@email.com', 
+    category: 'Premium Massage & Body Treatment',
+    conversation: [
+      'Looking for the most expensive massage and body treatment at Al-Plaza Mall',
+      'morning appointment tomorrow please',
+      'Fatima Al-Rashid',
+      'fatima.rashid@email.com',
+      'KNet payment'
+    ]
   },
   {
-    name: "Arabic - Facial + Nail Art at Al-Plaza",
-    phone: "96541144690",
-    message: "السلام عليكم، أحتاج فيشل ونقش أظافر بكرة الساعة 4 عصر في البلازا. اسمي نورا الخالد nora.alkhalid@gmail.com",
-    language: "Arabic",
-    expectedServices: ["facial", "nail art"],
-    location: "Al-Plaza Mall"
-  },
-  {
-    name: "English - Multiple Hair Services at Zahra",
-    phone: "96541144691",
-    message: "I want hair cut, hair wash and blow dry tomorrow at 1 PM Zahra Complex. Name is Lisa Martinez, email lisa.m@hotmail.com",
-    language: "English",
-    expectedServices: ["hair cut", "hair wash", "blow dry"],
-    location: "Zahra Complex"
-  },
-  {
-    name: "Mixed Languages - Existing Customer",
-    phone: "96541144687", // Same as first customer
-    message: "مرحبا، أريد مانيكير وبديكير بكرة الساعة 5 مساء في الأراية. Sarah Johnson",
-    language: "Mixed",
-    expectedServices: ["manicure", "pedicure"],
-    location: "Arraya Mall"
+    id: 4,
+    customer: 'Nour Al-Khalifa',  
+    phone: '+96541144690',
+    email: 'nour.khalifa@email.com',
+    category: 'Premium Combo Package',
+    conversation: [
+      'I need hair treatment, luxury manicure and massage - your most expensive services',
+      'any location is fine, flexible with timing',
+      'Nour Al-Khalifa',
+      'nour.khalifa@email.com', 
+      'KNet please'
+    ]
   }
 ];
 
-async function runComprehensiveTest() {
-  console.log('🚀 Starting Comprehensive WhatsApp Order Flow Testing...');
-  const results = [];
+async function testWhatsAppConversation(scenario) {
+  console.log(`\n🎭 === TESTING SCENARIO ${scenario.id}: ${scenario.customer} ===`);
+  console.log(`📱 Phone: ${scenario.phone}`);
+  console.log(`🏷️ Category: ${scenario.category}`);
+  console.log(`💬 Messages to send: ${scenario.conversation.length}`);
   
-  for (let i = 0; i < testScenarios.length; i++) {
-    const scenario = testScenarios[i];
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`📋 TEST ${i + 1}: ${scenario.name}`);
-    console.log(`📱 Phone: ${scenario.phone}`);
-    console.log(`🌐 Language: ${scenario.language}`);
-    console.log(`📍 Expected Location: ${scenario.location}`);
-    console.log(`💅 Expected Services: ${scenario.expectedServices.join(', ')}`);
-    console.log(`💬 Message: "${scenario.message}"`);
-    console.log(`${'='.repeat(60)}`);
+  const results = {
+    scenario: scenario.id,
+    customer: scenario.customer,
+    messagesResults: [],
+    finalStatus: 'unknown',
+    orderCreated: false,
+    orderId: null,
+    totalAmount: null
+  };
+  
+  // Send each message in sequence
+  for (let i = 0; i < scenario.conversation.length; i++) {
+    const message = scenario.conversation[i];
+    console.log(`\n📝 Step ${i + 1}/${scenario.conversation.length}: "${message}"`);
     
     try {
-      // Send WhatsApp message
-      const timestamp = Date.now() + i * 1000; // Unique timestamps
-      const webhookData = {
-        "messages": [{
-          "from": scenario.phone,
-          "timestamp": timestamp.toString(),
-          "text": {
-            "body": scenario.message
-          }
-        }]
-      };
+      const response = await axios.post(`${BASE_URL}/api/whatsapp/send-message`, {
+        phoneNumber: scenario.phone,
+        message: message
+      });
       
-      console.log('📤 Sending WhatsApp webhook request...');
-      const response = await axios.post('http://localhost:5000/api/whatsapp/webhook', webhookData);
+      results.messagesResults.push({
+        step: i + 1,
+        message: message,
+        success: true,
+        timestamp: new Date().toISOString()
+      });
       
-      if (response.status === 200) {
-        console.log('✅ Webhook request accepted');
-        
-        // Wait for AI processing (longer for complex requests)
-        const processingTime = scenario.expectedServices.length > 2 ? 60000 : 45000;
-        console.log(`⏳ Waiting ${processingTime/1000} seconds for processing...`);
-        await new Promise(resolve => setTimeout(resolve, processingTime));
-        
-        // Get conversation messages for this phone number
-        console.log('📥 Retrieving conversation results...');
-        const conversationsResponse = await axios.get('http://localhost:5000/api/conversations');
-        
-        // Find conversation for this phone number
-        const customerConversation = conversationsResponse.data.find(conv => {
-          // We need to check the customer phone number
-          return conv.isActive;
-        });
-        
-        if (customerConversation) {
-          const messagesResponse = await axios.get(`http://localhost:5000/api/conversations/${customerConversation.id}/messages`);
-          const messages = messagesResponse.data;
-          
-          // Find recent messages (last 5 minutes)
-          const recentMessages = messages.filter(msg => {
-            const msgTime = new Date(msg.timestamp);
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-            return msgTime > fiveMinutesAgo;
-          });
-          
-          console.log(`📨 Found ${recentMessages.length} recent messages`);
-          
-          // Look for AI response with order confirmation
-          const aiResponses = recentMessages.filter(msg => msg.isFromAI);
-          const orderConfirmation = aiResponses.find(msg => 
-            msg.content.includes('Order') || 
-            msg.content.includes('booking') ||
-            msg.content.includes('confirmed') ||
-            msg.content.includes('payment')
-          );
-          
-          if (orderConfirmation) {
-            console.log('✅ ORDER CONFIRMATION FOUND:');
-            console.log(`📝 AI Response: ${orderConfirmation.content}`);
-            
-            // Extract order ID and payment link
-            const orderIdMatch = orderConfirmation.content.match(/Order.*?(\d+)/i);
-            const paymentLinkMatch = orderConfirmation.content.match(/(http:\/\/nailit\.innovasolution\.net\/knet\.aspx\?orderId=\d+)/);
-            
-            const result = {
-              scenario: scenario.name,
-              phone: scenario.phone,
-              language: scenario.language,
-              status: 'SUCCESS',
-              orderId: orderIdMatch ? orderIdMatch[1] : 'Not found',
-              paymentLink: paymentLinkMatch ? paymentLinkMatch[1] : 'Not found',
-              aiResponse: orderConfirmation.content,
-              timestamp: new Date().toISOString()
-            };
-            
-            results.push(result);
-            
-            console.log(`🎯 Order ID: ${result.orderId}`);
-            console.log(`💳 Payment Link: ${result.paymentLink}`);
-          } else {
-            console.log('❌ No order confirmation found in AI responses');
-            results.push({
-              scenario: scenario.name,
-              phone: scenario.phone,
-              status: 'NO_CONFIRMATION',
-              error: 'No order confirmation in AI response'
-            });
-          }
-        } else {
-          console.log('❌ No conversation found for this request');
-          results.push({
-            scenario: scenario.name,
-            phone: scenario.phone,
-            status: 'NO_CONVERSATION',
-            error: 'No conversation found'
-          });
-        }
-      } else {
-        console.log(`❌ Webhook request failed: ${response.status}`);
-        results.push({
-          scenario: scenario.name,
-          phone: scenario.phone,
-          status: 'WEBHOOK_FAILED',
-          error: `HTTP ${response.status}`
-        });
-      }
+      console.log(`✅ Message sent successfully`);
+      
+      // Wait for AI processing
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      
     } catch (error) {
-      console.error(`❌ Test failed: ${error.message}`);
-      results.push({
-        scenario: scenario.name,
-        phone: scenario.phone,
-        status: 'ERROR',
-        error: error.message
+      console.log(`❌ Failed to send message: ${error.message}`);
+      results.messagesResults.push({
+        step: i + 1,
+        message: message,
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
       });
     }
-    
-    // Delay between tests to avoid overwhelming the system
-    if (i < testScenarios.length - 1) {
-      console.log('⏸️  Waiting 10 seconds before next test...');
-      await new Promise(resolve => setTimeout(resolve, 10000));
-    }
   }
   
-  // Print comprehensive results
-  console.log('\n' + '='.repeat(80));
-  console.log('📊 COMPREHENSIVE TEST RESULTS');
-  console.log('='.repeat(80));
-  
-  results.forEach((result, index) => {
-    console.log(`\n${index + 1}. ${result.scenario}`);
-    console.log(`   📱 Phone: ${result.phone}`);
-    console.log(`   🔄 Status: ${result.status}`);
+  // Check for order creation after final message
+  console.log(`\n🔍 Checking for order creation...`);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for order processing
     
-    if (result.status === 'SUCCESS') {
-      console.log(`   🎯 Order ID: ${result.orderId}`);
-      console.log(`   💳 Payment Link: ${result.paymentLink}`);
-      console.log(`   💬 AI Response: ${result.aiResponse.substring(0, 100)}...`);
+    const ordersResponse = await axios.get(`${BASE_URL}/api/orders`);
+    const recentOrders = ordersResponse.data.filter(order => 
+      order.customer.phoneNumber === scenario.phone &&
+      new Date(order.createdAt) > new Date(Date.now() - 600000) // Last 10 minutes
+    );
+    
+    if (recentOrders.length > 0) {
+      const latestOrder = recentOrders[0];
+      results.orderCreated = true;
+      results.orderId = latestOrder.id;
+      results.totalAmount = latestOrder.total;
+      results.finalStatus = 'success';
+      console.log(`✅ Order created: ID ${latestOrder.id}, Total: ${latestOrder.total} KWD`);
     } else {
-      console.log(`   ❌ Error: ${result.error}`);
+      results.finalStatus = 'no_order';
+      console.log(`⚠️ No order found for ${scenario.phone}`);
     }
-  });
-  
-  const successCount = results.filter(r => r.status === 'SUCCESS').length;
-  console.log(`\n📈 SUCCESS RATE: ${successCount}/${results.length} (${Math.round(successCount/results.length*100)}%)`);
-  
-  if (successCount > 0) {
-    console.log('\n✅ WORKING PAYMENT LINKS:');
-    results.filter(r => r.paymentLink && r.paymentLink !== 'Not found')
-           .forEach(r => console.log(`   ${r.orderId}: ${r.paymentLink}`));
+  } catch (error) {
+    console.log(`❌ Error checking orders: ${error.message}`);
+    results.finalStatus = 'error';
   }
+  
+  return results;
 }
 
-runComprehensiveTest().catch(console.error);
+async function runComprehensiveTest() {
+  console.log('🚀 COMPREHENSIVE WHATSAPP BOOKING TEST');
+  console.log('Testing 4 premium service booking scenarios');
+  console.log('=' .repeat(60));
+  
+  const allResults = [];
+  
+  // Test each scenario
+  for (const scenario of testScenarios) {
+    const result = await testWhatsAppConversation(scenario);
+    allResults.push(result);
+    
+    // Wait between scenarios to avoid overwhelming the system
+    if (scenario.id < testScenarios.length) {
+      console.log(`\n⏸️ Waiting 15 seconds before next scenario...`);
+      await new Promise(resolve => setTimeout(resolve, 15000));
+    }
+  }
+  
+  // Generate comprehensive report
+  console.log('\n📊 === COMPREHENSIVE TEST RESULTS ===');
+  console.log('=' .repeat(60));
+  
+  let totalMessages = 0;
+  let successfulOrders = 0;
+  let totalRevenue = 0;
+  
+  allResults.forEach(result => {
+    console.log(`\n🎯 SCENARIO ${result.scenario} - ${result.customer}:`);
+    console.log(`   Messages Sent: ${result.messagesResults.length}`);
+    console.log(`   Order Created: ${result.orderCreated ? '✅ YES' : '❌ NO'}`);
+    
+    if (result.orderCreated) {
+      console.log(`   Order ID: ${result.orderId}`);
+      console.log(`   Amount: ${result.totalAmount} KWD`);
+      successfulOrders++;
+      totalRevenue += parseFloat(result.totalAmount || 0);
+    }
+    
+    console.log(`   Final Status: ${result.finalStatus}`);
+    totalMessages += result.messagesResults.length;
+  });
+  
+  console.log('\n📈 SUMMARY STATISTICS:');
+  console.log(`Total Scenarios Tested: ${testScenarios.length}`);
+  console.log(`Total Messages Sent: ${totalMessages}`);
+  console.log(`Successful Orders: ${successfulOrders}/${testScenarios.length}`);
+  console.log(`Success Rate: ${((successfulOrders / testScenarios.length) * 100).toFixed(1)}%`);
+  console.log(`Total Revenue Generated: ${totalRevenue.toFixed(2)} KWD`);
+  console.log(`Average Order Value: ${successfulOrders > 0 ? (totalRevenue / successfulOrders).toFixed(2) : 0} KWD`);
+  
+  return allResults;
+}
+
+// Export for use
+export { runComprehensiveTest, testScenarios };
