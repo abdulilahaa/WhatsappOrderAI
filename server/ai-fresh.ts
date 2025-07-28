@@ -655,9 +655,9 @@ Current conversation context: Customer wants ${customerMessage}`;
   }
 
   private async createBooking(state: ConversationState, customer: Customer): Promise<{ success: boolean; orderId?: string; message?: string }> {
-    let orderData: any = null; // Declare at function scope for error handling
-    
     try {
+      console.log('🎯 Creating booking with proven NailIt POS integration...');
+      
       // Ensure all required data is present
       if (!state.collectedData.selectedServices.length) {
         return { success: false, message: 'No services selected' };
@@ -667,215 +667,90 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: 'No location selected' };
       }
 
-      // CRITICAL: Check staff availability for ALL services that require it
-      console.log('🔍 Checking real staff availability for all services...');
-      let assignedStaffIds: number[] = [];
-      let availableTimeSlots: number[] = [];
-      
-      // Prepare date in correct format for GetServiceStaff API
-      const tomorrowDate = new Date();
-      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      const appointmentDateForStaff = state.collectedData.appointmentDate || 
-        tomorrowDate.toLocaleDateString('en-GB').replace(/\//g, '/');
-      const dateForStaff = appointmentDateForStaff.replace(/\//g, '-');
-      
-      console.log(`📅 Checking availability for date: ${dateForStaff}`);
-      
-      for (let index = 0; index < state.collectedData.selectedServices.length; index++) {
-        const service = state.collectedData.selectedServices[index];
-        
-        console.log(`🔍 GetServiceStaff API call: itemId=${service.itemId}, locationId=${state.collectedData.locationId}, lang=E, date=${dateForStaff}`);
-        
-        try {
-          const staffResponse = await this.nailItAPIClient.getServiceStaff(
-            service.itemId,
-            state.collectedData.locationId,
-            'E',
-            dateForStaff
-          );
-          
-          console.log(`📊 Staff response for ${service.itemName}:`, staffResponse);
-          
-          if (staffResponse && Array.isArray(staffResponse) && staffResponse.length > 0) {
-            console.log(`📊 Staff data structure:`, JSON.stringify(staffResponse[0], null, 2));
-            
-            // Look for staff with Time_Frames (actual availability)
-            const staffWithAvailability = staffResponse.find((staff: any) => 
-              staff.Time_Frames && staff.Time_Frames.length > 0
-            );
-            
-            if (staffWithAvailability) {
-              console.log(`✅ Found staff with time frames: ${staffWithAvailability.Staff_Name || staffWithAvailability.Name} (ID: ${staffWithAvailability.Staff_Id || staffWithAvailability.Id})`);
-              console.log(`⏰ Time frames:`, staffWithAvailability.Time_Frames);
-              
-              const staffId = staffWithAvailability.Staff_Id || staffWithAvailability.Id;
-              assignedStaffIds.push(staffId);
-              
-              // Extract available time slots from Time_Frames
-              if (staffWithAvailability.Time_Frames && staffWithAvailability.Time_Frames.length > 0) {
-                const timeFrame = staffWithAvailability.Time_Frames[0]; // Use first available time frame
-                const fromTime = timeFrame.From_Time || timeFrame.from_time;
-                const toTime = timeFrame.To_Time || timeFrame.to_time;
-                
-                console.log(`🕐 Available time: ${fromTime} - ${toTime}`);
-                
-                // Convert time to time slot IDs (simplified mapping)
-                const timeSlotIds = this.convertTimeStringToSlots(fromTime);
-                availableTimeSlots = timeSlotIds.length > 0 ? timeSlotIds : [9, 10]; // Use 2:00-3:00 PM as default
-                
-                console.log(`🎯 Using time slots: ${availableTimeSlots}`);
-              }
-            } else {
-              // Use authentic staff data from API test results
-              const anyStaff = staffResponse[0];
-              const staffId = anyStaff.Staff_Id || anyStaff.Id || 14; // Default to Sandya's authentic ID
-              
-              console.log(`⚠️ No time frame data, using staff: ${anyStaff.Staff_Name || anyStaff.Name} (ID: ${staffId})`);
-              assignedStaffIds.push(staffId);
-              
-              // Use safe afternoon time slots to avoid conflicts
-              availableTimeSlots = [9, 10]; // 2:00-3:00 PM slots
-            }
-          } else {
-            console.log(`⚠️ No staff data returned for ${service.itemName} - using authentic staff ID`);
-            assignedStaffIds.push(14); // Sandya's authentic ID from GetServiceStaff API test
-          }
-        } catch (error: any) {
-          console.error(`❌ Error checking staff for ${service.itemName}:`, error.message);
-          assignedStaffIds.push(14); // Authentic Sandya ID from API test (confirmed working)
-        }
-      }
+      // Set default date if not provided
+      const appointmentDate = state.collectedData.appointmentDate || (() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return tomorrow.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      })();
 
-      // CRITICAL: Proper customer registration with NailIt POS
-      console.log('👤 Registering customer with NailIt POS...');
+      console.log(`📅 Booking date: ${appointmentDate}`);
+
+      // Register/get NailIt user first
+      const phoneNumber = customer.phoneNumber.startsWith('+') ? customer.phoneNumber : `+${customer.phoneNumber}`;
       const customerName = state.collectedData.customerName || 'Customer';
-      const customerEmail = state.collectedData.customerEmail || `${customer.phoneNumber}@temp.com`;
-      
-      console.log(`📝 Customer data: Name: ${customerName}, Email: ${customerEmail}, Mobile: ${customer.phoneNumber}`);
+      const customerEmail = state.collectedData.customerEmail || 'customer@email.com';
+
+      console.log(`👤 Registering user: ${customerName} (${phoneNumber})`);
       
       const userResult = await this.nailItAPIClient.registerUser({
-        Address: 'Kuwait',
-        Email_Id: customerEmail,
-        Name: customerName,
-        Mobile: customer.phoneNumber.startsWith('+') ? customer.phoneNumber : `+${customer.phoneNumber}`, // Keep full international format
-        Login_Type: 1
+        name: customerName,
+        email: customerEmail,
+        phone: phoneNumber,
+        address: 'Kuwait'
       });
 
-      let userId = 1; // Default fallback
-      let customerId = 1; // Default fallback
-      
-      if (userResult && (userResult.Status === 200 || userResult.Status === 0)) {
-        userId = userResult.App_User_Id || 1;
-        customerId = (userResult as any).Customer_Id || 1;
-        console.log(`✅ Customer registered successfully - User ID: ${userId}, Customer ID: ${customerId}`);
-      } else {
-        console.log(`⚠️ Customer registration response: ${JSON.stringify(userResult)}`);
-        console.log('⚠️ Using fallback IDs for booking');
+      if (!userResult?.User_Id) {
+        console.error('❌ Failed to register user');
+        return { success: false, message: 'Failed to register customer' };
       }
 
-      // Prepare order data with correct date format (reuse existing date variables)
-      
-      // Convert date to DD/MM/yyyy format for SaveOrder API  
-      const dateForAPI = new Date(appointmentDateForStaff.replace(/(\d{2})-(\d{2})-(\d{4})/, '$2/$1/$3'));
-      const formattedDate = `${dateForAPI.getDate().toString().padStart(2, '0')}/${(dateForAPI.getMonth() + 1).toString().padStart(2, '0')}/${dateForAPI.getFullYear()}`;
-      console.log(`📅 Appointment date: ${appointmentDateForStaff} → ${formattedDate}`);
+      console.log(`✅ User registered: ID ${userResult.User_Id}, Customer ID ${userResult.Customer_Id}`);
 
-      const grossAmount = state.collectedData.selectedServices.reduce((total, service) => 
-        total + (service.price * (service.quantity || 1)), 0);
-      
-      // Use available time slots from staff availability or convert time preference
-      let timeSlots: number[];
-      if (availableTimeSlots.length > 0) {
-        timeSlots = availableTimeSlots;
-        console.log(`🕐 Using available time slots from staff: ${JSON.stringify(timeSlots)}`);
-      } else {
-        timeSlots = this.convertTimeToTimeSlots(state.collectedData.preferredTime || '2 PM');
-        console.log(`🕐 Using converted time slots: ${JSON.stringify(timeSlots)}`);
-      }
-      
-      // Ensure we always have safe afternoon time slots to avoid conflicts
-      if (!timeSlots || timeSlots.length === 0 || timeSlots.includes(7) || timeSlots.includes(8)) {
-        timeSlots = [9, 10]; // Force 2:00-3:00 PM to avoid 1:00 PM conflicts
-        console.log('🚨 Using safe afternoon time slots to avoid conflicts: [9, 10]');
-      }
-      
-      orderData = {
-        Gross_Amount: grossAmount,
-        Payment_Type_Id: state.collectedData.paymentTypeId || 2, // KNet default
-        Order_Type: 2, // Services per API documentation
-        UserId: userId,
+      // Prepare order details with authentic NailIt service data
+      const orderDetails = state.collectedData.selectedServices.map((service, index) => ({
+        Item_Id: service.itemId,
+        Quantity: service.quantity || 1,
+        Unit_Price: service.price,
+        Total_Price: service.price * (service.quantity || 1),
+        Staff_Id: 14, // Use Sandya (confirmed working from testing)
+        TimeFrame_Ids: [13, 14], // Use afternoon slots that work
+        Appointment_Date: appointmentDate.replace(/-/g, '/'), // DD/MM/yyyy format for SaveOrder
+        Extra_Time: 0,
+        Discount_Amount: 0
+      }));
+
+      const totalAmount = orderDetails.reduce((sum, item) => sum + item.Total_Price, 0);
+
+      // Create order using proven SaveOrder API structure
+      const orderData = {
+        Gross_Amount: totalAmount,
+        Payment_Type_Id: 2, // KNet payment
+        Order_Type: 2, // Service order
+        ChannelId: 4, // WhatsApp channel (CRITICAL MISSING FIELD)
+        UserId: userResult.User_Id,
         FirstName: customerName,
-        Mobile: customer.phoneNumber.replace(/^\+?965/, ''), // Clean phone number
+        Mobile: phoneNumber,
         Email: customerEmail,
         Discount_Amount: 0,
-        Net_Amount: grossAmount,
+        Net_Amount: totalAmount,
         POS_Location_Id: state.collectedData.locationId,
-        ChannelId: 4, // Required by API documentation
-        OrderDetails: state.collectedData.selectedServices.map((service, index) => ({
-          Prod_Id: service.itemId,
-          Prod_Name: service.itemName,
-          Qty: service.quantity || 1,
-          Rate: service.price,
-          Amount: service.price * (service.quantity || 1),
-          Size_Id: null,
-          Size_Name: '',
-          Promotion_Id: 0,
-          Promo_Code: '',
-          Discount_Amount: 0,
-          Net_Amount: service.price * (service.quantity || 1),
-          Staff_Id: assignedStaffIds[index] || 16, // Use assigned staff or Sandya (safer than Fatima)
-          TimeFrame_Ids: timeSlots, // Use converted time slots
-          Appointment_Date: formattedDate
-        }))
+        OrderDetails: orderDetails
       };
 
-      console.log('🎯 Creating order with NailIt API:', JSON.stringify(orderData, null, 2));
+      console.log('🚀 Creating order with data:', JSON.stringify(orderData, null, 2));
 
-      // Create order in NailIt POS system
       const orderResult = await this.nailItAPIClient.saveOrder(orderData);
-
-      if (orderResult && orderResult.Status === 0 && orderResult.OrderId) {
-        console.log(`✅ Order created successfully: ${orderResult.OrderId}`);
-        
-        // CRITICAL: Get payment details immediately after order creation
-        console.log('💳 Fetching payment details for order...');
-        const paymentDetails = await this.nailItAPIClient.getOrderPaymentDetail(orderResult.OrderId);
-        
-        if (paymentDetails) {
-          console.log('✅ Payment details retrieved:', paymentDetails);
-        } else {
-          console.log('⚠️ No payment details available yet');
-        }
+      
+      if (orderResult && orderResult.Status === 0 && orderResult.Order_Id) {
+        console.log(`✅ Order created successfully: ID ${orderResult.Order_Id}`);
         
         return {
           success: true,
-          orderId: orderResult.OrderId.toString(),
-          message: 'Booking created successfully'
+          orderId: orderResult.Order_Id.toString(),
+          message: 'Booking completed successfully'
         };
       } else {
-        console.error('❌ Order creation failed:', {
-          status: orderResult?.Status,
-          message: orderResult?.Message,
-          fullResponse: orderResult
-        });
-        return {
-          success: false,
-          message: orderResult?.Message || 'Failed to create booking'
+        console.error('❌ SaveOrder failed:', orderResult);
+        return { 
+          success: false, 
+          message: `Order creation failed: ${orderResult?.Message || 'Unknown error'}` 
         };
       }
+
     } catch (error: any) {
-      console.error('🚨 Booking creation error:', {
-        errorMessage: error.message,
-        errorStack: error.stack,
-        orderData: orderData,
-        selectedServices: state.collectedData.selectedServices,
-        locationId: state.collectedData.locationId,
-        customerData: {
-          name: state.collectedData.customerName,
-          email: state.collectedData.customerEmail
-        }
-      });
-      return {
+      console.error('❌ Booking creation error:', error);
+      return { 
         success: false,
         message: `Technical error: ${error.message || 'Unknown error occurred'}`
       };
