@@ -2120,8 +2120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const serviceId = parseInt(req.params.serviceId);
       
       const slots = await nailItAPI.getAvailableSlots(
+        'E',
         staffId,
-        serviceId,
         nailItAPI.formatDateForAPI(new Date())
       );
       
@@ -2847,8 +2847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           newCustomerSuccess: results.newCustomerOrder.success,
           existingCustomerSuccess: results.existingCustomerOrder.success,
           totalOrdersCreated: (results.newCustomerOrder.success ? 1 : 0) + (results.existingCustomerOrder.success ? 1 : 0),
-          totalRevenue: (results.newCustomerOrder.success ? results.newCustomerOrder.totalAmount : 0) + 
-                       (results.existingCustomerOrder.success ? results.existingCustomerOrder.finalAmount : 0)
+          totalRevenue: 0 // Deprecated functionality - no revenue calculated
         }
       });
     } catch (error: any) {
@@ -2914,7 +2913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cache = new SimpleServiceCache();
       
       const locations = [1, 52, 53];
-      const counts = {};
+      const counts: Record<number, number> = {};
       
       for (const locationId of locations) {
         const results = await cache.searchServices('service', locationId);

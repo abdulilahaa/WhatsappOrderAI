@@ -378,8 +378,8 @@ export type WhatsAppSettings = typeof whatsappSettings.$inferSelect;
 export type InsertWhatsAppSettings = z.infer<typeof insertWhatsAppSettingsSchema>;
 
 // RAG Types
-export type NailItService = typeof nailItServices.$inferSelect;
-export type InsertNailItService = z.infer<typeof insertNailItServiceSchema>;
+export type ServicesRag = typeof servicesRag.$inferSelect;
+export type InsertServicesRag = z.infer<typeof insertServicesRagSchema>;
 export type NailItLocation = typeof nailItLocations.$inferSelect;
 export type InsertNailItLocation = z.infer<typeof insertNailItLocationSchema>;
 export type NailItStaff = typeof nailItStaff.$inferSelect;
