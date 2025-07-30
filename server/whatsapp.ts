@@ -114,12 +114,22 @@ export class WhatsAppService {
 
       for (const message of value.messages) {
         console.log("Processing message:", JSON.stringify(message, null, 2));
+        
         if (message.type === "text") {
+          // Process text messages through slot-filling system
           await this.processTextMessage({
             from: message.from,
             text: message.text.body,
             timestamp: parseInt(message.timestamp) * 1000,
           });
+        } else if (message.type === "unsupported" || message.errors) {
+          // Handle unsupported message types (voice notes, media, etc.)
+          console.log(`⚠️ Unsupported message type from ${message.from}:`, message.type);
+          await this.handleUnsupportedMessage(message.from);
+        } else {
+          // Handle other message types (images, documents, etc.)
+          console.log(`📎 Media message from ${message.from}:`, message.type);
+          await this.handleMediaMessage(message.from, message.type);
         }
       }
     } catch (error) {
@@ -168,76 +178,32 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // SLOT-FILLING ARCHITECTURE: Use enhanced slot-filling agent for persistent state management
-      console.log('🎯 Using Slot-Filling Agent with persistent state and real-time validation...');
-      const { slotFillingAgent } = await import('./ai-slot-filling.js');
+      // SLOT-FILLING ARCHITECTURE: Use Fresh AI with integrated slot-filling system
+      console.log('🎯 Using Fresh AI with integrated slot-filling architecture...');
+      const { FreshAIAgent } = await import('./ai-fresh.js');
+      const freshAI = new FreshAIAgent();
       
-      // Load existing slot-filling state from conversation (proper database storage)
-      let currentState = null;
-      const existingConversation = await storage.getConversation(conversation.id);
-      
-      try {
-        if (existingConversation && existingConversation.stateData) {
-          currentState = existingConversation.stateData as any;
-          console.log('📊 LOADED EXISTING STATE:', {
-            stage: currentState?.currentStage,
-            completed: currentState?.completedSlots?.length || 0
-          });
-        }
-      } catch (error) {
-        console.log('📝 No existing state found, creating new session');
-      }
-      
-      // Process message with slot-filling agent
-      const slotResponse = await slotFillingAgent.processMessage(
-        message.text,
-        currentState,
-        customer
-      );
+      // Process message through Fresh AI (which now uses slot-filling internally)
+      const aiResponse = await freshAI.processMessage(message.text, customer, conversation.id);
 
-      if (slotResponse && slotResponse.message) {
-        // Save updated slot-filling state to conversation (proper database storage)
-        try {
-          await storage.updateConversation(conversation.id, {
-            stateData: slotResponse.state as any,
-            currentPhase: slotResponse.state.currentStage
-          });
-          console.log('💾 SAVED STATE:', {
-            stage: slotResponse.state.currentStage,
-            completed: slotResponse.state.completedSlots.length,
-            nextAction: slotResponse.nextAction
-          });
-        } catch (error) {
-          console.error('State save error:', error);
-        }
-        
+      if (aiResponse && aiResponse.message) {
         // Save AI response
         await storage.createMessage({
           conversationId: conversation.id,
-          content: slotResponse.message,
+          content: aiResponse.message,
           isFromAI: true,
         });
         
-        // Send response to WhatsApp
-        await this.sendMessage(customer.phoneNumber, slotResponse.message);
+        // Send response to WhatsApp  
+        await this.sendMessage(customer.phoneNumber, aiResponse.message);
         
-        // Handle booking completion
-        if (slotResponse.isComplete) {
-          console.log('🎉 BOOKING COMPLETED via Slot-Filling:', {
-            service: slotResponse.state.service.value,
-            location: slotResponse.state.location.value,
-            customer: slotResponse.state.name.value
-          });
-          
-          // Clear the state after successful booking
-          await storage.updateConversation(conversation.id, { 
-            stateData: {},
-            currentPhase: 'completed'
-          });
-        }
+        console.log('✅ SLOT-FILLING CONVERSATION:', {
+          phase: aiResponse.collectionPhase,
+          readyForBooking: aiResponse.collectedData?.readyForBooking || false
+        });
       } else {
-        console.error("Slot-filling agent processing error");
-        await this.sendMessage(customer.phoneNumber, "I'm sorry, I'm having trouble processing your request. Could you please try again?");
+        console.error('❌ No response from Fresh AI slot-filling system');
+        await this.sendMessage(customer.phoneNumber, "I'm sorry, I'm having trouble processing your message. Could you please try again?");
       }
 
       // Note: Service suggestions are already included in the main AI response from Direct Orchestrator
@@ -252,6 +218,22 @@ export class WhatsAppService {
         "I apologize, but I'm experiencing technical difficulties. Please try again in a moment."
       );
     }
+  }
+
+  /**
+   * Handle unsupported message types (voice notes, media, etc.)
+   */
+  private async handleUnsupportedMessage(phoneNumber: string): Promise<void> {
+    const message = "I can only process text messages at the moment. Please send your message as text and I'll be happy to help you book an appointment! 📝";
+    await this.sendMessage(phoneNumber, message);
+  }
+
+  /**
+   * Handle media message types (images, documents, etc.)
+   */
+  private async handleMediaMessage(phoneNumber: string, messageType: string): Promise<void> {
+    const message = `I received your ${messageType} but I can only process text messages right now. Please describe what you need in a text message and I'll assist you with your booking! 💬`;
+    await this.sendMessage(phoneNumber, message);
   }
 
   private async handleOrderIntent(customer: Customer, orderIntent: any): Promise<void> {
