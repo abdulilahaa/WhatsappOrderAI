@@ -506,36 +506,41 @@ Customer message: "${customerMessage}"`;
           return matrix[str2.length][str1.length];
         };
         
-        // Search with advanced fuzzy matching including Levenshtein distance
-        for (const [category, keywords] of Object.entries(servicePatterns)) {
-          // Exact keyword matching
-          const exactMatches = keywords.filter(keyword => lowerMessage.includes(keyword));
-          
-          // Fuzzy matching with Levenshtein distance for partial matches
-          const fuzzyMatches = keywords.filter(keyword => {
-            const words = lowerMessage.split(/\s+/);
-            return words.some(word => {
-              const distance = levenshteinDistance(word, keyword);
-              return distance <= 2 && word.length > 3; // Allow 2 character differences for words longer than 3
-            });
-          });
-          
-          const allMatches = Array.from(new Set([...exactMatches, ...fuzzyMatches])); // Remove duplicates
-          
-          if (allMatches.length > 0) {
-            const services = await cache.searchServices(category, locationId);
-            if (services.length > 0) {
-              // If multiple services match, take the first one but log all options
-              foundServices.push(services[0]);
-              console.log(`✅ ADVANCED FUZZY MATCH: User input "${customerMessage}" → Keywords: [${allMatches.join(', ')}] → Category: ${category} → Found: ${services[0]?.name} (ID: ${services[0]?.serviceId})`);
-              
-              if (services.length > 1) {
-                console.log(`🔍 Other matching ${category} services: ${services.slice(1, 4).map(s => s.name).join(', ')}${services.length > 4 ? '...' : ''}`);
-              }
-            } else {
-              console.log(`❌ FUZZY MATCH: Keywords [${allMatches.join(', ')}] matched category ${category} but no services found for location ${locationId}`);
+        // CRITICAL FIX: Only search the most relevant category based on customer's specific request
+        let primaryCategory = null;
+        let primaryKeywords = [];
+        
+        // Determine the primary intent from customer message
+        if (lowerMessage.includes('hair') || lowerMessage.includes('treatment')) {
+          primaryCategory = 'hair';
+          primaryKeywords = servicePatterns.hair.filter(keyword => lowerMessage.includes(keyword));
+        } else if (lowerMessage.includes('nail') || lowerMessage.includes('manicure') || lowerMessage.includes('pedicure')) {
+          primaryCategory = 'nail';
+          primaryKeywords = servicePatterns.nail.filter(keyword => lowerMessage.includes(keyword));
+        } else if (lowerMessage.includes('facial') || lowerMessage.includes('face') || lowerMessage.includes('skin')) {
+          primaryCategory = 'facial';
+          primaryKeywords = servicePatterns.facial.filter(keyword => lowerMessage.includes(keyword));
+        } else if (lowerMessage.includes('massage') || lowerMessage.includes('body')) {
+          primaryCategory = 'body';
+          primaryKeywords = servicePatterns.body.filter(keyword => lowerMessage.includes(keyword));
+        }
+        
+        // Only search for the primary category to avoid confusion
+        if (primaryCategory && primaryKeywords.length > 0) {
+          const services = await cache.searchServices(primaryCategory, locationId);
+          if (services.length > 0) {
+            // Take only the first service to avoid overwhelming the customer
+            foundServices.push(services[0]);
+            console.log(`✅ FOCUSED MATCH: Customer wants "${primaryCategory}" → Found: ${services[0]?.name} (ID: ${services[0]?.serviceId}) - ${services[0]?.priceKwd} KWD`);
+            
+            if (services.length > 1) {
+              console.log(`🔍 Other available ${primaryCategory} services: ${services.slice(1, 3).map(s => s.name).join(', ')}${services.length > 3 ? '...' : ''}`);
             }
+          } else {
+            console.log(`❌ FOCUSED SEARCH: No ${primaryCategory} services found for location ${locationId}`);
           }
+        } else {
+          console.log(`🤔 UNCLEAR REQUEST: "${customerMessage}" - asking customer to clarify what service they want`);
         }
         
         // Add found services to state

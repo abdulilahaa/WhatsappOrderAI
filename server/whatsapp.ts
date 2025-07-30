@@ -141,6 +141,13 @@ export class WhatsAppService {
     try {
       console.log("Processing text message from:", message.from, "Content:", message.text);
       
+      // CRITICAL: Check for duplicate message processing
+      const duplicateCheck = await this.checkAndPreventDuplicateProcessing(message);
+      if (duplicateCheck.isDuplicate) {
+        console.log("🚫 DUPLICATE MESSAGE PREVENTED:", duplicateCheck.reason);
+        return;
+      }
+      
       // Find or create customer
       let customer = await storage.getCustomerByPhoneNumber(message.from);
       if (!customer) {
@@ -234,6 +241,52 @@ export class WhatsAppService {
   private async handleMediaMessage(phoneNumber: string, messageType: string): Promise<void> {
     const message = `I received your ${messageType} but I can only process text messages right now. Please describe what you need in a text message and I'll assist you with your booking! 💬`;
     await this.sendMessage(phoneNumber, message);
+  }
+
+  /**
+   * CRITICAL: Prevent duplicate message processing that causes conversation loops
+   */
+  private messageProcessingCache = new Map<string, { timestamp: number, content: string }>();
+  
+  private async checkAndPreventDuplicateProcessing(message: WhatsAppMessage): Promise<{ isDuplicate: boolean, reason: string }> {
+    const cacheKey = `${message.from}_${message.text}`;
+    const now = Date.now();
+    const DUPLICATE_WINDOW = 10000; // 10 seconds
+    
+    // Check if same message from same customer was processed recently
+    if (this.messageProcessingCache.has(cacheKey)) {
+      const cached = this.messageProcessingCache.get(cacheKey)!;
+      if (now - cached.timestamp < DUPLICATE_WINDOW) {
+        return { 
+          isDuplicate: true, 
+          reason: `Same message "${message.text}" from ${message.from} processed ${now - cached.timestamp}ms ago` 
+        };
+      }
+    }
+    
+    // Check if customer sent message very recently (prevent rapid fire)
+    const recentMessages = Array.from(this.messageProcessingCache.entries())
+      .filter(([key, data]) => key.startsWith(`${message.from}_`) && now - data.timestamp < 5000)
+      .length;
+    
+    if (recentMessages > 0) {
+      return { 
+        isDuplicate: true, 
+        reason: `Customer ${message.from} sent ${recentMessages} messages in last 5 seconds` 
+      };
+    }
+    
+    // Store this message to prevent future duplicates
+    this.messageProcessingCache.set(cacheKey, { timestamp: now, content: message.text });
+    
+    // Clean old entries (older than 30 seconds)
+    for (const [key, data] of Array.from(this.messageProcessingCache.entries())) {
+      if (now - data.timestamp > 30000) {
+        this.messageProcessingCache.delete(key);
+      }
+    }
+    
+    return { isDuplicate: false, reason: "New message, proceeding with processing" };
   }
 
   private async handleOrderIntent(customer: Customer, orderIntent: any): Promise<void> {
@@ -462,11 +515,11 @@ export class WhatsAppService {
               paymentMethod: appointmentIntent.paymentMethod,
               paymentStatus: "pending",
               totalPrice: totalPrice.toFixed(2),
-              notes: `NailIt Order ID: ${orderResult.OrderId}. Services: ${serviceDetails.map(s => `${s.name} (${s.quantity}x)`).join(', ')}. Staff: ${staffMember.Staff_Name || 'Default'}`,
+              notes: `NailIt Order ID: ${orderResult.OrderId}. Services: ${serviceDetails.map((s: any) => `${s.name} (${s.quantity}x)`).join(', ')}. Staff: ${(staffMember as any).Staff_Name || 'Default'}`,
             });
 
             // Send comprehensive confirmation message
-            const servicesText = serviceDetails.map(s => 
+            const servicesText = serviceDetails.map((s: any) => 
               s.quantity > 1 ? `${s.name} (${s.quantity}x) - ${s.price.toFixed(2)} KWD` : `${s.name} - ${s.price.toFixed(2)} KWD`
             ).join('\n');
 
@@ -651,7 +704,7 @@ export class WhatsAppService {
             paymentMethod: collectedData.paymentTypeName,
             paymentStatus: collectedData.paymentStatus || "pending",
             totalPrice: collectedData.totalAmount.toString(),
-            notes: `Enhanced AI booking. NailIt Order: ${orderResult.OrderId}. Services: ${collectedData.selectedServices.map(s => s.itemName).join(', ')}`
+            notes: `Enhanced AI booking. NailIt Order: ${orderResult.OrderId}. Services: ${collectedData.selectedServices.map((s: any) => s.itemName).join(', ')}`
           });
           
           console.log(`📅 Local appointment created: ${appointment.id}`);
@@ -666,10 +719,10 @@ export class WhatsAppService {
 
         // Send comprehensive confirmation message
         const duration = `${Math.floor(collectedData.totalDuration / 60)}h ${collectedData.totalDuration % 60}min`;
-        const services = collectedData.selectedServices.map(s => 
+        const services = collectedData.selectedServices.map((s: any) => 
           `• ${s.itemName} - ${s.price} KWD${s.quantity > 1 ? ` (×${s.quantity})` : ''}`
         ).join('\n');
-        const staff = collectedData.assignedStaff.map(s => s.staffName).join(', ');
+        const staff = collectedData.assignedStaff.map((s: any) => s.staffName).join(', ');
 
         const confirmationMessage = `🎉 *Booking Confirmed!*\n\n` +
           `📋 *Order #${orderResult.OrderId}*\n\n` +
