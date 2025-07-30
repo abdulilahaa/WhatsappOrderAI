@@ -168,34 +168,75 @@ export class WhatsAppService {
         isFromAI: msg.isFromAI,
       }));
 
-      // Use Fresh AI Agent for natural conversations and booking
-      console.log('🚀 Using Fresh AI Agent for natural conversation and booking...');
-      const { freshAI } = await import('./ai-fresh.js');
+      // SLOT-FILLING ARCHITECTURE: Use enhanced slot-filling agent for persistent state management
+      console.log('🎯 Using Slot-Filling Agent with persistent state and real-time validation...');
+      const { slotFillingAgent } = await import('./ai-slot-filling.js');
       
-      // Process message with Fresh AI
-      const aiResponse = await freshAI.processMessage(
+      // Load existing slot-filling state from conversation (proper database storage)
+      let currentState = null;
+      const existingConversation = await storage.getConversation(conversation.id);
+      
+      try {
+        if (existingConversation && existingConversation.stateData) {
+          currentState = existingConversation.stateData as any;
+          console.log('📊 LOADED EXISTING STATE:', {
+            stage: currentState?.currentStage,
+            completed: currentState?.completedSlots?.length || 0
+          });
+        }
+      } catch (error) {
+        console.log('📝 No existing state found, creating new session');
+      }
+      
+      // Process message with slot-filling agent
+      const slotResponse = await slotFillingAgent.processMessage(
         message.text,
-        customer,
-        conversation.id
+        currentState,
+        customer
       );
 
-      if (aiResponse && aiResponse.message) {
+      if (slotResponse && slotResponse.message) {
+        // Save updated slot-filling state to conversation (proper database storage)
+        try {
+          await storage.updateConversation(conversation.id, {
+            stateData: slotResponse.state as any,
+            currentPhase: slotResponse.state.currentStage
+          });
+          console.log('💾 SAVED STATE:', {
+            stage: slotResponse.state.currentStage,
+            completed: slotResponse.state.completedSlots.length,
+            nextAction: slotResponse.nextAction
+          });
+        } catch (error) {
+          console.error('State save error:', error);
+        }
+        
         // Save AI response
         await storage.createMessage({
           conversationId: conversation.id,
-          content: aiResponse.message,
+          content: slotResponse.message,
           isFromAI: true,
         });
         
         // Send response to WhatsApp
-        await this.sendMessage(customer.phoneNumber, aiResponse.message);
+        await this.sendMessage(customer.phoneNumber, slotResponse.message);
         
-        // Handle booking completion if needed
-        if (aiResponse.collectedData?.readyForBooking) {
-          console.log("Booking completed through Fresh AI:", aiResponse.collectedData);
+        // Handle booking completion
+        if (slotResponse.isComplete) {
+          console.log('🎉 BOOKING COMPLETED via Slot-Filling:', {
+            service: slotResponse.state.service.value,
+            location: slotResponse.state.location.value,
+            customer: slotResponse.state.name.value
+          });
+          
+          // Clear the state after successful booking
+          await storage.updateConversation(conversation.id, { 
+            stateData: {},
+            currentPhase: 'completed'
+          });
         }
       } else {
-        console.error("Fresh AI processing error");
+        console.error("Slot-filling agent processing error");
         await this.sendMessage(customer.phoneNumber, "I'm sorry, I'm having trouble processing your request. Could you please try again?");
       }
 
