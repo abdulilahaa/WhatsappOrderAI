@@ -1,0 +1,94 @@
+FIX-IT-ALL PROMPT
+Please carefully read and follow these instructions to the letter—no skipping, no shortcuts. Do NOT add new features, duplicate models, or create placeholder UI. Focus on making the existing platform fully functional and transparent.
+
+Goal:
+Make the WhatsApp AI Agent platform actually work end-to-end. The dashboard must show and control real backend data, the WhatsApp webhook must connect to the AI and NailIt API, and all features must be operational as described in the README and admin UI.
+
+Step-by-Step Actions Required:
+NO New Features:
+Do not add any new tabs, models, routes, or features unless specifically required to make core flows work.
+
+Wire Up Dashboard to Backend Logic:
+
+All dashboard tabs (Services, Staff, Sessions, Bookings, Config, Logs) must display live data from the backend/database.
+
+Every action in the admin UI must trigger real backend logic (e.g., toggling a service must update the DB and call the NailIt API if needed).
+
+No placeholder/static/fake data in the UI—only display what actually exists in the backend.
+
+WhatsApp → AI Agent → NailIt Booking Flow:
+
+Incoming WhatsApp messages must hit the webhook, forward to the AI orchestrator, execute booking logic, and reply with WhatsApp-formatted messages.
+
+Booking requests from WhatsApp must use the same logic as the test simulator in the admin dashboard.
+
+Voice/media messages must be handled with actual Whisper transcription if possible; otherwise, show a clear "not implemented" message.
+
+Test Simulator (Admin UI):
+
+Build a working WhatsApp "chat simulator" tab in the admin dashboard where admins can:
+
+Simulate sending messages as a WhatsApp user (choose phone number, language, etc.)
+
+View AI responses, see function calls, and step through the booking process exactly as a user would on WhatsApp.
+
+Display all backend logs and errors for the session in real time.
+
+Config/Settings:
+
+All configuration fields (API keys, prompts, etc.) in the admin dashboard must:
+
+Show the current live value from the backend.
+
+Allow safe editing and saving (persisted to the backend/config file/db).
+
+Immediately take effect in backend logic where possible.
+
+Logs/Audit/Monitoring:
+
+The dashboard logs tab must show real logs from the backend, including API errors, booking attempts, and agent actions.
+
+Display log type, timestamp, and source clearly.
+
+Add error alerts/notifications in the UI for any backend or DB issues.
+
+NO Duplication or Dead Code:
+
+Remove or refactor any duplicated models, routes, or services.
+
+Remove or hide any tabs/features that are not fully implemented and working.
+
+Documentation:
+
+In the README or an admin note file, clearly state:
+
+What is working end-to-end.
+
+What is partially implemented.
+
+What is not yet implemented or is stubbed.
+
+For every dashboard tab and API route, explain where the data comes from and what it controls.
+
+Validation & Confirmation:
+
+Before marking anything as done, manually test every admin action, WhatsApp flow, and booking process in the actual running app.
+
+For every UI change, confirm it is reflected in the backend/database and triggers the correct API logic.
+
+At the end, provide a written summary of what is working, what is not, and what next steps remain.
+
+Transparency:
+
+If anything cannot be completed due to missing info, access, or test data, show a clear message in the UI and document it.
+
+Final Output:
+The admin dashboard and WhatsApp AI agent platform must be fully functional, end-to-end, with no placeholders or broken features.
+
+You must provide a written summary (and, if possible, screenshots or screencasts) confirming what is now working, where the data is coming from, and what (if anything) still needs to be completed.
+
+DO NOT move on to new features until these core actions are complete and validated.
+
+Once this is complete, I will push the updates to GitHub and we will review the changes for completeness and quality.
+
+If any step is unclear, or there are blockers, please clearly document them and request clarification before proceeding.

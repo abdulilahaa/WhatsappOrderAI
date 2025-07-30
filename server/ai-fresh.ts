@@ -78,6 +78,7 @@ class FreshAIAgent {
   private conversationStates: Map<string, ConversationState> = new Map();
   private settings: FreshAISettings;
   private nailItAPIClient = nailItAPI;
+  private storage = storage;
 
   constructor() {
     this.settings = {} as FreshAISettings;
@@ -95,7 +96,7 @@ class FreshAIAgent {
   async processMessage(
     customerMessage: string,
     customer: Customer,
-    conversationHistory: Array<{ content: string; isFromAI: boolean }>
+    conversationId: number
   ): Promise<AIResponse> {
     await this.initialize();
 
@@ -131,8 +132,12 @@ class FreshAIAgent {
         return await this.handlePaymentConfirmation(customerMessage, state, customer);
       }
 
+      // Get conversation history from database
+      const conversationHistory = await this.storage.getMessagesByConversation(conversationId);
+      const historyArray = Array.isArray(conversationHistory) ? conversationHistory : [];
+      
       // NATURAL CONVERSATION WITH REAL BOOKING INTEGRATION
-      return await this.handleNaturalConversation(customerMessage, state, customer, conversationHistory);
+      return await this.handleNaturalConversation(customerMessage, state, customer, historyArray);
     } catch (error) {
       console.error('AI processing error:', error);
       console.error('Error details:', (error as Error).message);
@@ -188,7 +193,7 @@ Current conversation context: Customer wants ${customerMessage}`;
           role: 'system' as const,
           content: enhancedSystemPrompt
         },
-        ...conversationHistory.slice(-6).map(msg => ({
+        ...(Array.isArray(conversationHistory) ? conversationHistory.slice(-6) : []).map(msg => ({
           role: msg.isFromAI ? 'assistant' as const : 'user' as const,
           content: msg.content
         })),

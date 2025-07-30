@@ -12,6 +12,8 @@ const navigation = [
   { name: "Staff Availability", href: "/staff-availability", icon: Users },
   { name: "Service Analytics", href: "/service-analytics", icon: BarChart3 },
   { name: "Conversations", href: "/conversations", icon: MessageCircle },
+  { name: "WhatsApp Simulator", href: "/whatsapp-simulator", icon: TestTube },
+  { name: "System Status", href: "/system-status", icon: Activity },
   { name: "Integration Hub", href: "/integration-dashboard", icon: Activity },
   { name: "AI Agent Settings", href: "/ai-agent-settings", icon: Settings },
   { name: "WhatsApp Setup", href: "/whatsapp-setup", icon: MessageSquare },

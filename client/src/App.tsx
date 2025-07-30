@@ -17,6 +17,8 @@ import StaffAvailability from "@/pages/staff-availability";
 import ServiceAnalytics from "@/pages/service-analytics";
 import AIAgentSettings from "@/pages/ai-agent-settings";
 import LargeOrderTest from "@/pages/large-order-test";
+import WhatsAppSimulator from "@/pages/whatsapp-simulator";
+import SystemStatus from "@/pages/system-status";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -43,6 +45,8 @@ function Router() {
         <Route path="/staff-availability" component={StaffAvailability} />
         <Route path="/service-analytics" component={ServiceAnalytics} />
         <Route path="/large-order-test" component={LargeOrderTest} />
+        <Route path="/whatsapp-simulator" component={WhatsAppSimulator} />
+        <Route path="/system-status" component={SystemStatus} />
         <Route component={NotFound} />
       </Switch>
       
