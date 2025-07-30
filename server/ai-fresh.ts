@@ -7,6 +7,7 @@ import type { NailItItem, NailItStaff, NailItTimeSlot, NailItPaymentType } from 
 
 // SLOT-FILLING ONLY: Remove competing BookingState system
 import { SlotFillingAgent, SlotFillingState } from './ai-slot-filling.js';
+import { NailItBookingFlow, type BookingSession } from './nailit-booking-flow.js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

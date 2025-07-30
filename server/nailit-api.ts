@@ -123,6 +123,51 @@ export interface NailItRegisterResponse {
   Status: number;
 }
 
+// Additional interfaces for new API endpoints
+export interface GetItemsByDateRequest {
+  Lang: string;
+  Like?: string;
+  Page_No: number;
+  Item_Type_Id: number;
+  Group_Id?: number;
+  Location_Ids: number[];
+  Is_Home_Service: boolean;
+  Selected_Date: string;
+}
+
+export interface GetServiceStaffRequest {
+  Service_Item_Id: number;
+  Location_Id: number;
+  Date: string;
+}
+
+export interface GetAvailableSlotsRequest {
+  Staff_Id: number;
+  Service_Item_Id: number;
+  Date: string;
+}
+
+export interface GetPaymentTypesByDeviceRequest {
+  Device_Id?: string;
+  Location_Id: number;
+}
+
+export interface NailItOrderItem {
+  Service_Item_Id: number;
+  Staff_Id: number;
+  Date: string;
+  Start_Time: string;
+  Duration: number;
+}
+
+export interface NailItSaveOrderRequestV2 {
+  App_User_Id: string;
+  Location_Id: number;
+  Order_Items: NailItOrderItem[];
+  Payment_Type_Id: number;
+  Notes?: string;
+}
+
 export interface NailItOrderPaymentDetail {
   Status: number;
   Message: string;
@@ -1170,6 +1215,84 @@ export class NailItAPIService {
     } catch (error) {
       console.error('Failed to search services:', error);
       return [];
+    }
+  }
+
+  // New method: Get Items by Date (POST) - as per master system prompt
+  async getItemsByDateV2(request: GetItemsByDateRequest): Promise<{ totalItems: number; items: NailItItem[] }> {
+    try {
+      const response = await this.client.post('/GetItemsByDate', request);
+      
+      if (response.data.Status === 0) {
+        return {
+          totalItems: response.data.Total_Items || 0,
+          items: response.data.Items || []
+        };
+      }
+      return { totalItems: 0, items: [] };
+    } catch (error) {
+      console.error('Failed to get items by date V2:', error);
+      return { totalItems: 0, items: [] };
+    }
+  }
+
+  // New method: Get Service Staff (POST) - as per master system prompt
+  async getServiceStaffV2(request: GetServiceStaffRequest): Promise<NailItStaff[]> {
+    try {
+      const response = await this.client.post('/GetServiceStaff1', request);
+      
+      if (response.data.Status === 0 && response.data.Specialists) {
+        return response.data.Specialists;
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get service staff V2:', error);
+      return [];
+    }
+  }
+
+  // New method: Get Available Slots (POST) - as per master system prompt
+  async getAvailableSlotsV2(request: GetAvailableSlotsRequest): Promise<NailItTimeSlot[]> {
+    try {
+      const response = await this.client.post('/GetAvailableSlots', request);
+      
+      if (response.data.Status === 0 && response.data.TimeFrames) {
+        return response.data.TimeFrames;
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get available slots V2:', error);
+      return [];
+    }
+  }
+
+  // New method: Get Payment Types by Device (POST) - as per master system prompt
+  async getPaymentTypesByDevice(request: GetPaymentTypesByDeviceRequest): Promise<NailItPaymentType[]> {
+    try {
+      const response = await this.client.post('/GetPaymentTypesByDevice', request);
+      
+      if (response.data.Status === 0 && response.data.PaymentTypes) {
+        return response.data.PaymentTypes;
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get payment types by device:', error);
+      return [];
+    }
+  }
+
+  // New method: Save Order V2 (for new format) - as per master system prompt
+  async saveOrderV2(request: NailItSaveOrderRequestV2): Promise<NailItSaveOrderResponse | null> {
+    try {
+      const response = await this.client.post('/SaveOrder', request);
+      
+      if (response.data.Status === 0) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to save order V2:', error);
+      return null;
     }
   }
 }
