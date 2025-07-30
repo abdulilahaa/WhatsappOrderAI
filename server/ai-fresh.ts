@@ -159,7 +159,7 @@ class FreshAIAgent {
     try {
       console.log('🚀 Natural conversation with real booking integration');
       
-      // Enhanced human-like system prompt for step-by-step booking
+      // Enhanced human-like system prompt with PROGRESSION LOGIC
       const enhancedSystemPrompt = `You are Tamy, a caring customer service representative for NailIt Spa Kuwait. 
 
 YOUR PERSONALITY:
@@ -169,32 +169,38 @@ YOUR PERSONALITY:
 - Never rush customers - guide them step by step
 - Show understanding for their beauty concerns
 
-HUMAN-LIKE CONVERSATION RULES:
-- If customer says "I want to book my nails" → Ask "What type of nail service were you thinking of?"
-- If they mention a problem (dry skin, damaged nails) → Show empathy first, then suggest solutions
-- If they're unsure → Offer gentle guidance with 2-3 options max
-- Always recap booking details before confirming
-- Allow customers to change their mind anytime
+CONVERSATION PROGRESSION RULES (CRITICAL):
+- If customer confirms a service recommendation with "yes" → MOVE to location selection
+- If customer says "Yes I want to improve..." → This means they ACCEPT the service, ask for location  
+- If customer says "yes" to location → MOVE to date selection  
+- If customer provides date → MOVE to name/email collection
+- NEVER repeat the same question if customer already answered
+- NEVER suggest the same service twice in a row
+- If customer repeats the same request → They're confirming, don't ask again
 
 CURRENT CUSTOMER DATA: ${JSON.stringify(state.collectedData)}
 CUSTOMER PHONE: ${customer.phoneNumber}
 
+CONVERSATION STATUS:
+Services Selected: ${state.collectedData.selectedServices.length > 0 ? state.collectedData.selectedServices.map(s => s.itemName).join(', ') : 'None'}
+Location: ${state.collectedData.locationName || 'Not selected'}
+Date: ${state.collectedData.appointmentDate || 'Not selected'}
+Name: ${state.collectedData.customerName || 'Not collected'}
+
 STEP-BY-STEP PROCESS:
-1. UNDERSTAND their request and any concerns
-2. RECOMMEND appropriate services (don't auto-select)
-3. CONFIRM which location they prefer
-4. DISCUSS date and time preferences  
-5. COLLECT name and email naturally
-6. RECAP everything before booking
-7. CREATE real booking only when customer confirms
+1. If NO services selected → Ask what service they want
+2. If services selected but NO location → Ask which location 
+3. If location selected but NO date → Ask preferred date
+4. If date selected but NO name/email → Collect customer info
+5. If all info collected → Confirm and create booking
 
 LOCATIONS: Al-Plaza Mall, Zahra Complex, Arraya Mall
 
-IMPORTANT: 
-- Never attempt booking until ALL info is collected and confirmed
-- Be patient - beauty services are personal decisions
-- Show genuine care for their experience
-- If booking fails, explain clearly why and offer alternatives
+CRITICAL FIXES:
+- Don't repeat service recommendations if already selected
+- Progress conversation step by step
+- Recognize "yes" as confirmation to move forward
+- Never loop back to previous steps unless customer asks
 
 Customer message: "${customerMessage}"`;
 
@@ -203,7 +209,7 @@ Customer message: "${customerMessage}"`;
           role: 'system' as const,
           content: enhancedSystemPrompt
         },
-        ...(Array.isArray(conversationHistory) ? conversationHistory.slice(-6) : []).map((msg: any) => ({
+        ...(Array.isArray(conversationHistory) ? conversationHistory.slice(-12) : []).map((msg: any) => ({
           role: msg.isFromAI ? 'assistant' as const : 'user' as const,
           content: msg.content
         })),
@@ -224,6 +230,9 @@ Customer message: "${customerMessage}"`;
         (state.language === 'ar' ? 'عذراً، لم أفهم طلبك.' : "Sorry, I didn't understand your request.");
       
       console.log('🤖 AI Response:', aiMessage);
+      
+      // CRITICAL FIX: Add conversation phase progression logic
+      await this.updateConversationPhase(customerMessage, state);
       
       // NATURAL INFORMATION EXTRACTION - Update state from conversation
       await this.extractAndUpdateInformation(customerMessage, aiMessage, state);
@@ -266,6 +275,54 @@ Customer message: "${customerMessage}"`;
     }
   }
 
+  private async updateConversationPhase(customerMessage: string, state: ConversationState): Promise<void> {
+    const lowerMessage = customerMessage.toLowerCase();
+    
+    // CRITICAL CONVERSATION PROGRESSION LOGIC
+    // Phase 1: If customer confirms service with "yes" → Move to location selection
+    if (state.collectedData.selectedServices.length > 0 && 
+        !state.collectedData.locationId && 
+        (lowerMessage.includes('yes') || 
+         lowerMessage.includes('sounds good') || 
+         lowerMessage.includes('that\'s good') ||
+         lowerMessage.includes('perfect') ||
+         (lowerMessage.includes('yes') && lowerMessage.includes('want') && lowerMessage.includes('hair')) ||
+         (lowerMessage.includes('want') && lowerMessage.includes('improve') && lowerMessage.includes('health')))) {
+      console.log('📈 PROGRESSION: Service confirmed → Moving to location selection phase');
+      state.phase = 'location_selection';
+      return;
+    }
+    
+    // Phase 2: If customer mentions location → Move to date selection  
+    if (state.collectedData.locationId && 
+        !state.collectedData.appointmentDate &&
+        (lowerMessage.includes('plaza') || lowerMessage.includes('zahra') || lowerMessage.includes('arraya'))) {
+      console.log('📈 PROGRESSION: Location selected → Moving to date selection phase');
+      state.phase = 'date_selection';
+      return;
+    }
+    
+    // Phase 3: If customer provides date → Move to customer info collection
+    if (state.collectedData.appointmentDate && 
+        !state.collectedData.customerName &&
+        (lowerMessage.includes('tomorrow') || lowerMessage.includes('today') || /\d/.test(lowerMessage))) {
+      console.log('📈 PROGRESSION: Date provided → Moving to customer info collection phase');
+      state.phase = 'customer_info';
+      return;
+    }
+    
+    // Phase 4: If customer provides name/email → Move to confirmation
+    if (state.collectedData.customerName && 
+        state.collectedData.locationId &&
+        state.collectedData.selectedServices.length > 0) {
+      console.log('📈 PROGRESSION: All info collected → Moving to confirmation phase');
+      state.phase = 'confirmation';
+      return;
+    }
+    
+    console.log(`🔄 Staying in current phase: ${state.phase}`);
+  }
+
   private async extractAndUpdateInformation(customerMessage: string, aiResponse: string, state: ConversationState): Promise<void> {
     const lowerMessage = customerMessage.toLowerCase();
     
@@ -291,11 +348,24 @@ Customer message: "${customerMessage}"`;
     // ENHANCED SERVICE EXTRACTION - Use SimpleServiceCache for authentic NailIt services
     console.log('🔍 Analyzing message for services:', customerMessage.toLowerCase());
     
-    // Check if we should extract services (new message or explicit requests)
-    if (state.collectedData.selectedServices.length === 0 || 
-        customerMessage.toLowerCase().includes('want') || 
-        customerMessage.toLowerCase().includes('book') || 
-        customerMessage.toLowerCase().includes('add')) {
+    // CRITICAL FIX: Only extract services if NONE are selected AND message contains service keywords
+    // Don't re-extract when customer confirms existing services with "yes I want..."
+    const isServiceConfirmation = (customerMessage.toLowerCase().includes('yes') && 
+                                  customerMessage.toLowerCase().includes('want') && 
+                                  state.collectedData.selectedServices.length > 0) ||
+                                 (customerMessage.toLowerCase().includes('want') && 
+                                  customerMessage.toLowerCase().includes('improve') && 
+                                  customerMessage.toLowerCase().includes('health') &&
+                                  state.collectedData.selectedServices.length > 0);
+    
+    if (state.collectedData.selectedServices.length === 0 && 
+        !isServiceConfirmation &&
+        (customerMessage.toLowerCase().includes('book') || 
+         customerMessage.toLowerCase().includes('add') ||
+         customerMessage.toLowerCase().includes('hair') ||
+         customerMessage.toLowerCase().includes('nail') ||
+         customerMessage.toLowerCase().includes('facial') ||
+         customerMessage.toLowerCase().includes('massage'))) {
       
       const lowerMessage = customerMessage.toLowerCase();
       
