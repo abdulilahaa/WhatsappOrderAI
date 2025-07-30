@@ -5,10 +5,8 @@ import { nailItValidator } from './nailit-validator';
 import type { Customer, Product, FreshAISettings } from '@shared/schema';
 import type { NailItItem, NailItStaff, NailItTimeSlot, NailItPaymentType } from './nailit-api';
 
-// SLOT-FILLING INTEGRATION: Import all slot-filling modules
-import { BookingState, BookingStateManager } from './booking-state-manager.js';
-import { SlotFillingOrchestrator } from './slot-filling-orchestrator.js';
-import { slotFillingAgent } from './ai-slot-filling.js';
+// SLOT-FILLING ONLY: Remove competing BookingState system
+import { SlotFillingAgent, SlotFillingState } from './ai-slot-filling.js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -104,60 +102,61 @@ class FreshAIAgent {
     conversationId: number
   ): Promise<AIResponse> {
     await this.initialize();
-    console.log(`🤖 Fresh AI processing message from ${customer.name}: "${customerMessage}"`);
+    console.log(`🎯 UNIFIED SLOT-FILLING: Processing message from ${customer.name}: "${customerMessage}"`);
     
     try {
-      // SLOT-FILLING INTEGRATION: Load or initialize booking state
-      let bookingState = await BookingStateManager.getBookingState(conversationId);
-      if (!bookingState) {
-        bookingState = BookingStateManager.createNewBookingState(conversationId, customer.id);
-        console.log('📝 Created new booking state for conversation:', conversationId);
-      }
-
-      // SIMPLIFIED AI PROCESSING: Use natural conversation without complex slot-filling
-      console.log('🎯 Using simplified AI conversation processing...');
-      
-      // Create basic conversation context
-      const conversationHistory = [];
-      try {
-        const messages = await this.storage.getMessages(conversationId);
-        conversationHistory.push(...messages.slice(-6).map(msg => ({
-          content: msg.content,
-          isFromAI: msg.isFromAI
-        })));
-      } catch (error) {
-        console.log('No conversation history available');
+      // 1. Load existing slot-filling state directly from conversation (single source of truth)
+      let slotFillingState: SlotFillingState | null = null;
+      const conversation = await storage.getConversation(conversationId);
+      if (conversation?.stateData) {
+        slotFillingState = conversation.stateData as SlotFillingState;
       }
       
-      // Process with natural conversation AI
-      const aiResponse = await this.handleNaturalConversation(
-        customerMessage, 
-        {
-          phase: 'greeting',
-          collectedData: { selectedServices: [] },
-          language: this.detectLanguage(customerMessage),
-          lastUpdated: new Date()
-        },
-        customer,
-        conversationHistory
-      );
+      // 2. Process message directly through slot-filling agent (no competing systems)
+      const slotFillingAgent = new SlotFillingAgent();
+      const slotResponse = await slotFillingAgent.processMessage(customerMessage, slotFillingState, customer);
+      console.log('📥 Direct slot-filling response:', slotResponse);
       
-      console.log('✅ AI RESPONSE GENERATED:', {
-        message: aiResponse.message?.substring(0, 100) + '...',
-        phase: aiResponse.collectionPhase
-      });
-
-      // Return the AI response directly
-      return aiResponse;
+      // 3. Save updated state directly to database (no conversion layer)
+      await storage.updateConversationState(conversationId, slotResponse.state);
+      
+      // 4. Return unified response format
+      return {
+        message: slotResponse.message,
+        collectionPhase: slotResponse.nextAction || 'greeting',
+        collectedData: this.extractCollectedDataFromSlotState(slotResponse.state)
+      };
 
     } catch (error) {
-      console.error('❌ Fresh AI processing error:', error);
+      console.error('❌ Unified slot-filling error:', error);
       return {
         message: "I'm sorry, I encountered an issue. Could you please try again?",
         collectionPhase: 'greeting',
         error: 'Processing error occurred'
       };
     }
+  }
+
+  // REMOVED: All conversion methods between competing state systems
+  // Using unified SlotFillingState only - no more BookingState conversions needed
+
+  /**
+   * Extract collected data from slot-filling state (unified format)
+   */
+  private extractCollectedDataFromSlotState(slotState: SlotFillingState): any {
+    return {
+      selectedServices: slotState.service?.id ? [{
+        id: slotState.service.id,
+        name: slotState.service.value,
+        price: 25 // TODO: Get from NailIt API
+      }] : [],
+      locationId: slotState.location?.id,
+      locationName: slotState.location?.value,
+      customerName: slotState.name?.value,
+      customerEmail: slotState.email?.value,
+      appointmentDate: slotState.date?.value,
+      timeSlots: []
+    };
   }
 
   /**

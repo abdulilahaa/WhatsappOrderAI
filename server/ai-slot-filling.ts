@@ -438,10 +438,13 @@ Generate only the response message.`;
     };
   }
 
-  private generateSystemErrorResponse(state: SlotFillingState): SlotFillingResponse {
+  private generateSystemErrorResponse(state: SlotFillingState | null): SlotFillingResponse {
+    // Always return a valid state even if input state is corrupted
+    const fallbackState = state && state.service ? state : this.createNewSession();
+    
     return {
       message: 'Sorry, there was a system error. Please try again.',
-      state,
+      state: fallbackState,
       isComplete: false, 
       nextAction: 'ask_service'
     };
