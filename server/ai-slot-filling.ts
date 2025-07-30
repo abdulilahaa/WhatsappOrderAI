@@ -146,7 +146,7 @@ export class SlotFillingAgent {
       console.log('🔧 STATE NORMALIZED: All required slots guaranteed present');
 
       // Step 1: Extract information from user message (NLU only)
-      const extracted = this.extractInformation(userMessage, normalizedState);
+      const extracted = await this.extractInformation(userMessage, normalizedState);
       console.log('📤 EXTRACTED:', extracted);
 
       // Step 2: Validate extracted information with real-time API calls
@@ -199,18 +199,25 @@ export class SlotFillingAgent {
   }
 
   // INFORMATION EXTRACTION: Pure NLU - extract data from user message
-  private extractInformation(userMessage: string, state: SlotFillingState): any {
+  private async extractInformation(userMessage: string, state: SlotFillingState): Promise<any> {
     const extracted: any = {};
     const lowerMessage = userMessage.toLowerCase();
 
     // SAFE ACCESS: State is guaranteed to be normalized before this call
     try {
-      // Extract service (simple keyword matching - replace with better NLU)
+      // Extract service using NailIt API search
       if (!state.service?.validated && this.containsServiceKeywords(lowerMessage)) {
-        if (lowerMessage.includes('nail') || lowerMessage.includes('manicure')) {
-          extracted.service = { value: 'French Manicure', id: 279, validated: false };
-        } else if (lowerMessage.includes('hair') || lowerMessage.includes('treatment')) {
-          extracted.service = { value: 'Hair Growth Helmet Treatment', id: 51364, validated: false };
+        // Search for services based on user's request
+        const serviceMatches = await this.searchNailItServices(userMessage);
+        if (serviceMatches.length > 0) {
+          // Use the first matching service
+          const service = serviceMatches[0];
+          extracted.service = { 
+            value: service.Item_Name, 
+            id: service.Item_Id, 
+            validated: false 
+          };
+          console.log(`📋 Extracted service: ${service.Item_Name} (ID: ${service.Item_Id})`);
         }
       }
 
@@ -507,6 +514,51 @@ Generate only the response message.`;
 
   private isUserConfirming(message: string): boolean {
     return ['yes', 'confirm', 'book', 'proceed'].some(word => message.toLowerCase().includes(word));
+  }
+
+  // SEARCH NAILIT SERVICES: Real-time search for services based on user input
+  private async searchNailItServices(userMessage: string): Promise<any[]> {
+    try {
+      const keywords = userMessage.toLowerCase().split(' ');
+      const date = nailItAPI.formatDateForURL(new Date());
+      
+      // Search across all locations (1, 52, 53)
+      const locationIds = [1, 52, 53];
+      const allServices: any[] = [];
+      
+      for (const locationId of locationIds) {
+        const request = {
+          Lang: 'E',
+          Page_No: 1,
+          Item_Type_Id: 2, // Services
+          Location_Ids: [locationId],
+          Selected_Date: date,
+          Is_Home_Service: false
+        };
+        const result = await nailItAPI.getItemsByDateV2(request);
+        if (result && result.items && Array.isArray(result.items)) {
+          allServices.push(...result.items);
+        }
+      }
+      
+      // Filter services based on keywords
+      const matches = allServices.filter(service => {
+        const serviceName = service.Item_Name.toLowerCase();
+        return keywords.some(keyword => 
+          serviceName.includes(keyword) || 
+          (keyword === 'gel' && serviceName.includes('gelish')) ||
+          (keyword === 'nail' && (serviceName.includes('nail') || serviceName.includes('manicure') || serviceName.includes('pedicure'))) ||
+          (keyword === 'art' && serviceName.includes('art'))
+        );
+      });
+      
+      // Remove duplicates and return top matches
+      const uniqueMatches = Array.from(new Map(matches.map(s => [s.Item_Id, s])).values());
+      return uniqueMatches.slice(0, 5);
+    } catch (error) {
+      console.error('Service search error:', error);
+      return [];
+    }
   }
 
   private async validateService(serviceId: number, locationId: number | null): Promise<boolean> {

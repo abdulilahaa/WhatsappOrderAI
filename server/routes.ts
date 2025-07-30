@@ -1593,6 +1593,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Legacy test endpoints removed - using unified NailIt POS system
 
+  // V2 API Routes as per master system prompt
+  app.post("/api/nailit/v2/items-by-date", async (req, res) => {
+    try {
+      const result = await nailItAPI.getItemsByDateV2(req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error fetching items by date V2:", error);
+      res.status(500).json({ message: "Error fetching items: " + error.message });
+    }
+  });
+
+  app.post("/api/nailit/v2/service-staff", async (req, res) => {
+    try {
+      const staff = await nailItAPI.getServiceStaffV2(req.body);
+      res.json({ staff, count: staff.length });
+    } catch (error: any) {
+      console.error("Error fetching service staff V2:", error);
+      res.status(500).json({ message: "Error fetching staff: " + error.message });
+    }
+  });
+
+  app.post("/api/nailit/v2/available-slots", async (req, res) => {
+    try {
+      const slots = await nailItAPI.getAvailableSlotsV2(req.body);
+      res.json({ slots, count: slots.length });
+    } catch (error: any) {
+      console.error("Error fetching available slots V2:", error);
+      res.status(500).json({ message: "Error fetching slots: " + error.message });
+    }
+  });
+
+  app.post("/api/nailit/v2/payment-types", async (req, res) => {
+    try {
+      const paymentTypes = await nailItAPI.getPaymentTypesByDevice(req.body);
+      res.json({ paymentTypes, count: paymentTypes.length });
+    } catch (error: any) {
+      console.error("Error fetching payment types V2:", error);
+      res.status(500).json({ message: "Error fetching payment types: " + error.message });
+    }
+  });
+
+  app.post("/api/nailit/v2/save-order", async (req, res) => {
+    try {
+      const result = await nailItAPI.saveOrderV2(req.body);
+      if (result && result.Status === 0) {
+        res.json(result);
+      } else {
+        res.status(400).json({ message: result?.Message || "Failed to create order" });
+      }
+    } catch (error: any) {
+      console.error("Error saving order V2:", error);
+      res.status(500).json({ message: "Error saving order: " + error.message });
+    }
+  });
+
   // Test Save Order with sample data
   app.post("/api/nailit/test-save-order", async (req, res) => {
     try {
