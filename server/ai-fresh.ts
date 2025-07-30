@@ -5,6 +5,11 @@ import { nailItValidator } from './nailit-validator';
 import type { Customer, Product, FreshAISettings } from '@shared/schema';
 import type { NailItItem, NailItStaff, NailItTimeSlot, NailItPaymentType } from './nailit-api';
 
+// SLOT-FILLING INTEGRATION: Import all slot-filling modules
+import { BookingState, BookingStateManager } from './booking-state-manager.js';
+import { SlotFillingOrchestrator } from './slot-filling-orchestrator.js';
+import { slotFillingAgent } from './ai-slot-filling.js';
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -99,55 +104,157 @@ class FreshAIAgent {
     conversationId: number
   ): Promise<AIResponse> {
     await this.initialize();
-
-    const customerId = customer.id.toString();
+    console.log(`🤖 Fresh AI processing message from ${customer.name}: "${customerMessage}"`);
     
-    // Get existing state or create new one
-    let state = this.conversationStates.get(customerId);
-    if (!state) {
-      state = {
-        phase: 'greeting',
-        collectedData: {
-          selectedServices: []
-        },
-        language: this.detectLanguage(customerMessage),
-        lastUpdated: new Date()
-      };
-      this.conversationStates.set(customerId, state);
-    }
-
-    // Update language and timestamp
-    state.language = this.detectLanguage(customerMessage);
-    state.lastUpdated = new Date();
-
     try {
-      console.log(`🧩 Debug: Customer ${customerId}, Phase: ${state.phase}, Message: "${customerMessage}"`);
-      console.log(`🧩 Current services: ${JSON.stringify(state.collectedData.selectedServices)}`);
-      
-      // Check if this is a payment confirmation message
-      if (customerMessage.toLowerCase().includes('payment') && 
-          (customerMessage.toLowerCase().includes('confirm') || 
-           customerMessage.toLowerCase().includes('done') ||
-           customerMessage.toLowerCase().includes('paid'))) {
-        return await this.handlePaymentConfirmation(customerMessage, state, customer);
+      // SLOT-FILLING INTEGRATION: Load or initialize booking state
+      let bookingState = await BookingStateManager.getBookingState(conversationId);
+      if (!bookingState) {
+        bookingState = BookingStateManager.createNewBookingState(conversationId, customer.id);
+        console.log('📝 Created new booking state for conversation:', conversationId);
       }
 
-      // Get conversation history from database
-      const conversationHistory = await this.storage.getMessages(conversationId);
-      const historyArray = Array.isArray(conversationHistory) ? conversationHistory : [];
-      
-      // NATURAL CONVERSATION WITH REAL BOOKING INTEGRATION
-      return await this.handleNaturalConversation(customerMessage, state, customer, historyArray);
-    } catch (error) {
-      console.error('AI processing error:', error);
-      console.error('Error details:', (error as Error).message);
+      // SLOT-FILLING INTEGRATION: Process message through slot-filling agent for information extraction
+      const slotResponse = await slotFillingAgent.processMessage(customerMessage, bookingState, customer);
+      console.log('🎯 SLOT-FILLING RESPONSE:', {
+        stage: slotResponse.state.currentStage,
+        completed: slotResponse.state.completedSlots.length,
+        isComplete: slotResponse.isComplete
+      });
+
+      // SLOT-FILLING INTEGRATION: Update booking state with slot-filling results
+      await BookingStateManager.saveBookingState(slotResponse.state);
+
+      // SLOT-FILLING INTEGRATION: Use orchestrator for conversation flow
+      const orchestrationResult = await SlotFillingOrchestrator.orchestrateBookingStep(
+        slotResponse.state, 
+        customerMessage
+      );
+
+      console.log('🎭 ORCHESTRATION RESULT:', orchestrationResult);
+
+      // SLOT-FILLING INTEGRATION: Check if booking is ready for completion
+      if (orchestrationResult.isComplete && SlotFillingOrchestrator.isUserConfirming(customerMessage)) {
+        console.log('🎉 BOOKING READY FOR COMPLETION');
+        return await this.completeBookingWithNailItAPI(slotResponse.state, customer);
+      }
+
+      // SLOT-FILLING INTEGRATION: Generate response with acknowledgment + next question
+      const responseMessage = orchestrationResult.acknowledgment + ' ' + orchestrationResult.nextQuestion;
+
+      // Update conversation state for legacy compatibility
+      const customerId = customer.id.toString();
+      this.conversationStates.set(customerId, {
+        phase: this.mapStepToPhase(orchestrationResult.currentStep),
+        collectedData: this.mapBookingStateToCollectedData(slotResponse.state),
+        language: this.detectLanguage(customerMessage),
+        lastUpdated: new Date()
+      });
+
       return {
-        message: state.language === 'ar' 
-          ? "عذراً، حدث خطأ. كيف يمكنني مساعدتك اليوم؟"
-          : "Sorry, something went wrong. How can I help you today?",
+        message: responseMessage,
+        collectionPhase: this.mapStepToPhase(orchestrationResult.currentStep),
+        collectedData: this.mapBookingStateToCollectedData(slotResponse.state)
+      };
+
+    } catch (error) {
+      console.error('❌ Fresh AI processing error:', error);
+      return {
+        message: "I'm sorry, I encountered an issue. Could you please try again?",
+        collectionPhase: 'greeting',
         error: 'Processing error occurred'
       };
     }
+  }
+
+  /**
+   * Complete booking using NailIt API (called when all slots are filled)
+   */
+  private async completeBookingWithNailItAPI(bookingState: BookingState, customer: Customer): Promise<AIResponse> {
+    try {
+      console.log('🎯 CREATING NAILIT ORDER with booking state:', bookingState);
+
+      // Create NailIt order using collected booking information
+      const orderData = {
+        customerId: customer.id,
+        customerName: bookingState.name.value || customer.name,
+        customerEmail: bookingState.email.value || customer.email || `${customer.phoneNumber}@nailit.com`,
+        phoneNumber: customer.phoneNumber,
+        serviceId: bookingState.service.id!,
+        serviceName: bookingState.service.name!,
+        servicePrice: bookingState.service.price!,
+        locationId: bookingState.location.id!,
+        locationName: bookingState.location.name!,
+        appointmentDate: bookingState.date.value!,
+        timeSlots: bookingState.time.timeSlots || [7, 8],
+        totalAmount: bookingState.service.price!
+      };
+
+      const orderResult = await nailItAPI.createOrderWithUser(orderData);
+      
+      if (orderResult && orderResult.OrderId) {
+        // Clear booking state after successful completion
+        await BookingStateManager.clearBookingState(bookingState.conversationId);
+
+        const confirmationMessage = bookingState.language === 'ar' 
+          ? `✅ تم إنشاء الحجز بنجاح!\n\nرقم الطلب: ${orderResult.OrderId}\nالخدمة: ${bookingState.service.name}\nالموقع: ${bookingState.location.name}\nالتاريخ: ${bookingState.date.value}\n\nرابط الدفع: http://nailit.innovasolution.net/knet.aspx?orderId=${orderResult.OrderId}`
+          : `✅ Booking Created Successfully!\n\nOrder ID: ${orderResult.OrderId}\nService: ${bookingState.service.name}\nLocation: ${bookingState.location.name}\nDate: ${bookingState.date.value}\n\nPayment Link: http://nailit.innovasolution.net/knet.aspx?orderId=${orderResult.OrderId}`;
+
+        return {
+          message: confirmationMessage,
+          collectionPhase: 'completed',
+          collectedData: this.mapBookingStateToCollectedData(bookingState)
+        };
+      } else {
+        throw new Error('Failed to create NailIt order');
+      }
+    } catch (error) {
+      console.error('❌ BOOKING COMPLETION ERROR:', error);
+      return {
+        message: "Sorry, there was an issue completing your booking. Please try again or contact our support team.",
+        collectionPhase: 'confirmation',
+        error: 'Booking completion failed'
+      };
+    }
+  }
+
+  /**
+   * Map booking state step to legacy phase format
+   */
+  private mapStepToPhase(step: string): any {
+    const phaseMap: any = {
+      'service': 'service_selection',
+      'location': 'location_selection', 
+      'date': 'time_selection',
+      'time': 'time_selection',
+      'name': 'customer_info',
+      'email': 'customer_info',
+      'confirmation': 'confirmation',
+      'complete': 'completed'
+    };
+    return phaseMap[step] || 'greeting';
+  }
+
+  /**
+   * Map booking state to legacy collected data format
+   */
+  private mapBookingStateToCollectedData(bookingState: BookingState): any {
+    return {
+      selectedServices: bookingState.service.validated ? [{
+        itemId: bookingState.service.id,
+        itemName: bookingState.service.name,
+        price: bookingState.service.price,
+        quantity: 1
+      }] : [],
+      locationId: bookingState.location.id,
+      locationName: bookingState.location.name,
+      appointmentDate: bookingState.date.value,
+      timeSlots: bookingState.time.timeSlots,
+      customerName: bookingState.name.value,
+      customerEmail: bookingState.email.value,
+      totalAmount: bookingState.service.price,
+      readyForBooking: BookingStateManager.isBookingReady(bookingState)
+    };
   }
 
   private async handleNaturalConversation(
