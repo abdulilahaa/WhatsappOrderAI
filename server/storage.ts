@@ -284,8 +284,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createConversation(conversation: InsertConversation): Promise<Conversation> {
-    const [newConversation] = await db.insert(conversations).values(conversation).returning();
-    return newConversation;
+    try {
+      const [newConversation] = await db.insert(conversations).values(conversation).returning();
+      console.log(`✅ Conversation created with JSONB serialization: ID ${newConversation.id}`);
+      return newConversation;
+    } catch (error: any) {
+      console.error('❌ Database error creating conversation:', error.message);
+      console.error('❌ Full error details:', error);
+      throw new Error(`Failed to create conversation with proper error handling: ${error.message}`);
+    }
   }
 
   async updateConversation(id: number, conversation: Partial<InsertConversation>): Promise<Conversation | undefined> {

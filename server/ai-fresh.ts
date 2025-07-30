@@ -228,59 +228,26 @@ Customer message: "${customerMessage}"`;
       // NATURAL INFORMATION EXTRACTION - Update state from conversation
       await this.extractAndUpdateInformation(customerMessage, aiMessage, state);
       
-      // CHECK IF READY TO BOOK - Look for booking indicators
+      // CRITICAL FIX: NEVER attempt booking until ALL required info is collected
+      // This implements Fix #3 from urgent fixes - step-by-step human-like flow
       console.log(`🔍 Checking booking readiness: Services: ${state.collectedData.selectedServices.length}, Location: ${state.collectedData.locationId}, Name: ${state.collectedData.customerName}, Email: ${state.collectedData.customerEmail}`);
       
-      if (aiMessage.includes('READY_TO_BOOK') || 
-          this.hasAllBookingInfo(state) || 
-          (customerMessage.toLowerCase().includes('yes') && state.collectedData.locationId && state.collectedData.customerName) ||
-          customerMessage.toLowerCase().includes('book') ||
-          customerMessage.toLowerCase().includes('confirm') ||
-          customerMessage.toLowerCase().includes('please book')) {
+      // PERMANENT FIX: Only proceed to booking when ALL required information is present AND explicitly confirmed
+      if (this.hasAllBookingInfo(state) && 
+          (aiMessage.includes('READY_TO_BOOK') || 
+           (customerMessage.toLowerCase().includes('yes') && customerMessage.toLowerCase().includes('confirm')) ||
+           customerMessage.toLowerCase().includes('please book'))) {
         
-        // CRITICAL: Always ensure we have services before booking
+        // PERMANENT FIX: NEVER auto-select services - this violates Fix #3 from urgent fixes
         if (state.collectedData.selectedServices.length === 0) {
-          console.log('🚨 NO SERVICES SELECTED - Trying to auto-extract from conversation context');
+          console.log('🚨 BLOCKING: Cannot book without explicit service selection - returning to conversation');
           
-          // Emergency service extraction using REAL service from NailIt API logs
-          console.log('🚨 EMERGENCY: Using REAL service from NailIt API');
-          
-          // Use REAL services with confirmed staff availability
-          // Based on conversation logs, system found "Hair Growth Helmet Treatment" as authentic service
-          if (customerMessage.toLowerCase().includes('hair') || customerMessage.toLowerCase().includes('treatment')) {
-            // First check staff availability for hair services before booking
-            console.log('🔍 Checking real hair treatment availability...');
-            
-            // Use a simpler hair service that's more likely to have staff available
-            state.collectedData.selectedServices.push({
-              itemId: 203,  // Keep using 203 but with different approach for staff
-              itemName: 'Hair Treatment',  
-              price: 45,
-              quantity: 1,
-              duration: '60',  // Shorter duration for better availability
-              description: 'Professional Hair Treatment'
-            });
-            console.log(`✅ REAL SERVICE: Hair Treatment (ID: 203) - will check staff availability`);
-          } else {
-            // For nail services, use a generic nail service that we know exists
-            state.collectedData.selectedServices.push({
-              itemId: 1058,  // Classic Pedicure from previous successful orders
-              itemName: 'Classic Pedicure',
-              price: 20,
-              quantity: 1,
-              duration: '60',
-              description: 'Classic Pedicure Service'
-            });
-            console.log(`✅ REAL SERVICE: Added Classic Pedicure (ID: 1058) - 20 KWD`);
-          }
-          
-          if (state.collectedData.selectedServices.length === 0) {
-            return this.createResponse(state, 
-              state.language === 'ar' 
-                ? "عذراً، لم يتم اختيار أي خدمات. أي خدمة تريد حجزها؟"
-                : "Sorry, no services selected. Which services would you like to book?"
-            );
-          }
+          // Return to conversation flow - ask user to specify services first
+          return this.createResponse(state, 
+            state.language === 'ar' 
+              ? "أحتاج لمعرفة أي خدمة تريد حجزها أولاً. ما نوع خدمة الأظافر أو الجمال التي تريدينها؟"
+              : "I need to know which service you'd like to book first. What type of nail or beauty service are you interested in?"
+          );
         }
         
         console.log('✅ Ready to create REAL booking in NailIt POS');
@@ -337,29 +304,32 @@ Customer message: "${customerMessage}"`;
         const { SimpleServiceCache } = await import('./simple-cache.js');
         const cache = new SimpleServiceCache();
         
-        // Search for services based on customer message
+        // PERMANENT FIX #2: Enhanced fuzzy matching with comprehensive keyword patterns
         const locationId = state.collectedData.locationId || 1; // Default to Al-Plaza Mall
         let foundServices = [];
         
-        // Search for nail services
-        if (lowerMessage.includes('nail') || lowerMessage.includes('manicure') || lowerMessage.includes('pedicure') || lowerMessage.includes('french')) {
-          const nailServices = await cache.searchServices('nail', locationId);
-          foundServices.push(...nailServices.slice(0, 1)); // Take first matching service
-          console.log(`💅 Found ${nailServices.length} nail services, selected: ${nailServices[0]?.name}`);
-        }
+        console.log(`🔍 FUZZY MATCHING: Analyzing user input "${customerMessage}" for service keywords`);
         
-        // Search for hair services
-        if (lowerMessage.includes('hair') || lowerMessage.includes('treatment')) {
-          const hairServices = await cache.searchServices('hair', locationId);
-          foundServices.push(...hairServices.slice(0, 1)); // Take first matching service
-          console.log(`💇 Found ${hairServices.length} hair services, selected: ${hairServices[0]?.name}`);
-        }
+        // Enhanced keyword patterns for better matching
+        const servicePatterns = {
+          nail: ['nail', 'manicure', 'pedicure', 'french', 'polish', 'gel', 'acrylic', 'chrome'],
+          hair: ['hair', 'treatment', 'cut', 'color', 'style', 'wash', 'blow', 'keratin'],
+          facial: ['facial', 'face', 'skin', 'cleansing', 'hydra', 'anti-aging', 'peeling'],
+          body: ['massage', 'body', 'scrub', 'wrap', 'relaxation', 'therapy']
+        };
         
-        // Search for facial services
-        if (lowerMessage.includes('facial') || lowerMessage.includes('face')) {
-          const facialServices = await cache.searchServices('facial', locationId);
-          foundServices.push(...facialServices.slice(0, 1));
-          console.log(`🧴 Found ${facialServices.length} facial services, selected: ${facialServices[0]?.name}`);
+        // Search with enhanced fuzzy matching
+        for (const [category, keywords] of Object.entries(servicePatterns)) {
+          const matchedKeywords = keywords.filter(keyword => lowerMessage.includes(keyword));
+          if (matchedKeywords.length > 0) {
+            const services = await cache.searchServices(category, locationId);
+            if (services.length > 0) {
+              foundServices.push(...services.slice(0, 1)); // Take first matching service
+              console.log(`✅ FUZZY MATCH: User input "${customerMessage}" → Keywords: [${matchedKeywords.join(', ')}] → Category: ${category} → Found: ${services[0]?.name} (ID: ${services[0]?.serviceId})`);
+            } else {
+              console.log(`❌ FUZZY MATCH: Keywords [${matchedKeywords.join(', ')}] matched category ${category} but no services found for location ${locationId}`);
+            }
+          }
         }
         
         // Add found services to state
@@ -442,14 +412,26 @@ Customer message: "${customerMessage}"`;
   }
 
   private hasAllBookingInfo(state: ConversationState): boolean {
-    const hasRequired = !!(
-      state.collectedData.selectedServices.length > 0 &&
-      state.collectedData.locationId &&
-      state.collectedData.customerName &&
-      state.collectedData.customerEmail
-    );
+    // PERMANENT FIX: Implement complete validation as required by urgent fixes
+    const hasServices = state.collectedData.selectedServices.length > 0;
+    const hasLocation = !!state.collectedData.locationId;
+    const hasName = !!state.collectedData.customerName && state.collectedData.customerName !== 'Customer'; // No hardcoded names
+    const hasEmail = !!state.collectedData.customerEmail && state.collectedData.customerEmail !== 'customer@email.com'; // No hardcoded emails
+    const hasDate = !!state.collectedData.appointmentDate;
     
-    if (hasRequired) {
+    const hasRequired = hasServices && hasLocation && hasName && hasEmail && hasDate;
+    
+    // ENHANCED LOGGING: Show exactly what's missing (Fix #1 - proper error handling)
+    if (!hasRequired) {
+      const missing = [];
+      if (!hasServices) missing.push('services');
+      if (!hasLocation) missing.push('location');
+      if (!hasName) missing.push('customer name');
+      if (!hasEmail) missing.push('email address');
+      if (!hasDate) missing.push('appointment date');
+      console.log(`❌ Missing required info: ${missing.join(', ')}`);
+      console.log(`📋 Current state: Services(${state.collectedData.selectedServices.length}), Location(${state.collectedData.locationId}), Name(${state.collectedData.customerName}), Email(${state.collectedData.customerEmail}), Date(${state.collectedData.appointmentDate})`);
+    } else {
       console.log(`✅ All booking info collected:
         - Services: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}
         - Location: ${state.collectedData.locationName} (ID: ${state.collectedData.locationId})
