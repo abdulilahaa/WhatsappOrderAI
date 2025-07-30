@@ -114,48 +114,41 @@ class FreshAIAgent {
         console.log('📝 Created new booking state for conversation:', conversationId);
       }
 
-      // SLOT-FILLING INTEGRATION: Process message through slot-filling agent for information extraction
-      const slotResponse = await slotFillingAgent.processMessage(customerMessage, bookingState, customer);
-      console.log('🎯 SLOT-FILLING RESPONSE:', {
-        stage: slotResponse.state.currentStage,
-        completed: slotResponse.state.completedSlots.length,
-        isComplete: slotResponse.isComplete
-      });
-
-      // SLOT-FILLING INTEGRATION: Update booking state with slot-filling results
-      await BookingStateManager.saveBookingState(slotResponse.state);
-
-      // SLOT-FILLING INTEGRATION: Use orchestrator for conversation flow
-      const orchestrationResult = await SlotFillingOrchestrator.orchestrateBookingStep(
-        slotResponse.state, 
-        customerMessage
-      );
-
-      console.log('🎭 ORCHESTRATION RESULT:', orchestrationResult);
-
-      // SLOT-FILLING INTEGRATION: Check if booking is ready for completion
-      if (orchestrationResult.isComplete && SlotFillingOrchestrator.isUserConfirming(customerMessage)) {
-        console.log('🎉 BOOKING READY FOR COMPLETION');
-        return await this.completeBookingWithNailItAPI(slotResponse.state, customer);
+      // SIMPLIFIED AI PROCESSING: Use natural conversation without complex slot-filling
+      console.log('🎯 Using simplified AI conversation processing...');
+      
+      // Create basic conversation context
+      const conversationHistory = [];
+      try {
+        const messages = await this.storage.getMessages(conversationId);
+        conversationHistory.push(...messages.slice(-6).map(msg => ({
+          content: msg.content,
+          isFromAI: msg.isFromAI
+        })));
+      } catch (error) {
+        console.log('No conversation history available');
       }
-
-      // SLOT-FILLING INTEGRATION: Generate response with acknowledgment + next question
-      const responseMessage = orchestrationResult.acknowledgment + ' ' + orchestrationResult.nextQuestion;
-
-      // Update conversation state for legacy compatibility
-      const customerId = customer.id.toString();
-      this.conversationStates.set(customerId, {
-        phase: this.mapStepToPhase(orchestrationResult.currentStep),
-        collectedData: this.mapBookingStateToCollectedData(slotResponse.state),
-        language: this.detectLanguage(customerMessage),
-        lastUpdated: new Date()
+      
+      // Process with natural conversation AI
+      const aiResponse = await this.handleNaturalConversation(
+        customerMessage, 
+        {
+          phase: 'greeting',
+          collectedData: { selectedServices: [] },
+          language: this.detectLanguage(customerMessage),
+          lastUpdated: new Date()
+        },
+        customer,
+        conversationHistory
+      );
+      
+      console.log('✅ AI RESPONSE GENERATED:', {
+        message: aiResponse.message?.substring(0, 100) + '...',
+        phase: aiResponse.collectionPhase
       });
 
-      return {
-        message: responseMessage,
-        collectionPhase: this.mapStepToPhase(orchestrationResult.currentStep),
-        collectedData: this.mapBookingStateToCollectedData(slotResponse.state)
-      };
+      // Return the AI response directly
+      return aiResponse;
 
     } catch (error) {
       console.error('❌ Fresh AI processing error:', error);

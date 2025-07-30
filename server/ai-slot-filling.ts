@@ -129,7 +129,7 @@ export class SlotFillingAgent {
     const lowerMessage = userMessage.toLowerCase();
 
     // Extract service (simple keyword matching - replace with better NLU)
-    if (!state.service.validated && this.containsServiceKeywords(lowerMessage)) {
+    if (!state.service?.validated && this.containsServiceKeywords(lowerMessage)) {
       if (lowerMessage.includes('nail') || lowerMessage.includes('manicure')) {
         extracted.service = { value: 'French Manicure', id: 279, validated: false };
       } else if (lowerMessage.includes('hair') || lowerMessage.includes('treatment')) {
@@ -138,7 +138,7 @@ export class SlotFillingAgent {
     }
 
     // Extract location
-    if (!state.location.validated && this.containsLocationKeywords(lowerMessage)) {
+    if (!state.location?.validated && this.containsLocationKeywords(lowerMessage)) {
       if (lowerMessage.includes('plaza')) {
         extracted.location = { value: 'Al-Plaza Mall', id: 1, validated: false };
       } else if (lowerMessage.includes('zahra')) {
@@ -149,17 +149,17 @@ export class SlotFillingAgent {
     }
 
     // Extract date
-    if (!state.date.validated && this.containsDateKeywords(lowerMessage)) {
+    if (!state.date?.validated && this.containsDateKeywords(lowerMessage)) {
       extracted.date = { value: this.parseDate(lowerMessage), validated: false };
     }
 
     // Extract time
-    if (!state.time.validated && this.containsTimeKeywords(lowerMessage)) {
+    if (!state.time?.validated && this.containsTimeKeywords(lowerMessage)) {
       extracted.time = { value: this.parseTime(lowerMessage), validated: false };
     }
 
     // Extract name
-    if (!state.name.validated && this.containsNamePattern(lowerMessage)) {
+    if (!state.name?.validated && this.containsNamePattern(lowerMessage)) {
       extracted.name = { value: this.extractName(userMessage), validated: false };
     }
 
