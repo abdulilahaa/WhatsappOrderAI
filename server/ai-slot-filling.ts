@@ -312,14 +312,36 @@ Generate only the response message.`;
       const formattedDate = state.date.value!.replace(/-/g, '/');
       
       // Create order using correct NailIt API saveOrder method
-      const orderResult = await nailItAPI.saveOrder(
-        customer.id,
-        state.location.id!,
-        [{ itemId: state.service.id!, quantity: 1, timeSlots: [7, 8] }], // Afternoon time slots
-        formattedDate,
-        2, // KNet payment
-        4  // WhatsApp channel
-      );
+      const orderData = {
+        Gross_Amount: 25,
+        Payment_Type_Id: 2,
+        Order_Type: 2,
+        ChannelId: 4,
+        UserId: customer.id,
+        FirstName: state.name.value!,
+        Mobile: customer.phoneNumber,
+        Email: state.email.value!,
+        Discount_Amount: 0,
+        Net_Amount: 25,
+        POS_Location_Id: state.location.id!,
+        OrderDetails: [{
+          Prod_Id: state.service.id!,
+          Prod_Name: state.service.value!,
+          Qty: 1,
+          Rate: 25,
+          Amount: 25,
+          Size_Id: null,
+          Size_Name: "",
+          Promotion_Id: 0,
+          Promo_Code: "",
+          Discount_Amount: 0,
+          Net_Amount: 25,
+          Staff_Id: 1,
+          TimeFrame_Ids: [7, 8],
+          Appointment_Date: formattedDate
+        }]
+      };
+      const orderResult = await nailItAPI.saveOrder(orderData);
 
       if (orderResult && orderResult.Status === 0 && orderResult.OrderId) {
         const confirmationMessage = `🎉 Booking confirmed!\n\n📋 Order ID: ${orderResult.OrderId}\n💅 Service: ${state.service.value}\n📍 Location: ${state.location.value}\n📅 Date: ${state.date.value}\n\n💳 Complete payment:\nhttp://nailit.innovasolution.net/knet.aspx?orderId=${orderResult.OrderId}`;

@@ -118,21 +118,37 @@ class FreshAIAgent {
       console.log('📥 Direct slot-filling response:', slotResponse);
       
       // 3. Save updated state directly to database (no conversion layer)
-      await storage.updateConversationState(conversationId, slotResponse.state);
+      await storage.updateConversation(conversationId, { 
+        stateData: slotResponse.state,
+        lastMessageAt: new Date()
+      });
       
       // 4. Return unified response format
       return {
         message: slotResponse.message,
-        collectionPhase: slotResponse.nextAction || 'greeting',
+        collectionPhase: 'greeting',
         collectedData: this.extractCollectedDataFromSlotState(slotResponse.state)
       };
 
     } catch (error) {
       console.error('❌ Unified slot-filling error:', error);
+      
+      // AUDIT FIX: Centralized error handling with transparency
+      const { CentralizedErrorHandler } = await import('./error-handler.js');
+      const errorContext = CentralizedErrorHandler.createContext(
+        'FreshAI',
+        'processMessage',
+        error,
+        customer.id,
+        conversationId,
+        customerMessage
+      );
+      const errorResponse = CentralizedErrorHandler.handle(errorContext);
+      
       return {
-        message: "I'm sorry, I encountered an issue. Could you please try again?",
+        message: errorResponse.userMessage,
         collectionPhase: 'greeting',
-        error: 'Processing error occurred'
+        error: errorResponse.errorCode
       };
     }
   }
@@ -159,220 +175,11 @@ class FreshAIAgent {
     };
   }
 
-  /**
-   * Complete booking using NailIt API (called when all slots are filled)
-   */
-  private async completeBookingWithNailItAPI(bookingState: BookingState, customer: Customer): Promise<AIResponse> {
-    try {
-      console.log('🎯 CREATING NAILIT ORDER with booking state:', bookingState);
+  // REMOVED: All obsolete BookingState methods - using unified SlotFillingState system
 
-      // Create NailIt order using collected booking information
-      const orderData = {
-        customerId: customer.id,
-        customerName: bookingState.name.value || customer.name,
-        customerEmail: bookingState.email.value || customer.email || `${customer.phoneNumber}@nailit.com`,
-        phoneNumber: customer.phoneNumber,
-        serviceId: bookingState.service.id!,
-        serviceName: bookingState.service.name!,
-        servicePrice: bookingState.service.price!,
-        locationId: bookingState.location.id!,
-        locationName: bookingState.location.name!,
-        appointmentDate: bookingState.date.value!,
-        timeSlots: bookingState.time.timeSlots || [7, 8],
-        totalAmount: bookingState.service.price!
-      };
-
-      const orderResult = await nailItAPI.createOrderWithUser(orderData);
-      
-      if (orderResult && orderResult.OrderId) {
-        // Clear booking state after successful completion
-        await BookingStateManager.clearBookingState(bookingState.conversationId);
-
-        const confirmationMessage = bookingState.language === 'ar' 
-          ? `✅ تم إنشاء الحجز بنجاح!\n\nرقم الطلب: ${orderResult.OrderId}\nالخدمة: ${bookingState.service.name}\nالموقع: ${bookingState.location.name}\nالتاريخ: ${bookingState.date.value}\n\nرابط الدفع: http://nailit.innovasolution.net/knet.aspx?orderId=${orderResult.OrderId}`
-          : `✅ Booking Created Successfully!\n\nOrder ID: ${orderResult.OrderId}\nService: ${bookingState.service.name}\nLocation: ${bookingState.location.name}\nDate: ${bookingState.date.value}\n\nPayment Link: http://nailit.innovasolution.net/knet.aspx?orderId=${orderResult.OrderId}`;
-
-        return {
-          message: confirmationMessage,
-          collectionPhase: 'completed',
-          collectedData: this.mapBookingStateToCollectedData(bookingState)
-        };
-      } else {
-        throw new Error('Failed to create NailIt order');
-      }
-    } catch (error) {
-      console.error('❌ BOOKING COMPLETION ERROR:', error);
-      return {
-        message: "Sorry, there was an issue completing your booking. Please try again or contact our support team.",
-        collectionPhase: 'confirmation',
-        error: 'Booking completion failed'
-      };
-    }
-  }
-
-  /**
-   * Map booking state step to legacy phase format
-   */
-  private mapStepToPhase(step: string): any {
-    const phaseMap: any = {
-      'service': 'service_selection',
-      'location': 'location_selection', 
-      'date': 'time_selection',
-      'time': 'time_selection',
-      'name': 'customer_info',
-      'email': 'customer_info',
-      'confirmation': 'confirmation',
-      'complete': 'completed'
-    };
-    return phaseMap[step] || 'greeting';
-  }
-
-  /**
-   * Map booking state to legacy collected data format
-   */
-  private mapBookingStateToCollectedData(bookingState: BookingState): any {
-    return {
-      selectedServices: bookingState.service.validated ? [{
-        itemId: bookingState.service.id,
-        itemName: bookingState.service.name,
-        price: bookingState.service.price,
-        quantity: 1
-      }] : [],
-      locationId: bookingState.location.id,
-      locationName: bookingState.location.name,
-      appointmentDate: bookingState.date.value,
-      timeSlots: bookingState.time.timeSlots,
-      customerName: bookingState.name.value,
-      customerEmail: bookingState.email.value,
-      totalAmount: bookingState.service.price,
-      readyForBooking: BookingStateManager.isBookingReady(bookingState)
-    };
-  }
-
-  private async handleNaturalConversation(
-    customerMessage: string,
-    state: ConversationState,
-    customer: Customer,
-    conversationHistory: Array<{ content: string; isFromAI: boolean }>
-  ): Promise<AIResponse> {
-    try {
-      console.log('🚀 Natural conversation with real booking integration');
-      
-      // Enhanced human-like system prompt with PROGRESSION LOGIC
-      const enhancedSystemPrompt = `You are Tamy, a caring customer service representative for NailIt Spa Kuwait. 
-
-YOUR PERSONALITY:
-- Warm, empathetic, and genuinely helpful
-- Listen carefully to customer needs
-- Ask ONE question at a time, naturally
-- Never rush customers - guide them step by step
-- Show understanding for their beauty concerns
-
-CONVERSATION PROGRESSION RULES (CRITICAL):
-- If customer confirms a service recommendation with "yes" → MOVE to location selection
-- If customer says "Yes I want to improve..." → This means they ACCEPT the service, ask for location  
-- If customer says "yes" to location → MOVE to date selection  
-- If customer provides date → MOVE to name/email collection
-- NEVER repeat the same question if customer already answered
-- NEVER suggest the same service twice in a row
-- If customer repeats the same request → They're confirming, don't ask again
-
-CURRENT CUSTOMER DATA: ${JSON.stringify(state.collectedData)}
-CUSTOMER PHONE: ${customer.phoneNumber}
-
-CONVERSATION STATUS:
-Services Selected: ${state.collectedData.selectedServices.length > 0 ? state.collectedData.selectedServices.map(s => s.itemName).join(', ') : 'None'}
-Location: ${state.collectedData.locationName || 'Not selected'}
-Date: ${state.collectedData.appointmentDate || 'Not selected'}
-Name: ${state.collectedData.customerName || 'Not collected'}
-
-STEP-BY-STEP PROCESS:
-1. If NO services selected → Ask what service they want
-2. If services selected but NO location → Ask which location 
-3. If location selected but NO date → Ask preferred date
-4. If date selected but NO name/email → Collect customer info
-5. If all info collected → Confirm and create booking
-
-LOCATIONS: Al-Plaza Mall, Zahra Complex, Arraya Mall
-
-CRITICAL FIXES:
-- Don't repeat service recommendations if already selected
-- Progress conversation step by step
-- Recognize "yes" as confirmation to move forward
-- Never loop back to previous steps unless customer asks
-
-Customer message: "${customerMessage}"`;
-
-      const conversationMessages = [
-        {
-          role: 'system' as const,
-          content: enhancedSystemPrompt
-        },
-        ...(Array.isArray(conversationHistory) ? conversationHistory.slice(-12) : []).map((msg: any) => ({
-          role: msg.isFromAI ? 'assistant' as const : 'user' as const,
-          content: msg.content
-        })),
-        {
-          role: 'user' as const,
-          content: customerMessage
-        }
-      ];
-      
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: conversationMessages,
-        temperature: 0.7,
-        max_tokens: 300
-      });
-
-      const aiMessage = response.choices[0]?.message?.content || 
-        (state.language === 'ar' ? 'عذراً، لم أفهم طلبك.' : "Sorry, I didn't understand your request.");
-      
-      console.log('🤖 AI Response:', aiMessage);
-      
-      // CRITICAL FIX: Add conversation phase progression logic
-      await this.updateConversationPhase(customerMessage, state);
-      
-      // NATURAL INFORMATION EXTRACTION - Update state from conversation
-      await this.extractAndUpdateInformation(customerMessage, aiMessage, state);
-      
-      // CRITICAL FIX: NEVER attempt booking until ALL required info is collected
-      // This implements Fix #3 from urgent fixes - step-by-step human-like flow
-      console.log(`🔍 Checking booking readiness: Services: ${state.collectedData.selectedServices.length}, Location: ${state.collectedData.locationId}, Name: ${state.collectedData.customerName}, Email: ${state.collectedData.customerEmail}`);
-      
-      // PERMANENT FIX: Only proceed to booking when ALL required information is present AND explicitly confirmed
-      if (this.hasAllBookingInfo(state) && 
-          (aiMessage.includes('READY_TO_BOOK') || 
-           (customerMessage.toLowerCase().includes('yes') && customerMessage.toLowerCase().includes('confirm')) ||
-           customerMessage.toLowerCase().includes('please book'))) {
-        
-        // PERMANENT FIX: NEVER auto-select services - this violates Fix #3 from urgent fixes
-        if (state.collectedData.selectedServices.length === 0) {
-          console.log('🚨 BLOCKING: Cannot book without explicit service selection - returning to conversation');
-          
-          // Return to conversation flow - ask user to specify services first
-          return this.createResponse(state, 
-            state.language === 'ar' 
-              ? "أحتاج لمعرفة أي خدمة تريد حجزها أولاً. ما نوع خدمة الأظافر أو الجمال التي تريدينها؟"
-              : "I need to know which service you'd like to book first. What type of nail or beauty service are you interested in?"
-          );
-        }
-        
-        console.log('✅ Ready to create REAL booking in NailIt POS');
-        return await this.createRealBooking(state, customer, aiMessage);
-      }
-      
-      // Continue natural conversation
-      return this.createResponse(state, aiMessage.replace('READY_TO_BOOK', '').trim());
-    } catch (error) {
-      console.error('Natural conversation error:', error);
-      return this.createResponse(state, 
-        state.language === 'ar' 
-          ? "عذراً، حدث خطأ. كيف يمكنني مساعدتك؟"
-          : "Sorry, something went wrong. How can I help you?"
-      );
-    }
-  }
+  // AUDIT FIX: REMOVED - Direct OpenAI chat completion bypasses slot-filling architecture
+  // This method violated audit requirement: "ALL AI turns should load/update state via your orchestrator"
+  // All conversation processing now goes through SlotFillingAgent exclusively
 
   private async updateConversationPhase(customerMessage: string, state: ConversationState): Promise<void> {
     const lowerMessage = customerMessage.toLowerCase();

@@ -438,7 +438,7 @@ export class WhatsAppService {
           
           // Use first available staff and time
           const defaultTimeSlot = { id: 7 }; // 1PM-2PM slot
-          const staffMember = availability[0] || { Staff_Id: 1 };
+          const staffMember = availability[0] || { Id: 1 };
 
           // Get payment types and select default (KNet)
           const paymentTypes = await nailItAPI.getPaymentTypes('E', 2, 2);
@@ -461,7 +461,7 @@ export class WhatsAppService {
               serviceName: service.serviceName,
               quantity: service.quantity,
               price: service.price,
-              staffId: availability[0]?.Staff_Id || 1, // Use first available staff
+              staffId: availability[0]?.Id || 1, // Use first available staff
               timeSlotIds: [defaultTimeSlot.id],
               appointmentDate: appointmentDate
             })),
@@ -493,7 +493,7 @@ export class WhatsAppService {
               Promo_Code: "",
               Discount_Amount: 0,
               Net_Amount: service.price * service.quantity,
-              Staff_Id: (staffMember as any)?.Staff_Id || 1,
+              Staff_Id: staffMember?.Id || 1,
               TimeFrame_Ids: [defaultTimeSlot.id],
               Appointment_Date: appointmentDate
             }))
@@ -649,7 +649,7 @@ export class WhatsAppService {
           Promo_Code: "",
           Discount_Amount: 0,
           Net_Amount: service.price * service.quantity,
-          Staff_Id: assignedStaff?.staffId || 1,
+          Staff_Id: assignedStaff?.Id || 1,
           TimeFrame_Ids: collectedData.requestedTimeSlots?.map((slot: any) => slot.timeFrameId) || [1, 2],
           Appointment_Date: collectedData.appointmentDate
         };
@@ -802,7 +802,7 @@ export class WhatsAppService {
         Promo_Code: "",
         Discount_Amount: 0,
         Net_Amount: service.price * service.quantity,
-        Staff_Id: collectedData.staffId || 0,
+        Staff_Id: collectedData.staffId || 1,
         TimeFrame_Ids: collectedData.timeSlotIds || [],
         Appointment_Date: collectedData.appointmentDate || nailItAPI.formatDateForURL(new Date())
       }));
