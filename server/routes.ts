@@ -1682,6 +1682,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Fresh AI endpoints removed - functionality moved to main Fresh AI system
 
+  // NailIt search services endpoint
+  app.post('/api/nailit/search-services', async (req, res) => {
+    try {
+      const { query, locationId } = req.body;
+      const { nailItBookingIntegration } = await import('./nailit-booking-integration');
+      const services = await nailItBookingIntegration.searchServices(query, locationId);
+      res.json({
+        success: true,
+        query,
+        locationId,
+        totalResults: services.length,
+        services
+      });
+    } catch (error) {
+      console.error('Service search error:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Search failed'
+      });
+    }
+  });
+
   // Create order with user integration using form data
   app.post("/api/nailit/create-order-with-user", async (req, res) => {
     try {
