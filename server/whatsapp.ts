@@ -176,7 +176,7 @@ export class WhatsAppService {
       const aiResponse = await freshAI.processMessage(
         message.text,
         customer,
-        conversationHistory
+        conversation.id
       );
 
       if (aiResponse && aiResponse.message) {
@@ -385,8 +385,8 @@ export class WhatsAppService {
               serviceName: service.serviceName,
               quantity: service.quantity,
               price: service.price,
-              staffId: availability.staff[0].id, // Use first available staff
-              timeSlotIds: [timeSlot.id],
+              staffId: availability[0]?.Staff_Id || 1, // Use first available staff
+              timeSlotIds: [defaultTimeSlot.id],
               appointmentDate: appointmentDate
             })),
             locationId: appointmentIntent.locationId,
@@ -397,6 +397,7 @@ export class WhatsAppService {
             Gross_Amount: totalPrice,
             Payment_Type_Id: knetPayment.Type_Id,
             Order_Type: 2,
+            ChannelId: 4,
             UserId: customer.id,
             FirstName: appointmentIntent.customerInfo.name,
             Mobile: customer.phoneNumber,
@@ -416,7 +417,7 @@ export class WhatsAppService {
               Promo_Code: "",
               Discount_Amount: 0,
               Net_Amount: service.price * service.quantity,
-              Staff_Id: staffMember.Staff_Id || 1,
+              Staff_Id: (staffMember as any)?.Staff_Id || 1,
               TimeFrame_Ids: [defaultTimeSlot.id],
               Appointment_Date: appointmentDate
             }))
@@ -457,7 +458,7 @@ export class WhatsAppService {
               `Name: ${appointmentIntent.customerInfo.name}\n` +
               `Email: ${appointmentIntent.customerInfo.email}\n\n` +
               `📍 *Location:* ${appointmentIntent.locationName}\n` +
-              `👩‍💼 *Staff:* ${staffMember.Staff_Name || 'Available Staff'}\n` +
+              `👩‍💼 *Staff:* ${(staffMember as any)?.Staff_Name || 'Available Staff'}\n` +
               `💳 *Payment:* Cash at appointment\n` +
               `🎫 *NailIt Order #${orderResult.OrderId}*\n\n` +
               `📞 *Contact:* For any changes, reply to this chat.\n\n` +
@@ -476,7 +477,7 @@ export class WhatsAppService {
             }
             
           } else {
-            console.error("Failed to create NailIt order:", orderResult.error);
+            console.error("Failed to create NailIt order:", orderResult?.Message || 'Unknown error');
             await this.sendMessage(customer.phoneNumber, "Sorry, there was an issue confirming your appointment. Please try again or contact us directly.");
           }
           
@@ -557,7 +558,7 @@ export class WhatsAppService {
       console.log(`👤 NailIt User ID: ${userId}`);
 
       // Prepare comprehensive order details with enhanced data
-      const orderDetails = collectedData.selectedServices.map((service, index) => {
+      const orderDetails = collectedData.selectedServices.map((service: any, index: number) => {
         const assignedStaff = collectedData.assignedStaff[index] || collectedData.assignedStaff[0];
         
         return {
@@ -573,7 +574,7 @@ export class WhatsAppService {
           Discount_Amount: 0,
           Net_Amount: service.price * service.quantity,
           Staff_Id: assignedStaff?.staffId || 1,
-          TimeFrame_Ids: collectedData.requestedTimeSlots?.map(slot => slot.timeFrameId) || [1, 2],
+          TimeFrame_Ids: collectedData.requestedTimeSlots?.map((slot: any) => slot.timeFrameId) || [1, 2],
           Appointment_Date: collectedData.appointmentDate
         };
       });
@@ -583,6 +584,7 @@ export class WhatsAppService {
         Gross_Amount: collectedData.totalAmount,
         Payment_Type_Id: collectedData.paymentTypeId,
         Order_Type: 2, // Service booking
+        ChannelId: 4,
         UserId: userId,
         FirstName: collectedData.customerName,
         Mobile: collectedData.customerPhone || customer.phoneNumber,
@@ -603,13 +605,13 @@ export class WhatsAppService {
         const localOrder = await storage.createOrder({
           customerId: customer.id,
           status: "confirmed",
-          items: collectedData.selectedServices.map(service => ({
+          items: collectedData.selectedServices.map((service: any) => ({
             productId: service.itemId,
             quantity: service.quantity,
             price: service.price.toString()
           })),
           total: collectedData.totalAmount.toString(),
-          notes: `Enhanced AI booking - NailIt Order ID: ${orderResult.OrderId}. Staff: ${collectedData.assignedStaff.map(s => s.staffName).join(', ')}. Duration: ${collectedData.totalDuration}min. Payment: ${collectedData.paymentTypeName}`
+          notes: `Enhanced AI booking - NailIt Order ID: ${orderResult.OrderId}. Staff: ${collectedData.assignedStaff?.map((s: any) => s.staffName).join(', ')}. Duration: ${collectedData.totalDuration}min. Payment: ${collectedData.paymentTypeName}`
         });
 
         // Create detailed local appointment
@@ -712,7 +714,7 @@ export class WhatsAppService {
       }
 
       // Prepare order details
-      const orderDetails = collectedData.selectedServices.map(service => ({
+      const orderDetails = collectedData.selectedServices.map((service: any) => ({
         Prod_Id: service.itemId,
         Prod_Name: service.itemName,
         Qty: service.quantity,
@@ -734,6 +736,7 @@ export class WhatsAppService {
         Gross_Amount: collectedData.totalAmount,
         Payment_Type_Id: collectedData.paymentTypeId,
         Order_Type: 1,
+        ChannelId: 4,
         UserId: userId,
         FirstName: collectedData.customerName,
         Mobile: customer.phoneNumber,
@@ -751,7 +754,7 @@ export class WhatsAppService {
         const localOrder = await storage.createOrder({
           customerId: customer.id,
           status: "confirmed",
-          items: collectedData.selectedServices.map(service => ({
+          items: collectedData.selectedServices.map((service: any) => ({
             productId: service.itemId,
             quantity: service.quantity,
             price: service.price.toString()
