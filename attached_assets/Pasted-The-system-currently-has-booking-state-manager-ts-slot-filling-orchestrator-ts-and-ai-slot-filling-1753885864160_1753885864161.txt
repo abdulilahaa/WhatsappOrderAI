@@ -1,0 +1,117 @@
+The system currently has booking-state-manager.ts, slot-filling-orchestrator.ts, and ai-slot-filling.ts, but these are NOT yet integrated into the main WhatsApp/AI agent flow (ai-fresh.ts and whatsapp.ts). The AI is not conducting a real slot-filling, stateful dialog, so conversations are repetitive and do not progress like a real human would handle bookings.
+
+Instructions:
+Import and Integrate the Slot-Filling Modules
+
+In both ai-fresh.ts and any main message processing logic, import the following modules:
+
+booking-state-manager.ts
+
+slot-filling-orchestrator.ts
+
+ai-slot-filling.ts
+
+At the start of each conversation/message, load or initialize the user's booking state (from DB, memory, or session) using booking-state-manager.ts.
+
+Update Booking State After Each User Message
+
+For every incoming WhatsApp/user message:
+
+Use ai-slot-filling.ts to extract intent, services, locations, date/time, and customer details from the message text.
+
+Update the state for that user/session using booking-state-manager.ts functions.
+
+Save this state so it persists between messages (use Redis, database, or in-memory with session ID).
+
+Drive Conversation Flow Using Slot-Filling Orchestrator
+
+Call slot-filling-orchestrator.ts to determine what information is still missing.
+
+The orchestrator should return the next question or confirmation step based on what’s incomplete in the state (e.g., “What date would you like?”, “Which location?”, “Can I have your name?”).
+
+If all info is present, move to confirmation (“Can you confirm booking these services at this time and place?”).
+
+Always Acknowledge User Input and Avoid Repeats
+
+Every time the AI responds, acknowledge what the user just said (e.g., “Great! Hazel nails with some art. Now, for your hair…”).
+
+If the same question is about to be asked twice, check the previous AI message and avoid repetition.
+
+Summarize Booking So Far in the AI Context
+
+When generating the AI/system prompt, include a summary like:
+
+“So far, the customer wants: Hazel nail art, Hair Growth Helmet treatment, at Al-Plaza Mall, on Thursday at 2pm, name Sarah, email sarah@test.com.”
+
+Only include the last 2-3 messages in full for context.
+
+Plug in the NailIt API at Confirmation Step
+
+When the slot-filling orchestrator determines that all required slots are filled and the user confirms:
+
+Call the NailIt API to create the actual booking, passing the full details from the state object.
+
+Handle API errors gracefully—let the user know if booking fails, and why.
+
+On success, send the confirmation and payment link to the user.
+
+Error Handling and Escalation
+
+If the AI is unable to extract a required detail after 2-3 tries, escalate (“I’m having trouble understanding—would you like to talk to a human?”).
+
+Log all slot extraction and booking errors to the admin dashboard/log system.
+
+Persist and Clean State
+
+Make sure user/session booking state is cleaned up after successful booking or if the session is inactive for a set time.
+
+Protect against state “leaks” between users.
+
+Admin Dashboard Monitoring
+
+Display slot-filling progress and current state for each active conversation on the admin dashboard for transparency and troubleshooting.
+
+Technical Examples (Based on Your Repo Structure):
+In ai-fresh.ts:
+
+typescript
+Copy
+Edit
+// At the top
+import { getBookingState, updateBookingState } from './booking-state-manager';
+import { extractSlots } from './ai-slot-filling';
+import { orchestrateBookingStep } from './slot-filling-orchestrator';
+
+// In the main message handler:
+const state = await getBookingState(sessionId);
+const extracted = await extractSlots(userMessage);
+const updatedState = await updateBookingState(sessionId, extracted);
+const nextPrompt = await orchestrateBookingStep(updatedState);
+
+// Respond with nextPrompt, and acknowledge last input.
+For Booking Step:
+
+typescript
+Copy
+Edit
+if (allSlotsFilled && userConfirmed) {
+  try {
+    const bookingResult = await callNailItAPI(updatedState);
+    // Send booking confirmation and payment link
+  } catch (e) {
+    // Respond with error and log to dashboard
+  }
+}
+Summary Table (for Your Agent):
+Task	Must Be Done?	Details
+Import state/slot-filling modules	YES	Use in all AI/WhatsApp handlers
+Extract/update slots per message	YES	On every user message
+Drive dialog only by missing info	YES	No repeats, always next logical step
+Summarize progress in context	YES	Use for LLM/system prompt
+Plug booking to NailIt API at end	YES	On confirmation, create booking, handle errors
+Escalate on repeated extraction failure	YES	Offer human handoff if AI gets stuck
+Persist state between messages	YES	Use session, DB, or memory for each user
+Admin dashboard: show slot progress	RECOMMENDED	Helps troubleshooting/monitoring
+Clean up state on booking or timeout	YES	To prevent data leaks/mix-ups
+
+END OF PROMPT
