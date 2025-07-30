@@ -119,8 +119,7 @@ class FreshAIAgent {
       
       // 3. Save updated state directly to database (no conversion layer)
       await storage.updateConversation(conversationId, { 
-        stateData: slotResponse.state,
-        lastMessageAt: new Date()
+        stateData: slotResponse.state
       });
       
       // 4. Return unified response format
