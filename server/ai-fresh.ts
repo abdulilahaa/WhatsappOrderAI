@@ -696,11 +696,12 @@ Current conversation context: Customer wants ${customerMessage}`;
       };
       console.log('📝 Registration data:', registerData);
       
+      let userResult: any;
       try {
-        const userResult = await this.nailItAPIClient.registerUser(registerData);
+        userResult = await this.nailItAPIClient.registerUser(registerData);
         console.log('📥 RegisterUser API response:', JSON.stringify(userResult, null, 2));
 
-        if (!userResult || (!userResult.App_User_Id && !userResult.User_Id)) {
+        if (!userResult || (!userResult.App_User_Id && !userResult.UserId)) {
           console.error('❌ Failed to register user, response:', userResult);
           console.error('❌ Registration data was:', JSON.stringify(registerData, null, 2));
           
@@ -711,7 +712,7 @@ Current conversation context: Customer wants ${customerMessage}`;
             const retryResult = await this.nailItAPIClient.registerUser(retryData);
             console.log('📥 Retry RegisterUser response:', JSON.stringify(retryResult, null, 2));
             
-            if (retryResult && (retryResult.App_User_Id || retryResult.User_Id)) {
+            if (retryResult && (retryResult.App_User_Id || retryResult.UserId)) {
               console.log('✅ Registration successful with cleaned phone number');
               userResult = retryResult;
             } else {
@@ -721,28 +722,33 @@ Current conversation context: Customer wants ${customerMessage}`;
             return { success: false, message: 'Failed to register customer' };
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('💥 RegisterUser API threw error:', error);
         console.error('💥 Error details:', error.message);
         console.error('💥 Registration data was:', JSON.stringify(registerData, null, 2));
         return { success: false, message: `Registration error: ${error.message}` };
       }
 
-      const userId = userResult.App_User_Id || userResult.User_Id;
+      const userId = userResult.App_User_Id || userResult.UserId;
       const customerId = userResult.Customer_Id;
       console.log(`✅ User registered: ID ${userId}, Customer ID ${customerId}`);
 
-      // Use EXACT parameters from successful Order 176405
+      // Use EXACT NailIt OrderDetail structure
       const orderDetails = [{
-        Item_Id: 279, // French Manicure - EXACT service from Order 176405
-        Quantity: 1,
-        Unit_Price: 25, // EXACT price from successful order
-        Total_Price: 25,
+        Prod_Id: 279, // French Manicure - EXACT service from Order 176405
+        Prod_Name: "French Manicure",
+        Qty: 1,
+        Rate: 25, // EXACT price from successful order
+        Amount: 25,
         Staff_Id: 16, // Roselyn - confirmed working
         TimeFrame_Ids: [7, 8], // 2PM-3PM - confirmed working
-        Appointment_Date: appointmentDate, // 28/07/2025 - today's date
+        Appointment_Date: appointmentDate, // DD/MM/yyyy format
         Extra_Time: 0,
-        Discount_Amount: 0
+        Discount_Amount: 0,
+        Item_Id: 279,
+        Quantity: 1,
+        Unit_Price: 25,
+        Total_Price: 25
       }];
 
       const totalAmount = 25; // EXACT amount from successful Order 176405
@@ -769,12 +775,12 @@ Current conversation context: Customer wants ${customerMessage}`;
       const orderResult = await this.nailItAPIClient.saveOrder(orderData);
       console.log('📥 SaveOrder API response:', JSON.stringify(orderResult, null, 2));
       
-      if (orderResult && orderResult.Status === 0 && orderResult.Order_Id) {
-        console.log(`✅ SUCCESS! Order created: ID ${orderResult.Order_Id}`);
+      if (orderResult && orderResult.Status === 0 && orderResult.OrderId) {
+        console.log(`✅ SUCCESS! Order created: ID ${orderResult.OrderId}`);
         
         return {
           success: true,
-          orderId: orderResult.Order_Id.toString(),
+          orderId: orderResult.OrderId.toString(),
           message: 'Booking completed successfully'
         };
       } else {
