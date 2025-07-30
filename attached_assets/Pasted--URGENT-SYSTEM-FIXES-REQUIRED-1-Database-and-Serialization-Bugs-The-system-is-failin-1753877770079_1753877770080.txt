@@ -1,0 +1,28 @@
+**URGENT SYSTEM FIXES REQUIRED**
+
+1. **Database and Serialization Bugs**  
+- The system is failing bookings due to a mismatch between how messages, services, and bookings are stored/retrieved in the database. Columns like messages, services, and booking_items are attempting to parse JSON or arrays as integers, leading to 'invalid input syntax for type integer' errors.
+- Identify all such columns and change their types to JSONB or TEXT as appropriate.
+- Ensure the application code always serializes/deserializes these columns as JSON. Never cast JSON/string to integer.
+- Add explicit error handling on all DB operations and return the *real* exception in logs and admin UI.
+
+2. **Service Mapping Logic**  
+- Review and fix the matching between user-input service names and the NailIt service catalog.
+- Improve fuzzy matching and log both user input and mapped service ID.
+- Provide clear error messages if service is not found or ambiguous.
+
+3. **Conversational, Human-Like AI Flow**  
+- The AI agent must behave like a human customer service agent.  
+  - If a customer says only “I want to book my nails,” the AI should ask, “Which type of nail service would you like?” and continue step by step, collecting all needed info (service, location, time, name, contact).
+  - The AI should not attempt to book or call APIs until it has all required details. 
+  - Recap booking details before confirming, and allow the user to correct mistakes.
+  - Support free-form chat: user may change their mind, add services, or ask questions at any point.
+  - Handle edge cases: ambiguous input, partial answers, yes/no follow-ups, etc.
+  - If a booking fails, inform the user clearly *why* (e.g., “No staff available at that time” or “Service not found”).
+
+4. **Evidence and Transparency**  
+- After making these fixes, provide a summary of what was changed, which database models/tables were updated, and include before-and-after examples (real logs or chat transcripts) of failed and successful bookings.
+- Ensure all changes are visible in admin dashboard logs.
+
+Do not proceed with booking attempts until *all* of the above are implemented and tested.
+

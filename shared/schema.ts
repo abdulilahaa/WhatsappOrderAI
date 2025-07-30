@@ -38,6 +38,10 @@ export const conversations = pgTable("conversations", {
   isActive: boolean("is_active").notNull().default(true),
   lastMessageAt: timestamp("last_message_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // Fix conversation state storage with proper JSONB serialization
+  stateData: jsonb("state_data").default({}), // Store conversation context as JSONB
+  currentPhase: text("current_phase").default("greeting"), // Current booking phase
+  collectedData: jsonb("collected_data").default({}), // Booking data collected so far
 });
 
 export const messages = pgTable("messages", {
@@ -165,7 +169,7 @@ export const nailItStaff = pgTable("nailit_staff", {
   nailitLocationId: integer("nailit_location_id").notNull(), // Reference to location
   extraTime: integer("extra_time").default(0),
   imageUrl: text("image_url"),
-  staffGroups: jsonb("staff_groups"), // Services they can perform
+  staffGroups: jsonb("staff_groups"), // Services they can perform - JSONB for proper serialization
   isActive: boolean("is_active").notNull().default(true),
   
   // Sync tracking

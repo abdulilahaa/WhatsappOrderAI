@@ -159,34 +159,44 @@ class FreshAIAgent {
     try {
       console.log('🚀 Natural conversation with real booking integration');
       
-      // Enhanced system prompt that guides natural conversation AND real booking
-      const enhancedSystemPrompt = `You are Tamy, a friendly and natural AI assistant for NailIt Spa Kuwait. 
+      // Enhanced human-like system prompt for step-by-step booking
+      const enhancedSystemPrompt = `You are Tamy, a caring customer service representative for NailIt Spa Kuwait. 
 
-CONVERSATION STYLE:
-- Be natural, warm, and conversational
-- Don't be robotic or list-like
-- Understand customer intent naturally
-- Flow the conversation smoothly
+YOUR PERSONALITY:
+- Warm, empathetic, and genuinely helpful
+- Listen carefully to customer needs
+- Ask ONE question at a time, naturally
+- Never rush customers - guide them step by step
+- Show understanding for their beauty concerns
 
-AVAILABLE INFORMATION:
-- Current conversation data: ${JSON.stringify(state.collectedData)}
-- Customer phone: ${customer.phoneNumber}
-- We have 3 locations: Al-Plaza Mall (ID: 1), Zahra Complex (ID: 52), Arraya Mall (ID: 53)
+HUMAN-LIKE CONVERSATION RULES:
+- If customer says "I want to book my nails" → Ask "What type of nail service were you thinking of?"
+- If they mention a problem (dry skin, damaged nails) → Show empathy first, then suggest solutions
+- If they're unsure → Offer gentle guidance with 2-3 options max
+- Always recap booking details before confirming
+- Allow customers to change their mind anytime
 
-BOOKING PROCESS:
-When you have these details, create a real booking:
-- Services requested (match from our catalog)
-- Location preference 
-- Date/time preference
-- Customer name and email
+CURRENT CUSTOMER DATA: ${JSON.stringify(state.collectedData)}
+CUSTOMER PHONE: ${customer.phoneNumber}
+
+STEP-BY-STEP PROCESS:
+1. UNDERSTAND their request and any concerns
+2. RECOMMEND appropriate services (don't auto-select)
+3. CONFIRM which location they prefer
+4. DISCUSS date and time preferences  
+5. COLLECT name and email naturally
+6. RECAP everything before booking
+7. CREATE real booking only when customer confirms
+
+LOCATIONS: Al-Plaza Mall, Zahra Complex, Arraya Mall
 
 IMPORTANT: 
-- If customer says "plaza" they mean "Al-Plaza Mall"
-- Be natural in responses, don't show lists unless needed
-- When ready to book, say "READY_TO_BOOK" and provide all details
-- Always create REAL bookings, never fake ones
+- Never attempt booking until ALL info is collected and confirmed
+- Be patient - beauty services are personal decisions
+- Show genuine care for their experience
+- If booking fails, explain clearly why and offer alternatives
 
-Current conversation context: Customer wants ${customerMessage}`;
+Customer message: "${customerMessage}"`;
 
       const conversationMessages = [
         {
@@ -701,7 +711,7 @@ Current conversation context: Customer wants ${customerMessage}`;
         userResult = await this.nailItAPIClient.registerUser(registerData);
         console.log('📥 RegisterUser API response:', JSON.stringify(userResult, null, 2));
 
-        if (!userResult || (!userResult.App_User_Id && !userResult.UserId)) {
+        if (!userResult || (!userResult.App_User_Id && !(userResult as any).Customer_Id)) {
           console.error('❌ Failed to register user, response:', userResult);
           console.error('❌ Registration data was:', JSON.stringify(registerData, null, 2));
           
@@ -712,7 +722,7 @@ Current conversation context: Customer wants ${customerMessage}`;
             const retryResult = await this.nailItAPIClient.registerUser(retryData);
             console.log('📥 Retry RegisterUser response:', JSON.stringify(retryResult, null, 2));
             
-            if (retryResult && (retryResult.App_User_Id || retryResult.UserId)) {
+            if (retryResult && (retryResult.App_User_Id || (retryResult as any).Customer_Id)) {
               console.log('✅ Registration successful with cleaned phone number');
               userResult = retryResult;
             } else {
@@ -729,11 +739,11 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: `Registration error: ${error.message}` };
       }
 
-      const userId = userResult.App_User_Id || userResult.UserId;
-      const customerId = userResult.Customer_Id;
+      const userId = userResult.App_User_Id || (userResult as any).Customer_Id;
+      const customerId = (userResult as any).Customer_Id;
       console.log(`✅ User registered: ID ${userId}, Customer ID ${customerId}`);
 
-      // Use EXACT NailIt OrderDetail structure
+      // Use COMPLETE NailIt OrderDetail structure with all required fields
       const orderDetails = [{
         Prod_Id: 279, // French Manicure - EXACT service from Order 176405
         Prod_Name: "French Manicure",
@@ -748,7 +758,13 @@ Current conversation context: Customer wants ${customerMessage}`;
         Item_Id: 279,
         Quantity: 1,
         Unit_Price: 25,
-        Total_Price: 25
+        Total_Price: 25,
+        // Required fields that were missing - causing type errors
+        Size_Id: 0,
+        Size_Name: "",
+        Promotion_Id: 0,
+        Promo_Code: "",
+        Net_Amount: 25
       }];
 
       const totalAmount = 25; // EXACT amount from successful Order 176405
