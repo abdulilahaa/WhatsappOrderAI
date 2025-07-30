@@ -45,9 +45,13 @@ export interface SlotFillingResponse {
 }
 
 export class SlotFillingAgent {
-  // Initialize new slot-filling session
-  createNewSession(language: 'en' | 'ar' = 'en'): SlotFillingState {
-    return {
+  
+  /**
+   * SLOT STATE NORMALIZATION: Ensures all required slots are present and properly initialized
+   * Called on every user turn to guarantee complete state consistency
+   */
+  static normalizeSlotState(state: SlotFillingState | null, language: 'en' | 'ar' = 'en'): SlotFillingState {
+    const defaultState: SlotFillingState = {
       service: { value: null, id: null, validated: false },
       location: { value: null, id: null, validated: false },
       date: { value: null, validated: false },
@@ -66,6 +70,66 @@ export class SlotFillingAgent {
       retryCount: 0,
       lastPrompt: ''
     };
+
+    if (!state) {
+      console.log('🔧 SLOT NORMALIZATION: Creating new state with all required slots');
+      return defaultState;
+    }
+
+    // Deep merge with defaults to fill any missing slots
+    const normalizedState: SlotFillingState = {
+      service: {
+        value: state.service?.value ?? defaultState.service.value,
+        id: state.service?.id ?? defaultState.service.id,
+        validated: state.service?.validated ?? defaultState.service.validated
+      },
+      location: {
+        value: state.location?.value ?? defaultState.location.value,
+        id: state.location?.id ?? defaultState.location.id,
+        validated: state.location?.validated ?? defaultState.location.validated
+      },
+      date: {
+        value: state.date?.value ?? defaultState.date.value,
+        validated: state.date?.validated ?? defaultState.date.validated
+      },
+      time: {
+        value: state.time?.value ?? defaultState.time.value,
+        validated: state.time?.validated ?? defaultState.time.validated
+      },
+      name: {
+        value: state.name?.value ?? defaultState.name.value,
+        validated: state.name?.validated ?? defaultState.name.validated
+      },
+      email: {
+        value: state.email?.value ?? defaultState.email.value,
+        validated: state.email?.validated ?? defaultState.email.validated
+      },
+      
+      currentStage: state.currentStage ?? defaultState.currentStage,
+      nextRequiredSlot: state.nextRequiredSlot ?? defaultState.nextRequiredSlot,
+      completedSlots: Array.isArray(state.completedSlots) ? state.completedSlots : defaultState.completedSlots,
+      
+      errors: Array.isArray(state.errors) ? state.errors : defaultState.errors,
+      apiValidation: state.apiValidation ?? defaultState.apiValidation,
+      
+      language: state.language ?? defaultState.language,
+      retryCount: typeof state.retryCount === 'number' ? state.retryCount : defaultState.retryCount,
+      lastPrompt: state.lastPrompt ?? defaultState.lastPrompt
+    };
+
+    console.log('🔧 SLOT NORMALIZATION: Normalized state with all required slots', {
+      currentStage: normalizedState.currentStage,
+      completedSlots: normalizedState.completedSlots,
+      errors: normalizedState.errors.length,
+      language: normalizedState.language
+    });
+
+    return normalizedState;
+  }
+
+  // Initialize new slot-filling session
+  createNewSession(language: 'en' | 'ar' = 'en'): SlotFillingState {
+    return SlotFillingAgent.normalizeSlotState(null, language);
   }
 
   // MAIN ORCHESTRATION: Process user message with slot-filling logic
@@ -76,22 +140,21 @@ export class SlotFillingAgent {
   ): Promise<SlotFillingResponse> {
     console.log('🎯 SLOT-FILLING AGENT: Processing message:', userMessage);
 
-    // Initialize state if new conversation
-    if (!currentState) {
-      currentState = this.createNewSession();
-    }
-
     try {
+      // STEP 0: CRITICAL - Normalize state before ANY processing to prevent undefined errors
+      const normalizedState = SlotFillingAgent.normalizeSlotState(currentState, 'en');
+      console.log('🔧 STATE NORMALIZED: All required slots guaranteed present');
+
       // Step 1: Extract information from user message (NLU only)
-      const extracted = this.extractInformation(userMessage, currentState);
+      const extracted = this.extractInformation(userMessage, normalizedState);
       console.log('📤 EXTRACTED:', extracted);
 
       // Step 2: Validate extracted information with real-time API calls
-      const validationResults = await this.validateWithAPI(extracted, currentState);
+      const validationResults = await this.validateWithAPI(extracted, normalizedState);
       console.log('✅ VALIDATION:', validationResults);
 
       // Step 3: Update state with validated information only
-      const updatedState = this.updateStateWithValidatedData(currentState, extracted, validationResults);
+      const updatedState = this.updateStateWithValidatedData(normalizedState, extracted, validationResults);
       console.log('📊 STATE UPDATE:', updatedState.completedSlots);
 
       // Step 4: Determine next required slot (deterministic logic)
@@ -118,7 +181,19 @@ export class SlotFillingAgent {
       };
 
     } catch (error) {
-      console.error('❌ SLOT-FILLING ERROR:', error);
+      // CRITICAL ERROR HANDLING: Log entire state and user message for debugging
+      console.error('🚨 CRITICAL SLOT-FILLING ERROR:', error);
+      console.error('🚨 FULL STATE DUMP:', JSON.stringify(currentState, null, 2));
+      console.error('🚨 USER MESSAGE:', userMessage);
+      console.error('🚨 CUSTOMER ID:', customer.id);
+      console.error('🚨 ERROR STACK:', error instanceof Error ? error.stack : 'Unknown error');
+      
+      // Check if this is a TypeError to identify undefined property access
+      if (error instanceof TypeError) {
+        console.error('⚠️ TYPEERROR DETECTED: Likely undefined property access in slot-filling');
+        console.error('⚠️ STATE BEFORE NORMALIZATION:', JSON.stringify(currentState, null, 2));
+      }
+
       return this.generateSystemErrorResponse(currentState);
     }
   }
@@ -128,25 +203,27 @@ export class SlotFillingAgent {
     const extracted: any = {};
     const lowerMessage = userMessage.toLowerCase();
 
-    // Extract service (simple keyword matching - replace with better NLU)
-    if (!state.service?.validated && this.containsServiceKeywords(lowerMessage)) {
-      if (lowerMessage.includes('nail') || lowerMessage.includes('manicure')) {
-        extracted.service = { value: 'French Manicure', id: 279, validated: false };
-      } else if (lowerMessage.includes('hair') || lowerMessage.includes('treatment')) {
-        extracted.service = { value: 'Hair Growth Helmet Treatment', id: 51364, validated: false };
+    // SAFE ACCESS: State is guaranteed to be normalized before this call
+    try {
+      // Extract service (simple keyword matching - replace with better NLU)
+      if (!state.service?.validated && this.containsServiceKeywords(lowerMessage)) {
+        if (lowerMessage.includes('nail') || lowerMessage.includes('manicure')) {
+          extracted.service = { value: 'French Manicure', id: 279, validated: false };
+        } else if (lowerMessage.includes('hair') || lowerMessage.includes('treatment')) {
+          extracted.service = { value: 'Hair Growth Helmet Treatment', id: 51364, validated: false };
+        }
       }
-    }
 
-    // Extract location
-    if (!state.location?.validated && this.containsLocationKeywords(lowerMessage)) {
-      if (lowerMessage.includes('plaza')) {
-        extracted.location = { value: 'Al-Plaza Mall', id: 1, validated: false };
-      } else if (lowerMessage.includes('zahra')) {
-        extracted.location = { value: 'Zahra Complex', id: 52, validated: false };
-      } else if (lowerMessage.includes('arraya')) {
-        extracted.location = { value: 'Arraya Mall', id: 53, validated: false };
+      // Extract location
+      if (!state.location?.validated && this.containsLocationKeywords(lowerMessage)) {
+        if (lowerMessage.includes('plaza')) {
+          extracted.location = { value: 'Al-Plaza Mall', id: 1, validated: false };
+        } else if (lowerMessage.includes('zahra')) {
+          extracted.location = { value: 'Zahra Complex', id: 52, validated: false };
+        } else if (lowerMessage.includes('arraya')) {
+          extracted.location = { value: 'Arraya Mall', id: 53, validated: false };
+        }
       }
-    }
 
     // Extract date
     if (!state.date?.validated && this.containsDateKeywords(lowerMessage)) {
@@ -164,9 +241,17 @@ export class SlotFillingAgent {
     }
 
     // Extract email
-    if (!state.email.validated && this.containsEmailPattern(lowerMessage)) {
+    if (!state.email?.validated && this.containsEmailPattern(lowerMessage)) {
       extracted.email = { value: this.extractEmail(userMessage), validated: false };
     }
+
+    } catch (error) {
+      console.error('❌ Error extracting information:', error);
+      console.error('❌ State during extraction:', JSON.stringify(state, null, 2));
+      console.error('❌ User message:', userMessage);
+    }
+
+    return extracted;
 
     return extracted;
   }

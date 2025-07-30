@@ -112,9 +112,13 @@ class FreshAIAgent {
         slotFillingState = conversation.stateData as SlotFillingState;
       }
       
+      // 1.5. CRITICAL: Normalize slot state to prevent undefined errors
+      const normalizedState = SlotFillingAgent.normalizeSlotState(slotFillingState, 'en');
+      console.log('🔧 FRESH AI: State normalized before processing');
+      
       // 2. Process message directly through slot-filling agent (no competing systems)
       const slotFillingAgent = new SlotFillingAgent();
-      const slotResponse = await slotFillingAgent.processMessage(customerMessage, slotFillingState, customer);
+      const slotResponse = await slotFillingAgent.processMessage(customerMessage, normalizedState, customer);
       console.log('📥 Direct slot-filling response:', slotResponse);
       
       // 3. Save updated state directly to database (no conversion layer)
