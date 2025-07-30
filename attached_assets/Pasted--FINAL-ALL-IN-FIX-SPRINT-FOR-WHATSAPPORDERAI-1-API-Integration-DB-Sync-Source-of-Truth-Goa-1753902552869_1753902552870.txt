@@ -1,0 +1,131 @@
+🚨 FINAL ALL-IN FIX SPRINT FOR WHATSAPPORDERAI 🚨
+1. API Integration & DB Sync - Source of Truth
+Goals:
+The DB MUST be the primary source for products/services, locations, staff, time slots, etc.
+
+Nightly (or on-demand) API sync should update your DB with all location/services/staff/slots, reflecting any changes.
+
+All customer interactions and slot checking by the AI agent should use your DB, not the live API, except to refresh on intervals.
+
+Direct API calls are ONLY for placing a booking, cancellation, or urgent slot double-checking (before confirming an order).
+
+Tasks:
+ Build/Refactor a cron job or endpoint to sync ALL Nail It data into your DB:
+
+/GetLocations → locations table
+
+/GetLocationServices (per location) → nailit_services
+
+/GetLocationStaff (per location) → nailit_staff
+
+/GetItemsByDate (per location+service+date) → nailit_slots (cache for X hours)
+
+ Add fields for “last synced” and “valid until” on all synced tables.
+
+2. Booking Flow/AI Logic
+Goals:
+Slot-filling AI (state machine) drives the conversation, step-by-step, never repeating, always summarizing.
+
+Every order is built from local DB data. API is only hit for final booking (and possibly double-check before booking).
+
+No more querying live API for products/services mid-convo.
+
+Tasks:
+ Review and fix slot-filling-orchestrator.ts, booking-state-manager.ts, ai-fresh.ts:
+
+ Ensure slot-filling logic checks the DB only (for services, staff, slots).
+
+ State machine must progress one step at a time: Location → Service(s) → Staff → Time → Name → Phone → Email → Confirm.
+
+ Always summarize previous choices, never repeat previous questions.
+
+ At confirmation, double-check availability with /GetItemsByDate API if needed, then book.
+
+ Remove any LLM prompt that tells the AI to "query the API" directly for services, etc.
+
+ Add error/fallback logic: if anything breaks, escalate to human or present a useful error message.
+
+3. Order/Booking Submission & Payment
+Tasks:
+ Fix/Add logic to call /AddOrder when all fields are filled and customer confirms.
+
+ After booking, extract the paymentLink from the response and send it to the user via WhatsApp.
+
+ On error (e.g., slot just taken), present a clear error, reset slot selection, and re-prompt user.
+
+4. WhatsApp Integration / Webhook Clean-up
+Tasks:
+ Ensure all inbound WhatsApp messages are parsed exactly once, and not duplicated.
+
+ Throttle, dedupe, and persist messages. (If webhooks are received multiple times, handle gracefully.)
+
+ WhatsApp replies must always reflect current state and not repeat.
+
+ Make sure message-to-state mapping is reliable and robust.
+
+5. System Prompt & AI Conversation Quality
+Tasks:
+ Update the system prompt (AI settings in DB):
+
+“You are Nail It Spa Kuwait’s AI assistant. You never repeat yourself, always summarize user choices, always use local DB for available options, and only ask for one missing item at a time. Confirm all details with the user before submitting a booking.”
+
+ Regularly test conversations: Does the AI repeat itself? Does it remember what’s already filled? Does it recover if the user switches context?
+
+6. Error Logging & Monitoring
+Tasks:
+ Add comprehensive logging around all API interactions, slot-filling failures, DB sync errors, and WhatsApp delivery.
+
+ Expose errors in admin dashboard for immediate diagnosis.
+
+7. Final QA/Regression Testing
+Tasks:
+ Simulate multiple full booking flows:
+
+Single service, multiple services
+
+Multiple staff, conflicting time slots
+
+Cancellations, double bookings, payment links
+
+ Test API failures: Does the AI recover, retry, or escalate?
+
+ Test timeouts: If the DB is outdated, does it resync?
+
+🟢 SUMMARY SPRINT CHECKLIST
+CRITICAL:
+
+ All products/services/staff/slots pulled to DB, not looked up live.
+
+ AI/slot-filling only looks at DB (except final order/cancel).
+
+ State machine logic always moves forward, never repeats, always summarizes.
+
+ WhatsApp/webhook logic is de-duped and robust.
+
+ Final booking always calls /AddOrder and returns payment link.
+
+NICE-TO-HAVE:
+
+ Nightly sync/refresh all data from API.
+
+ Slot-availability checks every 15-30min, OR just-in-time before final booking.
+
+ Admin tools to manually trigger API sync.
+
+🏁 Recommended Implementation Order
+DB sync logic and tables.
+
+AI/slot-filling overhaul to only use DB.
+
+WhatsApp integration cleanup.
+
+Order submission/payment.
+
+System prompt and error logic.
+
+Regression and QA.
+
+🛠️ DEV INSTRUCTION FOR THE TEAM/AGENT
+"Rebuild the booking flow to exclusively use the local DB for options, syncing with the Nail It API on a schedule. The AI agent should never look up live services during the conversation—always check the DB. When the customer confirms, double-check slot availability and book via /AddOrder, then send payment link. Log all API and DB errors. Never repeat or re-ask for info. Test the entire flow, including error/failure edge cases, before launch."
+
+This plan will guarantee a working WhatsApp AI order assistant by tomorrow, with no circles, minimal moving parts, and a stable booking flow.

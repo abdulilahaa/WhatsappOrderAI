@@ -3344,6 +3344,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== DATABASE-FIRST NAILIT SYNC ENDPOINTS =====
+  // Critical endpoints per Final Sprint Document requirements
+  
+  const { NailItSyncService } = await import('./nailit-sync-service.js');
+  const nailItSyncService = new NailItSyncService();
+  
+  const { DatabaseFirstAI } = await import('./database-first-ai.js');
+  const databaseFirstAI = new DatabaseFirstAI();
+
+  // CRITICAL: Master sync endpoint - syncs ALL NailIt data to database
+  app.post("/api/nailit/sync-all", async (req, res) => {
+    try {
+      console.log('🔄 STARTING COMPREHENSIVE NAILIT DATA SYNC...');
+      const result = await nailItSyncService.syncAllNailItData();
+      
+      res.json({
+        success: result.success,
+        message: result.success ? 'All NailIt data synced successfully' : 'Sync completed with errors',
+        errors: result.errors,
+        synced: result.synced,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('❌ Sync all data failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Critical sync failure',
+        error: error.message
+      });
+    }
+  });
+
+  // Get sync status for monitoring
+  app.get("/api/nailit/sync-status", async (req, res) => {
+    try {
+      const status = await nailItSyncService.getSyncStatus();
+      res.json({ success: true, ...status });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Force refresh specific data type
+  app.post("/api/nailit/refresh/:dataType", async (req, res) => {
+    try {
+      const { dataType } = req.params;
+      const result = await nailItSyncService.forceRefresh(dataType as any);
+      
+      res.json({
+        success: true,
+        message: `${dataType} data refreshed successfully`,
+        result
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // DATABASE-FIRST AI BOOKING ENDPOINT
+  // This replaces all previous AI systems per final sprint requirements
+  app.post("/api/database-first-ai/process", async (req, res) => {
+    try {
+      const { message, customerId, currentState } = req.body;
+      
+      if (!message || !customerId) {
+        return res.status(400).json({
+          success: false,
+          error: "Message and customer ID are required"
+        });
+      }
+      
+      console.log(`🤖 [Database-First AI] Processing: "${message}" for customer ${customerId}`);
+      
+      const result = await databaseFirstAI.processMessage(message, customerId, currentState);
+      
+      res.json({
+        success: true,
+        ...result
+      });
+    } catch (error: any) {
+      console.error('❌ Database-First AI error:', error);
+      res.status(500).json({
+        success: false,
+        error: "AI processing failed: " + error.message
+      });
+    }
+  });
+
+  // Database access endpoints for AI agent
+  app.get("/api/nailit-db/locations", async (req, res) => {
+    try {
+      const locations = await storage.getNailItLocations();
+      res.json({ success: true, locations });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/nailit-db/services", async (req, res) => {
+    try {
+      const { locationId } = req.query;
+      const services = await storage.getNailItServices(locationId ? parseInt(locationId as string) : undefined);
+      res.json({ success: true, services, count: services.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/nailit-db/staff", async (req, res) => {
+    try {
+      const { locationId } = req.query;
+      const staff = await storage.getNailItStaff(locationId ? parseInt(locationId as string) : undefined);
+      res.json({ success: true, staff, count: staff.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/nailit-db/slots", async (req, res) => {
+    try {
+      const { locationId, serviceId, date } = req.query;
+      const slots = await storage.getNailItSlots(
+        locationId ? parseInt(locationId as string) : undefined,
+        serviceId ? parseInt(serviceId as string) : undefined,
+        date as string
+      );
+      res.json({ success: true, slots, count: slots.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

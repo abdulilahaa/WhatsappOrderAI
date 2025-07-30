@@ -121,6 +121,60 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// CRITICAL: Database-First NailIt API Sync Tables (per Final Sprint)
+export const nailItLocations = pgTable("nailit_locations", {
+  id: serial("id").primaryKey(),
+  locationId: integer("location_id").notNull().unique(), // NailIt API Location ID
+  locationName: text("location_name").notNull(),
+  address: text("address"),
+  phoneNumber: text("phone_number"),
+  workingHours: jsonb("working_hours"), // From API response
+  lastSynced: timestamp("last_synced").notNull().defaultNow(),
+  validUntil: timestamp("valid_until").notNull().defaultNow(),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const nailItServices = pgTable("nailit_services", {
+  id: serial("id").primaryKey(),
+  serviceId: integer("service_id").notNull(), // NailIt API Service/Item ID
+  locationId: integer("location_id").notNull(), // Which location offers this service
+  serviceName: text("service_name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  duration: integer("duration"), // in minutes
+  category: text("category"), // Hair, Nail, Facial, etc.
+  itemTypeId: integer("item_type_id"),
+  groupId: integer("group_id"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastSynced: timestamp("last_synced").notNull().defaultNow(),
+  validUntil: timestamp("valid_until").notNull().defaultNow(),
+});
+
+export const nailItStaff = pgTable("nailit_staff", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").notNull(), // NailIt API Staff ID
+  locationId: integer("location_id").notNull(),
+  staffName: text("staff_name").notNull(),
+  specializations: jsonb("specializations"), // Array of service IDs they can perform
+  workingHours: jsonb("working_hours"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastSynced: timestamp("last_synced").notNull().defaultNow(),
+  validUntil: timestamp("valid_until").notNull().defaultNow(),
+});
+
+export const nailItSlots = pgTable("nailit_slots", {
+  id: serial("id").primaryKey(),
+  locationId: integer("location_id").notNull(),
+  serviceId: integer("service_id").notNull(),
+  staffId: integer("staff_id").notNull(),
+  slotDate: text("slot_date").notNull(), // YYYY-MM-DD
+  timeSlotId: integer("time_slot_id").notNull(), // NailIt time slot ID
+  timeSlotLabel: text("time_slot_label"), // e.g., "10:00 AM - 11:00 AM"
+  isAvailable: boolean("is_available").notNull().default(true),
+  lastSynced: timestamp("last_synced").notNull().defaultNow(),
+  validUntil: timestamp("valid_until").notNull().defaultNow(), // Cache for X hours
+});
+
 // Optimized Service Storage for ReAct Orchestration
 export const servicesRag = pgTable("services_rag", {
   id: serial("id").primaryKey(),
@@ -143,39 +197,15 @@ export const servicesRag = pgTable("services_rag", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const nailItLocations = pgTable("nailit_locations", {
-  id: serial("id").primaryKey(),
-  nailitId: integer("nailit_id").notNull().unique(), // NailIt Location_Id - actual column name
-  locationName: text("location_name").notNull(),
-  address: text("address"),
-  phone: text("phone"),
-  latitude: text("latitude"),
-  longitude: text("longitude"),
-  fromTime: text("from_time"), // "11:00"
-  toTime: text("to_time"), // "20:30"
-  workingDays: text("working_days"),
-  website: text("website"),
-  isActive: boolean("is_active").notNull().default(true),
-  
-  // Sync tracking
-  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export const nailItStaff = pgTable("nailit_staff", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").notNull(), // NailIt Staff ID
-  staffName: text("staff_name").notNull(),
-  nailitLocationId: integer("nailit_location_id").notNull(), // Reference to location
-  extraTime: integer("extra_time").default(0),
-  imageUrl: text("image_url"),
-  staffGroups: jsonb("staff_groups"), // Services they can perform - JSONB for proper serialization
-  isActive: boolean("is_active").notNull().default(true),
-  
-  // Sync tracking
-  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+// Export types for new NailIt sync tables
+export type NailItLocation = typeof nailItLocations.$inferSelect;
+export type InsertNailItLocation = typeof nailItLocations.$inferInsert;
+export type NailItService = typeof nailItServices.$inferSelect;
+export type InsertNailItService = typeof nailItServices.$inferInsert;
+export type NailItStaff = typeof nailItStaff.$inferSelect;
+export type InsertNailItStaff = typeof nailItStaff.$inferInsert;
+export type NailItSlot = typeof nailItSlots.$inferSelect;
+export type InsertNailItSlot = typeof nailItSlots.$inferInsert;
 
 export const nailItPaymentTypes = pgTable("nailit_payment_types", {
   id: serial("id").primaryKey(),

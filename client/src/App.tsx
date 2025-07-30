@@ -21,6 +21,7 @@ import WhatsAppSimulator from "@/pages/whatsapp-simulator";
 import SystemStatus from "@/pages/system-status";
 import ComprehensiveTest from "@/pages/comprehensive-test";
 import LogsMonitoring from "@/pages/logs-monitoring";
+import SyncDashboard from "@/pages/sync-dashboard";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -51,6 +52,7 @@ function Router() {
         <Route path="/system-status" component={SystemStatus} />
         <Route path="/comprehensive-test" component={ComprehensiveTest} />
         <Route path="/logs-monitoring" component={LogsMonitoring} />
+        <Route path="/sync-dashboard" component={SyncDashboard} />
         <Route component={NotFound} />
       </Switch>
       

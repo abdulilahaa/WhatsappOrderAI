@@ -12,6 +12,7 @@ const navigation = [
   { name: "Staff Availability", href: "/staff-availability", icon: Users },
   { name: "Service Analytics", href: "/service-analytics", icon: BarChart3 },
   { name: "Conversations", href: "/conversations", icon: MessageCircle },
+  { name: "Database Sync", href: "/sync-dashboard", icon: Database },
   { name: "WhatsApp Simulator", href: "/whatsapp-simulator", icon: TestTube },
   { name: "System Status", href: "/system-status", icon: Activity },
   { name: "Integration Hub", href: "/integration-dashboard", icon: Activity },

@@ -1,12 +1,15 @@
 import { 
   products, customers, orders, conversations, messages, freshAISettings, whatsappSettings, appointments, servicesRag,
+  nailItLocations, nailItServices, nailItStaff, nailItSlots,
   type Product, type InsertProduct, type Customer, type InsertCustomer, 
   type Order, type InsertOrder, type Conversation, type InsertConversation,
   type Message, type InsertMessage, type FreshAISettings, type InsertFreshAISettings,
-  type WhatsAppSettings, type InsertWhatsAppSettings, type Appointment, type InsertAppointment
+  type WhatsAppSettings, type InsertWhatsAppSettings, type Appointment, type InsertAppointment,
+  type NailItLocation, type InsertNailItLocation, type NailItService, type InsertNailItService,
+  type NailItStaff, type InsertNailItStaff, type NailItSlot, type InsertNailItSlot
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Products
@@ -73,6 +76,18 @@ export interface IStorage {
 
   // Service RAG Storage
   getCachedServices(locationId?: number, category?: string): Promise<any[]>;
+
+  // NailIt Sync Data Access (Database-First Architecture)
+  getNailItLocations(): Promise<NailItLocation[]>;
+  getNailItServices(locationId?: number): Promise<NailItService[]>;
+  getNailItStaff(locationId?: number): Promise<NailItStaff[]>;
+  getNailItSlots(locationId?: number, serviceId?: number, date?: string): Promise<NailItSlot[]>;
+  
+  // Sync data management
+  insertNailItLocation(location: InsertNailItLocation): Promise<NailItLocation>;
+  insertNailItService(service: InsertNailItService): Promise<NailItService>;
+  insertNailItStaff(staff: InsertNailItStaff): Promise<NailItStaff>;
+  insertNailItSlot(slot: InsertNailItSlot): Promise<NailItSlot>;
   upsertService(serviceData: any): Promise<void>;
   searchServicesByKeywords(keywords: string[], locationId?: number): Promise<any[]>;
   clearCachedServices(locationId?: number): Promise<void>;
@@ -647,6 +662,116 @@ export class DatabaseStorage implements IStorage {
       }
     } catch (error) {
       console.error('Error clearing cached services:', error);
+      throw error;
+    }
+  }
+
+  // NailIt Sync Data Access Methods (Database-First Architecture)
+  async getNailItLocations(): Promise<any[]> {
+    try {
+      const locations = await db.select().from(nailItLocations).where(eq(nailItLocations.isActive, true));
+      return locations.map(loc => ({
+        locationId: loc.nailItId,
+        locationName: loc.name,
+        address: loc.address,
+        phoneNumber: loc.phone,
+        workingHours: loc.businessHours
+      }));
+    } catch (error) {
+      console.error('Error fetching NailIt locations:', error);
+      return [];
+    }
+  }
+
+  async getNailItServices(locationId?: number): Promise<any[]> {
+    try {
+      let query = db.select().from(nailItServices).where(eq(nailItServices.isEnabled, true));
+      
+      if (locationId) {
+        // Check if location ID is in the location_ids array
+        query = query.where(sql`${locationId} = ANY(${nailItServices.locationIds})`);
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Error fetching NailIt services:', error);
+      return [];
+    }
+  }
+
+  async getNailItStaff(locationId?: number): Promise<any[]> {
+    try {
+      let query = db.select().from(nailItStaff);
+      
+      if (locationId) {
+        query = query.where(eq(nailItStaff.nailItLocationId, locationId));
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Error fetching NailIt staff:', error);
+      return [];
+    }
+  }
+
+  async getNailItSlots(locationId?: number, serviceId?: number, date?: string): Promise<NailItSlot[]> {
+    try {
+      let query = db.select().from(nailItSlots).where(eq(nailItSlots.isAvailable, true));
+      
+      if (locationId) {
+        query = query.where(eq(nailItSlots.locationId, locationId));
+      }
+      if (serviceId) {
+        query = query.where(eq(nailItSlots.serviceId, serviceId));
+      }
+      if (date) {
+        query = query.where(eq(nailItSlots.slotDate, date));
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Error fetching NailIt slots:', error);
+      return [];
+    }
+  }
+
+  // Sync data management methods
+  async insertNailItLocation(location: InsertNailItLocation): Promise<NailItLocation> {
+    try {
+      const [inserted] = await db.insert(nailItLocations).values(location).returning();
+      return inserted;
+    } catch (error) {
+      console.error('Error inserting NailIt location:', error);
+      throw error;
+    }
+  }
+
+  async insertNailItService(service: InsertNailItService): Promise<NailItService> {
+    try {
+      const [inserted] = await db.insert(nailItServices).values(service).returning();
+      return inserted;
+    } catch (error) {
+      console.error('Error inserting NailIt service:', error);
+      throw error;
+    }
+  }
+
+  async insertNailItStaff(staff: InsertNailItStaff): Promise<NailItStaff> {
+    try {
+      const [inserted] = await db.insert(nailItStaff).values(staff).returning();
+      return inserted;
+    } catch (error) {
+      console.error('Error inserting NailIt staff:', error);
+      throw error;
+    }
+  }
+
+  async insertNailItSlot(slot: InsertNailItSlot): Promise<NailItSlot> {
+    try {
+      const [inserted] = await db.insert(nailItSlots).values(slot).returning();
+      return inserted;
+    } catch (error) {
+      console.error('Error inserting NailIt slot:', error);
       throw error;
     }
   }
