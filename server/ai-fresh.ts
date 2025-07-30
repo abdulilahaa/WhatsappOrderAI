@@ -304,30 +304,66 @@ Customer message: "${customerMessage}"`;
         const { SimpleServiceCache } = await import('./simple-cache.js');
         const cache = new SimpleServiceCache();
         
-        // PERMANENT FIX #2: Enhanced fuzzy matching with comprehensive keyword patterns
+        // MISSION FIX: Advanced fuzzy matching with Levenshtein distance and synonym support
         const locationId = state.collectedData.locationId || 1; // Default to Al-Plaza Mall
         let foundServices = [];
         
-        console.log(`🔍 FUZZY MATCHING: Analyzing user input "${customerMessage}" for service keywords`);
+        console.log(`🔍 ADVANCED FUZZY MATCHING: Analyzing user input "${customerMessage}" for service keywords`);
         
-        // Enhanced keyword patterns for better matching
+        // Enhanced keyword patterns with synonyms and common misspellings
         const servicePatterns = {
-          nail: ['nail', 'manicure', 'pedicure', 'french', 'polish', 'gel', 'acrylic', 'chrome'],
-          hair: ['hair', 'treatment', 'cut', 'color', 'style', 'wash', 'blow', 'keratin'],
-          facial: ['facial', 'face', 'skin', 'cleansing', 'hydra', 'anti-aging', 'peeling'],
-          body: ['massage', 'body', 'scrub', 'wrap', 'relaxation', 'therapy']
+          nail: ['nail', 'manicure', 'pedicure', 'french', 'polish', 'gel', 'acrylic', 'chrome', 'mani', 'pedi', 'mani-pedi', 'shellac', 'dipping'],
+          hair: ['hair', 'treatment', 'cut', 'color', 'colour', 'style', 'wash', 'blow', 'keratin', 'straightening', 'curling', 'highlights', 'dye'],
+          facial: ['facial', 'face', 'skin', 'cleansing', 'hydra', 'hydrafacial', 'anti-aging', 'peeling', 'exfoliation', 'moisturizing'],
+          body: ['massage', 'body', 'scrub', 'wrap', 'relaxation', 'therapy', 'aromatherapy', 'deep tissue', 'swedish']
         };
         
-        // Search with enhanced fuzzy matching
+        // Levenshtein distance function for fuzzy matching
+        const levenshteinDistance = (str1: string, str2: string): number => {
+          const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+          for (let i = 0; i <= str1.length; i += 1) matrix[0][i] = i;
+          for (let j = 0; j <= str2.length; j += 1) matrix[j][0] = j;
+          for (let j = 1; j <= str2.length; j += 1) {
+            for (let i = 1; i <= str1.length; i += 1) {
+              const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+              matrix[j][i] = Math.min(
+                matrix[j][i - 1] + 1, // deletion
+                matrix[j - 1][i] + 1, // insertion
+                matrix[j - 1][i - 1] + indicator, // substitution
+              );
+            }
+          }
+          return matrix[str2.length][str1.length];
+        };
+        
+        // Search with advanced fuzzy matching including Levenshtein distance
         for (const [category, keywords] of Object.entries(servicePatterns)) {
-          const matchedKeywords = keywords.filter(keyword => lowerMessage.includes(keyword));
-          if (matchedKeywords.length > 0) {
+          // Exact keyword matching
+          const exactMatches = keywords.filter(keyword => lowerMessage.includes(keyword));
+          
+          // Fuzzy matching with Levenshtein distance for partial matches
+          const fuzzyMatches = keywords.filter(keyword => {
+            const words = lowerMessage.split(/\s+/);
+            return words.some(word => {
+              const distance = levenshteinDistance(word, keyword);
+              return distance <= 2 && word.length > 3; // Allow 2 character differences for words longer than 3
+            });
+          });
+          
+          const allMatches = Array.from(new Set([...exactMatches, ...fuzzyMatches])); // Remove duplicates
+          
+          if (allMatches.length > 0) {
             const services = await cache.searchServices(category, locationId);
             if (services.length > 0) {
-              foundServices.push(...services.slice(0, 1)); // Take first matching service
-              console.log(`✅ FUZZY MATCH: User input "${customerMessage}" → Keywords: [${matchedKeywords.join(', ')}] → Category: ${category} → Found: ${services[0]?.name} (ID: ${services[0]?.serviceId})`);
+              // If multiple services match, take the first one but log all options
+              foundServices.push(services[0]);
+              console.log(`✅ ADVANCED FUZZY MATCH: User input "${customerMessage}" → Keywords: [${allMatches.join(', ')}] → Category: ${category} → Found: ${services[0]?.name} (ID: ${services[0]?.serviceId})`);
+              
+              if (services.length > 1) {
+                console.log(`🔍 Other matching ${category} services: ${services.slice(1, 4).map(s => s.name).join(', ')}${services.length > 4 ? '...' : ''}`);
+              }
             } else {
-              console.log(`❌ FUZZY MATCH: Keywords [${matchedKeywords.join(', ')}] matched category ${category} but no services found for location ${locationId}`);
+              console.log(`❌ FUZZY MATCH: Keywords [${allMatches.join(', ')}] matched category ${category} but no services found for location ${locationId}`);
             }
           }
         }
@@ -412,27 +448,26 @@ Customer message: "${customerMessage}"`;
   }
 
   private hasAllBookingInfo(state: ConversationState): boolean {
-    // PERMANENT FIX: Implement complete validation as required by urgent fixes
-    const hasServices = state.collectedData.selectedServices.length > 0;
-    const hasLocation = !!state.collectedData.locationId;
-    const hasName = !!state.collectedData.customerName && state.collectedData.customerName !== 'Customer'; // No hardcoded names
-    const hasEmail = !!state.collectedData.customerEmail && state.collectedData.customerEmail !== 'customer@email.com'; // No hardcoded emails
-    const hasDate = !!state.collectedData.appointmentDate;
+    // MISSION FIX: Comprehensive slot-filling validation with detailed feedback
+    const validation = {
+      hasServices: state.collectedData.selectedServices.length > 0,
+      hasLocation: !!state.collectedData.locationId,
+      hasName: !!state.collectedData.customerName && state.collectedData.customerName !== 'Customer' && state.collectedData.customerName.length > 1,
+      hasEmail: !!state.collectedData.customerEmail && state.collectedData.customerEmail !== 'customer@email.com' && state.collectedData.customerEmail.includes('@'),
+      hasDate: !!state.collectedData.appointmentDate && state.collectedData.appointmentDate !== '31-07-2025',
+      hasTime: !!state.collectedData.preferredTime,
+    };
     
-    const hasRequired = hasServices && hasLocation && hasName && hasEmail && hasDate;
+    const missing = Object.entries(validation)
+      .filter(([_, isValid]) => !isValid)
+      .map(([field, _]) => field.replace('has', '').toLowerCase());
     
-    // ENHANCED LOGGING: Show exactly what's missing (Fix #1 - proper error handling)
-    if (!hasRequired) {
-      const missing = [];
-      if (!hasServices) missing.push('services');
-      if (!hasLocation) missing.push('location');
-      if (!hasName) missing.push('customer name');
-      if (!hasEmail) missing.push('email address');
-      if (!hasDate) missing.push('appointment date');
-      console.log(`❌ Missing required info: ${missing.join(', ')}`);
-      console.log(`📋 Current state: Services(${state.collectedData.selectedServices.length}), Location(${state.collectedData.locationId}), Name(${state.collectedData.customerName}), Email(${state.collectedData.customerEmail}), Date(${state.collectedData.appointmentDate})`);
+    if (missing.length > 0) {
+      console.log(`❌ SLOT-FILLING: Missing required info: ${missing.join(', ')}`);
+      console.log(`📋 Current booking data completion: ${Object.values(validation).filter(Boolean).length}/${Object.keys(validation).length} fields`);
+      console.log(`📋 Current state: Services(${state.collectedData.selectedServices.length}), Location(${state.collectedData.locationId || 'undefined'}), Name(${state.collectedData.customerName || 'undefined'}), Email(${state.collectedData.customerEmail || 'undefined'}), Date(${state.collectedData.appointmentDate || 'undefined'}), Time(${state.collectedData.preferredTime || 'undefined'})`);
     } else {
-      console.log(`✅ All booking info collected:
+      console.log(`✅ SLOT-FILLING COMPLETE: All booking info collected:
         - Services: ${state.collectedData.selectedServices.map(s => s.itemName).join(', ')}
         - Location: ${state.collectedData.locationName} (ID: ${state.collectedData.locationId})
         - Name: ${state.collectedData.customerName}
@@ -441,7 +476,8 @@ Customer message: "${customerMessage}"`;
         - Time: ${state.collectedData.preferredTime}`);
     }
     
-    return hasRequired;
+    const isComplete = Object.values(validation).every(Boolean);
+    return isComplete;
   }
 
   private async createRealBooking(state: ConversationState, customer: Customer, aiMessage: string): Promise<AIResponse> {

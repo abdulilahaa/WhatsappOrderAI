@@ -3128,7 +3128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const stats = await storage.getDashboardStats();
           logs.push(`✅ Dashboard stats: ${JSON.stringify(stats)}`);
           
-          const customers = await storage.getAllCustomers();
+          const customers = await storage.getCustomers();
           logs.push(`✅ Customer query: ${customers.length} customers`);
           
           const conversations = await storage.getActiveConversations();

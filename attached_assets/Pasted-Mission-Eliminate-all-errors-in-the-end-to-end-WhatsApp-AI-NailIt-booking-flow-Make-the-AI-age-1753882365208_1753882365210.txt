@@ -1,0 +1,131 @@
+Mission:
+Eliminate all errors in the end-to-end WhatsApp → AI → NailIt booking flow.
+Make the AI agent human-like, error-tolerant, and fully transparent for both users and admins.
+Every fix must be connected to the actual frontend/admin UI and WhatsApp webhook!
+
+1. Database Schema & Serialization
+ Review all database table definitions (especially for messages, booking_items, services, conversation_history).
+
+Change columns currently set as INTEGER, INT[], or VARCHAR for structured data to JSONB or at least TEXT.
+
+Migrate existing tables and update ORM models accordingly.
+
+ In all backend code (Node/Express/ORM):
+
+Always use JSON.stringify() before saving objects/arrays to DB columns of type JSONB/TEXT.
+
+Always use JSON.parse() after reading from DB to convert to JS objects/arrays.
+
+Never cast objects/arrays to INT or use parseInt on JSON fields.
+
+ Add explicit error handling/logging for all DB read/write operations, especially when dealing with JSON fields.
+
+2. AI Agent Slot-Filling & Conversation Management
+ Implement proper slot-filling logic for every conversation:
+
+Track conversation state/session for each user.
+
+For every booking, make sure all of the following are present before making a booking request:
+
+Service name(s) (with correct mapping to NailIt ID)
+
+Location/branch
+
+Date and time
+
+Customer name
+
+Customer contact (email/phone)
+
+ If any info is missing, ask user a targeted follow-up question.
+
+E.g. “Which branch would you like?” if location missing.
+
+E.g. “Can you tell me your name?” if name missing.
+
+E.g. “What time do you prefer?” if date/time missing.
+
+ Before confirming any booking:
+
+Recap details: “To confirm, you want a French Manicure at Plaza Mall on Thursday at 2 PM. Is this correct?”
+
+Only proceed if user confirms.
+
+ Handle ambiguous service names and clarify with user.
+
+If “gel” could be “Gel Manicure” or “Gel Polish”, show both options.
+
+3. Service Mapping & Fuzzy Matching
+ Improve service name mapping to NailIt catalog:
+
+Use fuzzy matching (e.g., Levenshtein distance), partial matching, and synonym lists.
+
+Support spelling errors, common synonyms (e.g. “mani-pedi” → “Manicure and Pedicure”).
+
+If multiple services match, present a list for user to choose.
+
+4. Booking API Logic & Error Handling
+ Never call the NailIt booking API until all required data is present and valid.
+
+Add strict validation before booking.
+
+ Surface all errors transparently:
+
+Show real backend error in admin logs (not just generic “failed”).
+
+To users: give clear, simple messages (“No staff available for your time. Try another slot.”, “Service not found.”, etc).
+
+ Log both successful and failed bookings with full payload/response, and expose these in the admin dashboard.
+
+5. WhatsApp Webhook & Integration Validation
+ Verify end-to-end WhatsApp integration:
+
+Confirm webhook is set correctly and receiving all message events.
+
+Log every incoming message, every outgoing response, and every booking attempt.
+
+If there are connectivity or auth errors, surface these in the logs and admin dashboard.
+
+ Test two-way flow:
+
+Start a real conversation on WhatsApp and trace it all the way to booking, and back.
+
+ Provide clear admin UI feedback if WhatsApp is disconnected or if there’s an API/auth issue.
+
+6. Admin Dashboard/Frontend
+ Display all real errors, not placeholders, in logs and booking status.
+
+ Show all active conversations, booking attempts, and their current state (including what’s missing for the AI to complete a booking).
+
+ Allow admin to replay or simulate any conversation for debugging.
+
+7. Documentation/Communication
+ After all fixes:
+
+List all files, models, and migrations changed.
+
+Show a before/after example of a failed booking vs. a successful booking.
+
+Document which error messages users/admins will now see.
+
+Provide an admin dashboard screenshot showing new log/error details.
+
+8. Extra for Human-Like Chat
+ Upgrade AI prompts to be more conversational, empathetic, and clarify next steps.
+
+Example: “Of course! Could you please tell me which date and time work best for you?”
+
+If unsure, AI should recap what's needed next, not just apologize or error.
+
+9. Proof/Validation
+ Test these scenarios end-to-end and save the logs:
+
+User tries to book with missing info (AI should ask for what’s missing).
+
+User makes a typo in service name (AI should offer best matches).
+
+Booking fails due to staff unavailability or API issue (user gets clear reason).
+
+Admin can see all steps and real error/debug logs in dashboard.
+
+If you encounter further issues, log the exact error and traceback for quick diagnosis. Every fix must be reflected in the admin dashboard and logs.

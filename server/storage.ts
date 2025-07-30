@@ -285,23 +285,58 @@ export class DatabaseStorage implements IStorage {
 
   async createConversation(conversation: InsertConversation): Promise<Conversation> {
     try {
-      const [newConversation] = await db.insert(conversations).values(conversation).returning();
-      console.log(`✅ Conversation created with JSONB serialization: ID ${newConversation.id}`);
+      // MISSION FIX: Ensure proper JSON serialization for JSONB fields
+      const conversationData = {
+        ...conversation,
+        stateData: conversation.stateData ? conversation.stateData : {},
+        collectedData: conversation.collectedData ? conversation.collectedData : {}
+      };
+      
+      const [newConversation] = await db.insert(conversations).values(conversationData).returning();
+      console.log(`✅ Conversation created with proper JSONB serialization: ID ${newConversation.id}`);
+      console.log(`✅ StateData: ${JSON.stringify(newConversation.stateData)}`);
+      console.log(`✅ CollectedData: ${JSON.stringify(newConversation.collectedData)}`);
       return newConversation;
     } catch (error: any) {
       console.error('❌ Database error creating conversation:', error.message);
-      console.error('❌ Full error details:', error);
+      console.error('❌ Full error details:', JSON.stringify(error, null, 2));
+      console.error('❌ Input data:', JSON.stringify(conversation, null, 2));
       throw new Error(`Failed to create conversation with proper error handling: ${error.message}`);
     }
   }
 
   async updateConversation(id: number, conversation: Partial<InsertConversation>): Promise<Conversation | undefined> {
-    const [updatedConversation] = await db
-      .update(conversations)
-      .set(conversation)
-      .where(eq(conversations.id, id))
-      .returning();
-    return updatedConversation || undefined;
+    try {
+      // MISSION FIX: Proper JSON serialization and comprehensive error handling
+      const updateData = { ...conversation };
+      
+      // Ensure JSONB fields are properly handled
+      if (updateData.stateData !== undefined) {
+        console.log(`🔄 Updating stateData: ${JSON.stringify(updateData.stateData)}`);
+      }
+      if (updateData.collectedData !== undefined) {
+        console.log(`🔄 Updating collectedData: ${JSON.stringify(updateData.collectedData)}`);
+      }
+      
+      const [updatedConversation] = await db
+        .update(conversations)
+        .set(updateData)
+        .where(eq(conversations.id, id))
+        .returning();
+        
+      if (!updatedConversation) {
+        console.error(`❌ Conversation ID ${id} not found for update`);
+        return undefined;
+      }
+      
+      console.log(`✅ Conversation ${id} updated successfully`);
+      return updatedConversation;
+    } catch (error: any) {
+      console.error(`❌ Database error updating conversation ${id}:`, error.message);
+      console.error('❌ Full error details:', JSON.stringify(error, null, 2));
+      console.error('❌ Update data:', JSON.stringify(conversation, null, 2));
+      throw new Error(`Failed to update conversation ${id}: ${error.message}`);
+    }
   }
 
   // Messages

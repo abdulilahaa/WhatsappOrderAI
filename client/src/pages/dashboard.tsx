@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import StatsCard from "@/components/stats-card";
 import ProductCard from "@/components/product-card";
 import ConversationThread from "@/components/conversation-thread";
-import { Database, CheckCircle, Clock } from "lucide-react";
+import { Database, CheckCircle, Clock, AlertTriangle, XCircle, RefreshCw } from "lucide-react";
 import type { DashboardStats, ConversationWithCustomer } from "@/lib/types";
 import type { Product } from "@shared/schema";
 
@@ -30,6 +31,28 @@ export default function Dashboard({ onAddProduct }: DashboardProps) {
 
   const { data: aiSettings } = useQuery({
     queryKey: ["/api/fresh-ai-settings"],
+  });
+
+  // MISSION FIX: Add real-time system health monitoring for comprehensive error visibility
+  const { data: systemHealth, isLoading: healthLoading } = useQuery({
+    queryKey: ["/api/system/health"],
+    refetchInterval: 10000, // Check every 10 seconds
+    staleTime: 0,
+    retry: false, // Don't retry failed requests to avoid spam
+  });
+
+  const { data: bookingErrors, isLoading: errorsLoading } = useQuery({
+    queryKey: ["/api/system/booking-errors"],
+    refetchInterval: 15000, // Check every 15 seconds
+    staleTime: 0,
+    retry: false,
+  });
+
+  const { data: nailItStatus, isLoading: nailItLoading } = useQuery({
+    queryKey: ["/api/nailit/health"],
+    refetchInterval: 20000, // Check every 20 seconds
+    staleTime: 0,
+    retry: false,
   });
 
   const featuredProducts = products?.slice(0, 6) || [];

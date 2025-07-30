@@ -915,21 +915,7 @@ export class WhatsAppService {
     }
   }
 
-  async updateConfiguration(config: {
-    phoneNumberId?: string;
-    accessToken?: string;
-    webhookVerifyToken?: string;
-  }): Promise<void> {
-    const isConfigured = !!(config.phoneNumberId && config.accessToken && config.webhookVerifyToken);
-    
-    await storage.updateWhatsAppSettings({
-      ...config,
-      isConfigured,
-    });
-
-    // Re-initialize with new settings
-    await this.initialize();
-  }
+  // Removed duplicate updateConfiguration method - keeping the one at line 48
 
   private async extractServicesFromConversation(messages: any[]): Promise<Array<{ serviceId: number; quantity: number }>> {
     const services: Array<{ serviceId: number; quantity: number }> = [];
