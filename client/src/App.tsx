@@ -19,6 +19,7 @@ import AIAgentSettings from "@/pages/ai-agent-settings";
 import LargeOrderTest from "@/pages/large-order-test";
 import WhatsAppSimulator from "@/pages/whatsapp-simulator";
 import SystemStatus from "@/pages/system-status";
+import ComprehensiveTest from "@/pages/comprehensive-test";
 
 function Router() {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -47,6 +48,7 @@ function Router() {
         <Route path="/large-order-test" component={LargeOrderTest} />
         <Route path="/whatsapp-simulator" component={WhatsAppSimulator} />
         <Route path="/system-status" component={SystemStatus} />
+        <Route path="/comprehensive-test" component={ComprehensiveTest} />
         <Route component={NotFound} />
       </Switch>
       

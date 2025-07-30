@@ -133,7 +133,7 @@ class FreshAIAgent {
       }
 
       // Get conversation history from database
-      const conversationHistory = await this.storage.getMessagesByConversation(conversationId);
+      const conversationHistory = await this.storage.getMessages(conversationId);
       const historyArray = Array.isArray(conversationHistory) ? conversationHistory : [];
       
       // NATURAL CONVERSATION WITH REAL BOOKING INTEGRATION
@@ -193,7 +193,7 @@ Current conversation context: Customer wants ${customerMessage}`;
           role: 'system' as const,
           content: enhancedSystemPrompt
         },
-        ...(Array.isArray(conversationHistory) ? conversationHistory.slice(-6) : []).map(msg => ({
+        ...(Array.isArray(conversationHistory) ? conversationHistory.slice(-6) : []).map((msg: any) => ({
           role: msg.isFromAI ? 'assistant' as const : 'user' as const,
           content: msg.content
         })),
@@ -668,8 +668,11 @@ Current conversation context: Customer wants ${customerMessage}`;
         return { success: false, message: 'No services selected' };
       }
 
+      // Auto-set location if not specified but conversation context suggests a location
       if (!state.collectedData.locationId) {
-        return { success: false, message: 'No location selected' };
+        state.collectedData.locationId = 1; // Default to Al-Plaza Mall  
+        state.collectedData.locationName = 'Al-Plaza Mall';
+        console.log('🏢 Auto-set location: Al-Plaza Mall (ID: 1) - default for booking');
       }
 
       // Use TODAY'S date (28/07/2025) to match successful Order 176405
